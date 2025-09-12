@@ -20,47 +20,96 @@ export default function AILandingScreen() {
   const [rememberLocation, setRememberLocation] = useState<boolean>(false);
   const [lastDraft, setLastDraft] = useState<null | { mode: 'parts' | 'tow' | 'mechanic'; step: number; summary: string }>(null);
   const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Register push token for user role on AI landing
-    (async () => {
-      try {
-        await registerPushToken({ backendUrl: 'http://localhost:4000', role: 'user', userId: 'user-demo-1' });
-      } catch {}
-    })();
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem('remember_location');
-        setRememberLocation(saved === '1');
-        const draft = await AsyncStorage.getItem('ai_last_draft');
-        if (draft) {
-          setLastDraft(JSON.parse(draft));
-        }
-      } catch {}
-    })();
+    fetchRecentRequests();
   }, []);
 
-  // Fetch recent requests from backend (for სწრაფი დაბრუნება შეთავაზებებზე)
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`${API_URL}/requests`);
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data)) {
-          setRequests(data);
-        }
-      } catch {
-      } finally {
-        if (!cancelled) setLoading(false);
+  const fetchRecentRequests = async () => {
+    try {
+      console.log('[API] GET /requests (recent)');
+      const response = await fetch(`${API_URL}/requests`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[API] recent requests received:', data.length);
+        
+        // Take only the first 4 requests for recent section
+        const recentRequests = data.slice(0, 4).map((req: any) => ({
+          id: String(req.id),
+          partName: req.partName || 'ნაწილის მოძიება',
+          vehicle: {
+            make: req.vehicle?.make || '',
+            model: req.vehicle?.model || '',
+            year: req.vehicle?.year || '',
+          },
+          status: req.status === 'completed' ? 'დასრულებული' : 'აქტიური',
+          createdAt: req.createdAt,
+          offers: req.offersCount || 0,
+        }));
+        
+        setRequests(recentRequests);
+      } else {
+        console.log('[API] GET /requests failed:', response.status);
+        // Fallback to mock data if API fails
+        setRequests(getMockRecentRequests());
       }
-    };
-    const iv = setInterval(load, 5000);
-    load();
-    return () => { cancelled = true; clearInterval(iv); };
-  }, []);
+    } catch (error) {
+      console.log('[API] GET /requests error:', error);
+      // Fallback to mock data if API fails
+      setRequests(getMockRecentRequests());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getMockRecentRequests = () => [
+    {
+      id: '1',
+      partName: 'ზეთის ფილტრი',
+      vehicle: { make: 'BMW', model: '320i', year: '2018' },
+      status: 'აქტიური',
+      createdAt: '2024-01-15T10:30:00Z',
+      offers: 3
+    },
+    {
+      id: '2', 
+      partName: 'ბრეკის ხუნდები',
+      vehicle: { make: 'Mercedes', model: 'C200', year: '2020' },
+      status: 'აქტიური',
+      createdAt: '2024-01-15T10:18:00Z',
+      offers: 2
+    },
+    {
+      id: '3',
+      partName: 'ფარები',
+      vehicle: { make: 'Toyota', model: 'Camry', year: '2019' },
+      status: 'აქტიური', 
+      createdAt: '2024-01-15T10:05:00Z',
+      offers: 4
+    },
+    {
+      id: '4',
+      partName: 'ძრავის ზეთი',
+      vehicle: { make: 'Audi', model: 'A4', year: '2021' },
+      status: 'აქტიური',
+      createdAt: '2024-01-15T09:30:00Z',
+      offers: 1
+    }
+  ];
+
+  const formatTimeAgo = (dateString: string): string => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+
+    if (diffInMinutes < 1) return 'ახლა';
+    if (diffInMinutes < 60) return `${diffInMinutes} წთ წინ`;
+    if (diffInHours < 24) return `${diffInHours} სთ წინ`;
+    return `${Math.floor(diffInHours / 24)} დღე წინ`;
+  };
 
   const nearbyCounts = useMemo(() => ({ parts: 5, tow: 3, mechanic: 4 }), []);
   const priceRanges = useMemo(() => ({ parts: '₾50–₾120', tow: '₾60–₾90', mechanic: '₾80–₾200' }), []);
@@ -169,29 +218,63 @@ export default function AILandingScreen() {
 
         {/* Recent Requests from backend */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>ბოლო მოთხოვნები</Text>
-          {loading && <ActivityIndicator size="small" color="#6B7280" />}
+          <Text style={styles.sectionTitle}>ჩემი მოთხოვნილი ნაწილები</Text>
+          <Pressable onPress={() => router.push('/all-requests')} style={styles.viewAllBtn}>
+            <Text style={styles.viewAllText}>ყველა</Text>
+            <FontAwesome name="chevron-right" size={12} color="#6B7280" />
+          </Pressable>
         </View>
-        {requests.length === 0 ? (
-          <RNView style={styles.emptyCard}> 
-            <Text style={styles.emptyTitle}>მოთხოვნები ჯერ არაა</Text>
-            <Text style={styles.emptyDesc}>დააჭირე „ახალი მოთხოვნა“-ს დასაწყებად</Text>
-          </RNView>
-        ) : (
-          <RNView style={{ gap: 10 }}>
-            {requests.slice(0, 6).map((r) => (
+        
+        {/* Mock data for recent requests */}
+        <RNView style={{ gap: 12 }}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#10B981" />
+          ) : requests.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <FontAwesome name="search" size={24} color="#6B7280" />
+              <Text style={styles.emptyTitle}>მოთხოვნები არ მოიძებნა</Text>
+              <Text style={styles.emptyDesc}>გახსენით ახალი მოთხოვნა ან გამოიყენეთ ნაწილების ძებნა</Text>
+            </View>
+          ) : (
+            requests.map((r) => (
               <RNView key={r.id} style={styles.reqCard}>
-                <RNView style={{ flex: 1, gap: 4 }}>
-                  <Text style={styles.reqTitle} numberOfLines={1}>{r.partName || 'მოთხოვნა'}</Text>
-                  <Text style={styles.reqMeta} numberOfLines={1}>{r?.vehicle?.make} {r?.vehicle?.model} • {r?.vehicle?.year}</Text>
+                <RNView style={styles.reqCardHeader}>
+                  <RNView style={styles.reqCardIcon}>
+                    <FontAwesome name="search" size={14} color="#6B7280" />
+                  </RNView>
+                  <RNView style={{ flex: 1, gap: 4 }}>
+                    <Text style={styles.reqTitle} numberOfLines={1}>
+                      {r.partName}
+                    </Text>
+                    <Text style={styles.reqMeta} numberOfLines={1}>
+                      {r.vehicle.make} {r.vehicle.model} • {r.vehicle.year}
+                    </Text>
+                  </RNView>
+                  <RNView style={styles.reqStatusBadge}>
+                    <FontAwesome name="clock-o" size={10} color="#6B7280" />
+                    <Text style={styles.reqStatusText}>{r.status}</Text>
+                  </RNView>
                 </RNView>
-                <Pressable onPress={() => openOffersForRequest(r.id)} style={styles.reqBtn} android_ripple={{ color: '#00000010' }}>
-                  <Text style={styles.reqBtnText}>შეთავაზებები</Text>
-                </Pressable>
+                <RNView style={styles.reqCardFooter}>
+                  <RNView style={styles.reqCardStats}>
+                    <RNView style={styles.reqStatItem}>
+                      <FontAwesome name="tag" size={10} color="#6B7280" />
+                      <Text style={styles.reqStatText}>{r.offers} შეთავაზება</Text>
+                    </RNView>
+                    <RNView style={styles.reqStatItem}>
+                      <FontAwesome name="clock-o" size={10} color="#6B7280" />
+                      <Text style={styles.reqStatText}>{formatTimeAgo(r.createdAt)}</Text>
+                    </RNView>
+                  </RNView>
+                  <Pressable onPress={() => openOffersForRequest(r.id)} style={styles.reqBtn} android_ripple={{ color: '#00000010' }}>
+                    <Text style={styles.reqBtnText}>მოძიებული ნაწილები</Text>
+                    <FontAwesome name="chevron-right" size={10} color="#FFFFFF" />
+                  </Pressable>
+                </RNView>
               </RNView>
-            ))}
-          </RNView>
-        )}
+            ))
+          )}
+        </RNView>
 
         <View style={styles.toggleCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
@@ -305,13 +388,75 @@ const styles = StyleSheet.create({
   subGrid: { flexDirection: 'row', gap: 10 },
   sectionHeader: { marginTop: 6, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  reqCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
-  reqTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#111827' },
+  reqCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    padding: 14,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  reqCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reqCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reqTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
   reqMeta: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  reqBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: '#111827' },
+  reqStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  reqStatusText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 11, color: '#10B981' },
+  reqCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reqCardStats: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reqStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  reqStatText: { fontFamily: 'NotoSans_500Medium', fontSize: 11, color: '#6B7280' },
+  reqBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#111827',
+  },
   reqBtnText: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
-  emptyCard: { alignItems: 'center', gap: 6, padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
-  emptyTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#111827' },
+  emptyCard: { alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
+  emptyTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
   emptyDesc: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
   smallCard: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   smallText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#111827' },
@@ -333,6 +478,8 @@ const styles = StyleSheet.create({
   toggleCard: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#EEF2F7', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
   toggleIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
   toggleTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#111827' },
+  viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  viewAllText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#6B7280' },
 });
 
 

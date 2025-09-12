@@ -44,24 +44,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="carwash"
+        name="marketplace"
         options={{
-          title: 'სამრეცხაო',
-          tabBarIcon: ({ color }) => <TabBarIcon name="tint" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="ai"
-        options={{
-          title: 'AI',
-          tabBarIcon: ({ color }) => <TabBarIcon name="magic" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="partner"
-        options={{
-          title: 'მაღაზია',
+          title: 'Marketplace',
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-bag" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: 'კომუნიტი',
+          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
         }}
       />
       <Tabs.Screen

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Animated } from 'react-native';
 import {
   View,
   Text,
@@ -16,6 +17,7 @@ import {
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { publishLocation } from '../utils/LocationBus';
 import MapView, { Marker, PROVIDER_GOOGLE, Circle } from 'react-native-maps';
 import Colors from '../constants/Colors';
 import { useColorScheme } from '../components/useColorScheme';
@@ -141,7 +143,7 @@ const CAR_WASH_LOCATIONS = [
 
 export default function MapScreen() {
   const router = useRouter();
-  const navParams = useLocalSearchParams<{ driver?: string; lat?: string; lng?: string; storeName?: string; slot?: string; live?: string }>();
+  const navParams = useLocalSearchParams<{ driver?: string; lat?: string; lng?: string; storeName?: string; slot?: string; live?: string; picker?: string; pin?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
@@ -692,6 +694,31 @@ export default function MapScreen() {
     featureBadgeText: { color: '#0B0B0E', fontFamily: 'NotoSans_700Bold', fontSize: 10 },
   });
 
+  // Picker UI animation (for nicer pin)
+  const isPickerModeAnim = (navParams as any)?.picker === '1';
+  const pinVariant: 'float' | 'label' = ((navParams as any)?.pin === 'label') ? 'label' : 'float';
+  const pinScale = useRef(new Animated.Value(1)).current;
+  const pulseScale = useRef(new Animated.Value(1)).current;
+  const pulseOpacity = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    if (!isPickerMode) return;
+    const loop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(pulseScale, { toValue: 1.25, duration: 1200, useNativeDriver: true }),
+          Animated.timing(pulseScale, { toValue: 1.0, duration: 0, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(pulseOpacity, { toValue: 0.0, duration: 1200, useNativeDriver: true }),
+          Animated.timing(pulseOpacity, { toValue: 0.35, duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isPickerModeAnim]);
+
   const renderStars = (rating: number) => {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
@@ -825,16 +852,42 @@ export default function MapScreen() {
   const onZoomIn = async () => {
     try {
       const camera = await mapRef.current?.getCamera();
-      if (!camera) return;
-      await mapRef.current?.animateCamera({ ...camera, zoom: (camera.zoom ?? 14) + 1 }, { duration: 200 });
+      if (camera && typeof camera.zoom === 'number') {
+        await mapRef.current?.animateCamera({ ...camera, zoom: camera.zoom + 1 }, { duration: 200 });
+        return;
+      }
+    } catch {}
+    // Fallback: animate by region deltas
+    try {
+      const newRegion = {
+        latitude: mapRegion.latitude,
+        longitude: mapRegion.longitude,
+        latitudeDelta: Math.max(mapRegion.latitudeDelta * 0.5, 0.0005),
+        longitudeDelta: Math.max(mapRegion.longitudeDelta * 0.5, 0.0005),
+      };
+      setMapRegion(newRegion as any);
+      mapRef.current?.animateToRegion(newRegion as any, 200);
     } catch {}
   };
 
   const onZoomOut = async () => {
     try {
       const camera = await mapRef.current?.getCamera();
-      if (!camera) return;
-      await mapRef.current?.animateCamera({ ...camera, zoom: (camera.zoom ?? 14) - 1 }, { duration: 200 });
+      if (camera && typeof camera.zoom === 'number') {
+        await mapRef.current?.animateCamera({ ...camera, zoom: camera.zoom - 1 }, { duration: 200 });
+        return;
+      }
+    } catch {}
+    // Fallback: animate by region deltas
+    try {
+      const newRegion = {
+        latitude: mapRegion.latitude,
+        longitude: mapRegion.longitude,
+        latitudeDelta: Math.min(mapRegion.latitudeDelta * 1.8, 60),
+        longitudeDelta: Math.min(mapRegion.longitudeDelta * 1.8, 60),
+      };
+      setMapRegion(newRegion as any);
+      mapRef.current?.animateToRegion(newRegion as any, 200);
     } catch {}
   };
 
@@ -963,14 +1016,7 @@ export default function MapScreen() {
     return list;
   }, [activeCategory, openNow, partnersOnly, minRating, radiusKm, searchQuery, mapRegion, sortBy]);
 
-  // Temporary guard: disable native Map on iOS Expo Go to avoid crash
-  if (Platform.OS === 'ios') {
-    return (
-      <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0B0B0E' }]}>
-        <Text style={{ color: '#FFFFFF', fontSize: 16 }}>რუკა მალე დაემატება iOS-ზე</Text>
-      </View>
-    );
-  }
+  const isPickerMode = (navParams as any)?.picker === '1';
 
   return (
     <View style={styles.container}>
@@ -1057,10 +1103,25 @@ export default function MapScreen() {
       {/* Map Container */}
       <View style={styles.mapContainer}>
         <MapView
-          ref={(ref) => (mapRef.current = ref)}
+          ref={(ref) => { mapRef.current = ref; }}
           style={styles.map}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           initialRegion={mapRegion}
+          onRegionChangeComplete={(region) => setMapRegion(region)}
+          onPress={(e) => {
+            if (isPickerMode) {
+              const c = e?.nativeEvent?.coordinate;
+              if (c && typeof c.latitude === 'number' && typeof c.longitude === 'number') {
+                setMapRegion((prev) => ({
+                  latitude: c.latitude,
+                  longitude: c.longitude,
+                  latitudeDelta: prev.latitudeDelta,
+                  longitudeDelta: prev.longitudeDelta,
+                }));
+                mapRef.current?.animateCamera({ center: c, zoom: 18 }, { duration: 200 });
+              }
+            }
+          }}
           showsUserLocation={false}
           showsMyLocationButton={false}
           customMapStyle={MAP_STYLE_MINIMAL_DARK}
@@ -1091,6 +1152,54 @@ export default function MapScreen() {
             </Marker>
           ))}
         </MapView>
+        {isPickerModeAnim && (
+          <View style={{ position: 'absolute', left: 0, right: 0, top: '50%', alignItems: 'center', marginTop: -16 }} pointerEvents="none">
+            {/* Variant 1: Floating Pin with shadow and pulse */}
+            {pinVariant === 'float' && (
+              <>
+                <Animated.View style={{ transform: [{ scale: pinScale }] }}>
+                  <Feather name="map-pin" size={32} color="#22C55E" />
+                </Animated.View>
+                <Animated.View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: '#22C55E',
+                    opacity: pulseOpacity,
+                    transform: [{ scale: pulseScale }],
+                    position: 'absolute',
+                    top: 24,
+                  }}
+                />
+                <View
+                  style={{
+                    width: 16,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: 'rgba(0,0,0,0.25)',
+                    position: 'absolute',
+                    top: 28,
+                  }}
+                />
+              </>
+            )}
+
+            {/* Variant 2: Label + Pin (address bubble) */}
+            {pinVariant === 'label' && (
+              <>
+                <View style={{ alignItems: 'center' }}>
+                  <Feather name="map-pin" size={32} color="#22C55E" />
+                  <View style={{ marginTop: 8, backgroundColor: 'rgba(17,24,39,0.9)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+                    <Text style={{ color: '#E5E7EB', fontWeight: '600' }} numberOfLines={2}>
+                      {selectedLocation?.address || `${mapRegion.latitude.toFixed(6)}, ${mapRegion.longitude.toFixed(6)}`}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+        )}
         {/* Floating filter button removed; header action opens modal */}
         <View
           style={[
@@ -1114,7 +1223,7 @@ export default function MapScreen() {
             <Feather name="minus" size={18} color="#E5E7EB" />
           </TouchableOpacity>
         </View>
-        {!showInfoCard && (
+        {!showInfoCard && !isPickerMode && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1152,7 +1261,7 @@ export default function MapScreen() {
       </View>
 
       {/* Info Card */}
-      {showInfoCard && selectedLocation && (
+      {showInfoCard && selectedLocation && !isPickerMode && (
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
             <Text style={styles.infoTitle}>{selectedLocation.name}</Text>
@@ -1281,6 +1390,7 @@ export default function MapScreen() {
         </View>
       )}
       {/* Filter Modal */}
+      {!isPickerMode && (
       <Modal
         visible={isFilterOpen}
         transparent
@@ -1358,8 +1468,10 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Checkout Modal */}
+      {!isPickerMode && (
       <Modal
         visible={isCheckoutOpen}
         transparent
@@ -1434,8 +1546,10 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Market Info Modal (final screen) */}
+      {!isPickerMode && (
       <Modal
         visible={isDriverOpen}
         transparent
@@ -1491,7 +1605,9 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+      )}
       {/* Market Modal */}
+      {!isPickerMode && (
       <Modal
         visible={isMarketOpen}
         transparent
@@ -1543,8 +1659,10 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Drive Picker Modal */}
+      {!isPickerMode && (
       <Modal
         visible={isDrivePickerOpen}
         transparent
@@ -1584,9 +1702,11 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Destination step removed (drive მიდის თავად დრაივთან) */}
       {/* Deals Modal */}
+      {!isPickerMode && (
       <Modal
         visible={isDealsOpen}
         transparent
@@ -1621,6 +1741,32 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+      )}
+
+      {isPickerMode && (
+        <View style={{ position: 'absolute', left: 16, right: 16, bottom: 16, gap: 10 }}>
+          <View style={{ backgroundColor: 'rgba(17,24,39,0.8)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+            <Text style={{ color: '#E5E7EB' }}>მდებარეობა:</Text>
+            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{mapRegion.latitude.toFixed(6)}, {mapRegion.longitude.toFixed(6)}</Text>
+          </View>
+          <TouchableOpacity
+            style={{ backgroundColor: '#22C55E', paddingVertical: 14, borderRadius: 14, alignItems: 'center' }}
+            onPress={() => {
+              publishLocation({
+                type: 'LOCATION_PICKED',
+                payload: {
+                  latitude: mapRegion.latitude,
+                  longitude: mapRegion.longitude,
+                  address: `${mapRegion.latitude.toFixed(6)}, ${mapRegion.longitude.toFixed(6)}`,
+                },
+              });
+              router.back();
+            }}
+          >
+            <Text style={{ color: '#0B0B0E', fontWeight: '700' }}>არჩევა</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }

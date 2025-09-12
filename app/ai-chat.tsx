@@ -87,6 +87,18 @@ export default function AIChatScreen() {
     return parts.map((p) => p[0]?.toUpperCase() ?? '').join('');
   }
 
+  function formatTimeAgo(timestamp: number): string {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    
+    if (minutes < 1) return 'ახლა';
+    if (minutes < 60) return `${minutes} წთ`;
+    if (hours < 24) return `${hours} სთ`;
+    return `${Math.floor(hours / 24)} დღე`;
+  }
+
   useEffect(() => {
     if (selectedCar && mode === null) {
       setForm((prev) => ({
@@ -269,12 +281,58 @@ export default function AIChatScreen() {
         <ScrollView contentContainerStyle={styles.chat} showsVerticalScrollIndicator={false}>
           {showOffers ? (
             <>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>შეკვეთის შეჯამება</Text>
-                <Text style={styles.summaryRowText} numberOfLines={2}>{buildSummary(mode as Exclude<Mode, null>, form)}</Text>
-                <Pressable style={styles.summaryEdit} onPress={() => setShowOffers(false)}>
-                  <Text style={styles.summaryEditText}>რედაქტირება</Text>
-                </Pressable>
+              <View style={styles.summaryCardNew}>
+                <RNView style={styles.summaryHeader}>
+                  <RNView style={styles.summaryIcon}>
+                    <FontAwesome name="clipboard" size={16} color="#10B981" />
+                  </RNView>
+                  <Text style={styles.summaryTitleNew}>შეკვეთის დეტალები</Text>
+                  <Pressable style={styles.summaryEditNew} onPress={() => setShowOffers(false)}>
+                    <FontAwesome name="edit" size={14} color="#6B7280" />
+                  </Pressable>
+                </RNView>
+                
+                <RNView style={styles.summaryContent}>
+                  <RNView style={styles.summaryRow}>
+                    <RNView style={styles.summaryLabel}>
+                      <FontAwesome name="car" size={12} color="#6B7280" />
+                      <Text style={styles.summaryLabelText}>მანქანა</Text>
+                    </RNView>
+                    <Text style={styles.summaryValue}>
+                      {form?.vehicle?.make} {form?.vehicle?.model} {form?.vehicle?.year}
+                    </Text>
+                  </RNView>
+                  
+                  {form?.partName && (
+                    <RNView style={styles.summaryRow}>
+                      <RNView style={styles.summaryLabel}>
+                        <FontAwesome name="cogs" size={12} color="#6B7280" />
+                        <Text style={styles.summaryLabelText}>ნაწილი</Text>
+                      </RNView>
+                      <Text style={styles.summaryValue}>{form.partName}</Text>
+                    </RNView>
+                  )}
+                  
+                  {form?.partDetails && (
+                    <RNView style={styles.summaryRow}>
+                      <RNView style={styles.summaryLabel}>
+                        <FontAwesome name="info-circle" size={12} color="#6B7280" />
+                        <Text style={styles.summaryLabelText}>დეტალები</Text>
+                      </RNView>
+                      <Text style={styles.summaryValue}>{form.partDetails}</Text>
+                    </RNView>
+                  )}
+                  
+                  <RNView style={styles.summaryRow}>
+                    <RNView style={styles.summaryLabel}>
+                      <FontAwesome name="clock-o" size={12} color="#6B7280" />
+                      <Text style={styles.summaryLabelText}>პრიორიტეტი</Text>
+                    </RNView>
+                    <RNView style={styles.urgencyBadgeUrgent}>
+                      <Text style={styles.urgencyTextUrgent}>სასწრაფო</Text>
+                    </RNView>
+                  </RNView>
+                </RNView>
               </View>
 
               <Text style={styles.offersTitle}>შეთავაზებები ({displayOffers.length})</Text>
@@ -328,31 +386,98 @@ export default function AIChatScreen() {
                 </>
               )}
               {displayOffers.map((o) => (
-                <View key={o.id} style={[styles.offerCard, selectedOfferId === o.id && styles.offerCardActive]}>
-                  <Pressable style={{ flex: 1 }} onPress={() => setSelectedOfferId(o.id)}>
-                    <RNView style={{ gap: 8 }}>
-                      <RNView style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <RNView style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Text style={styles.offerName}>{o.providerName}</Text>
-                          <RNView style={[styles.badgeSmall, o.source === 'ai' ? styles.badgeAi : styles.badgePartner]}>
-                            <Text style={[styles.badgeSmallText, o.source === 'ai' ? styles.badgeAiText : styles.badgePartnerText]}>{o.source === 'ai' ? 'AI' : 'პარტნიორი'}</Text>
+                <View key={o.id} style={styles.offerCard}>
+                  {/* Main offer info */}
+                  <RNView style={styles.offerCardMain}>
+                    <RNView style={styles.offerCardLeft}>
+                      <RNView style={styles.providerAvatar}>
+                        <Text style={styles.providerInitials}>{getInitials(o.providerName)}</Text>
+                      </RNView>
+                      <RNView style={styles.offerInfo}>
+                        <Text style={styles.offerName}>{o.providerName}</Text>
+                        <RNView style={styles.offerMeta}>
+                          <RNView style={styles.ratingContainer}>
+                            <FontAwesome name="star" size={10} color="#F59E0B" />
+                            <Text style={styles.ratingText}>{o.rating.toFixed(1)}</Text>
+                          </RNView>
+                          <RNView style={[styles.sourceBadge, o.source === 'ai' ? styles.sourceBadgeAi : styles.sourceBadgePartner]}>
+                            <FontAwesome name={o.source === 'ai' ? 'magic' : 'user'} size={8} color={o.source === 'ai' ? '#7C3AED' : '#059669'} />
+                            <Text style={[styles.sourceBadgeText, o.source === 'ai' ? styles.sourceBadgeTextAi : styles.sourceBadgeTextPartner]}>
+                              {o.source === 'ai' ? 'AI' : 'პარტნიორი'}
+                            </Text>
                           </RNView>
                         </RNView>
-                        <RNView style={styles.distanceChip}><Text style={styles.distanceText}>{o.distanceKm ?? '-'}კმ</Text></RNView>
-                      </RNView>
-                      <RNView style={styles.metaRow}>
-                        <FontAwesome name="star" size={12} color="#F59E0B" />
-                        <Text style={styles.metaText}>{o.rating.toFixed(1)}</Text>
-                        <FontAwesome name="clock-o" size={12} color="#6B7280" />
-                        <Text style={styles.metaText}>{o.etaMin}წთ</Text>
-                        <FontAwesome name="map-marker" size={12} color="#6B7280" />
-                        <Text style={styles.metaText}>{o.distanceKm ?? '-'}კმ</Text>
                       </RNView>
                     </RNView>
-                  </Pressable>
-                  <LinearGradient colors={["#0F172A", "#111827"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.pricePillLg}>
-                    <Text style={styles.priceTextLg}>{o.priceGEL} ₾</Text>
-                  </LinearGradient>
+                    
+                    <RNView style={styles.offerCardRight}>
+                      <RNView style={styles.priceContainer}>
+                        <Text style={styles.priceAmount}>{o.priceGEL}</Text>
+                        <Text style={styles.priceCurrency}>₾</Text>
+                      </RNView>
+                      <RNView style={styles.etaContainer}>
+                        <FontAwesome name="clock-o" size={10} color="#6B7280" />
+                        <Text style={styles.etaText}>{o.etaMin} წთ</Text>
+                      </RNView>
+                    </RNView>
+                  </RNView>
+                  
+                  {/* Action buttons */}
+                  <RNView style={styles.offerActions}>
+                    <RNView style={styles.offerDetails}>
+                      <RNView style={styles.detailItem}>
+                        <FontAwesome name="map-marker" size={10} color="#6B7280" />
+                        <Text style={styles.detailText}>{o.distanceKm ?? '-'} კმ</Text>
+                      </RNView>
+                      {o.createdAt && (
+                        <RNView style={styles.detailItem}>
+                          <FontAwesome name="clock-o" size={10} color="#6B7280" />
+                          <Text style={styles.detailText}>{formatTimeAgo(o.createdAt)}</Text>
+                        </RNView>
+                      )}
+                    </RNView>
+                    
+                    <RNView style={styles.actionButtons}>
+                      <Pressable 
+                        style={styles.chatButton}
+                        onPress={() => {
+                          const sel = offers.find((offer) => offer.id === o.id);
+                          const next = { 
+                            id: sel?.id, 
+                            providerName: sel?.providerName, 
+                            priceGEL: sel?.priceGEL, 
+                            etaMin: sel?.etaMin, 
+                            distanceKm: sel?.distanceKm ?? null 
+                          };
+                          router.push({ 
+                            pathname: `/chat/${o.id}` as any, 
+                            params: { 
+                              role: 'user', 
+                              offer: JSON.stringify(next), 
+                              summary: buildSummary(mode as Exclude<Mode, null>, form) 
+                            } 
+                          });
+                        }}
+                      >
+                        <FontAwesome name="comments" size={12} color="#FFFFFF" />
+                        <Text style={styles.chatButtonText}>ჩატი</Text>
+                      </Pressable>
+                      
+                      <Pressable 
+                        style={[styles.selectButton, selectedOfferId === o.id && styles.selectButtonActive]}
+                        onPress={() => setSelectedOfferId(selectedOfferId === o.id ? null : o.id)}
+                      >
+                        <FontAwesome 
+                          name={selectedOfferId === o.id ? "check-circle" : "circle-o"} 
+                          size={14} 
+                          color={selectedOfferId === o.id ? "#FFFFFF" : "#6B7280"} 
+                        />
+                        <Text style={[styles.selectButtonText, selectedOfferId === o.id && styles.selectButtonTextActive]}>
+                          {selectedOfferId === o.id ? 'არჩეული' : 'არჩევა'}
+                        </Text>
+                      </Pressable>
+                    </RNView>
+                  </RNView>
                 </View>
               ))}
 
@@ -381,8 +506,37 @@ export default function AIChatScreen() {
         showOffers ? (
           <RNView style={[styles.footerRow, { paddingBottom: 10 + insets.bottom }]}>
             <Pressable onPress={() => setShowOffers(false)} style={styles.secondaryBtn}>
+              <FontAwesome name="edit" size={14} color="#6B7280" />
               <Text style={styles.secondaryText}>რედაქტირება</Text>
             </Pressable>
+            
+            {selectedOfferId && (
+              <Pressable
+                style={styles.chatButtonFooter}
+                onPress={() => {
+                  const sel = offers.find((o) => o.id === selectedOfferId);
+                  const next = { 
+                    id: sel?.id, 
+                    providerName: sel?.providerName, 
+                    priceGEL: sel?.priceGEL, 
+                    etaMin: sel?.etaMin, 
+                    distanceKm: sel?.distanceKm ?? null 
+                  };
+                  router.push({ 
+                    pathname: `/chat/${selectedOfferId}` as any, 
+                    params: { 
+                      role: 'user', 
+                      offer: JSON.stringify(next), 
+                      summary: buildSummary(mode as Exclude<Mode, null>, form) 
+                    } 
+                  });
+                }}
+              >
+                <FontAwesome name="comments" size={14} color="#FFFFFF" />
+                <Text style={styles.chatButtonFooterText}>ჩატი</Text>
+              </Pressable>
+            )}
+            
             <Pressable
               disabled={!selectedOfferId}
               onPress={() => {
@@ -392,10 +546,11 @@ export default function AIChatScreen() {
                 postMessage({ offerId: id, author: 'user', text: 'გამარჯობა, ვადასტურებ. როდის იქნება მზად?' });
                 const sel = offers.find((o) => o.id === selectedOfferId);
                 const next = { id: sel?.id, providerName: sel?.providerName, priceGEL: sel?.priceGEL, etaMin: sel?.etaMin, distanceKm: sel?.distanceKm ?? null };
-                router.push({ pathname: `/chat/${selectedOfferId}`, params: { role: 'user', offer: JSON.stringify(next), summary: buildSummary(mode as Exclude<Mode, null>, form) } });
+                router.push({ pathname: `/chat/${selectedOfferId}` as any, params: { role: 'user', offer: JSON.stringify(next), summary: buildSummary(mode as Exclude<Mode, null>, form) } });
               }}
               style={[styles.primaryBtn, !selectedOfferId && { opacity: 0.6 }]}
             >
+              <FontAwesome name="check" size={14} color="#FFFFFF" />
               <Text style={styles.primaryText}>დაჯავშნა</Text>
             </Pressable>
           </RNView>
@@ -578,7 +733,7 @@ function titleByMode(mode: Mode): string {
 function getTotalSteps(mode: Exclude<Mode, null>): number {
   switch (mode) {
     case 'parts':
-      return 3; // 3 steps for parts
+      return 2; // 2 steps for parts
     case 'tow':
       return 3; // 3 steps for tow
     case 'mechanic':
@@ -592,9 +747,7 @@ function canProceed(mode: Exclude<Mode, null>, step: number, form: Record<string
       case 0: // მანქანის ინფო
         return !!(form.vehicle?.make && form.vehicle?.model);
       case 1: // ნაწილის დეტალები
-        return !!form.partName;
-      case 2: // დამატებითი ინფო
-        return true; // ყველა ველი არასავალდებულოა
+        return !!(form.partName && form.partDetails && form.vehicle?.year);
       default:
         return false;
     }
@@ -605,7 +758,7 @@ function canProceed(mode: Exclude<Mode, null>, step: number, form: Record<string
 
 function getStepTitle(mode: Exclude<Mode, null>, step: number): string {
   if (mode === 'parts') {
-    return ['მანქანა და ნაწილი', 'ბიუჯეტი და პრიორიტეტი', 'ადგილმდებარეობა და დრო'][step] ?? '';
+    return ['მანქანის ინფორმაცია', 'ნაწილის დეტალები'][step] ?? '';
   }
   if (mode === 'tow') {
     return ['რა მოხდა?', 'სად ხარ ახლა?', 'მანქანის დეტალები'][step] ?? '';
@@ -615,7 +768,7 @@ function getStepTitle(mode: Exclude<Mode, null>, step: number): string {
 
 function getStepDesc(mode: Exclude<Mode, null>, step: number): string {
   if (mode === 'parts') {
-    return ['აირჩიე მარკა/მოდელი/წელი და ნაწილის ინფორმაცია.', 'დაამატე ბიუჯეტი და პრიორიტეტი.', 'მისამართი/ლოკაცია, დრო და VIN სურვილისამებრ.'][step] ?? '';
+    return ['აირჩიე მანქანის მარკა, მოდელი და VIN კოდი.', 'მიუთითე ნაწილის დასახელება, დეტალები და მანქანის წელი.'][step] ?? '';
   }
   if (mode === 'tow') {
     return ['აირჩიე პრობლემა ან აღწერე მოკლედ.', 'მიამაგრე ახლანდელი ლოკაცია.', 'დაადასტურე მანქანა და შენიშვნა.'][step] ?? '';
@@ -637,68 +790,71 @@ function renderStepFields(
 ) {
   if (mode === 'parts') {
     if (step === 0) {
-      // Step 1: მანქანის ძირითადი ინფო
-      const popularMakes = ['BMW', 'Mercedes', 'Toyota', 'Audi', 'Volkswagen', 'Honda'];
+      // Step 1: მანქანის ინფო
+      const popularMakes = ['BMW', 'Mercedes', 'Toyota', 'Audi', 'Volkswagen', 'Honda', 'Ford', 'Nissan', 'Hyundai', 'Kia'];
       const modelsByMake: Record<string, string[]> = {
-        BMW: ['320i', '520i', 'X5', 'F30', 'E90'],
-        Mercedes: ['C200', 'E220', 'GLC', 'W204', 'W212'],
-        Toyota: ['Camry', 'Corolla', 'RAV4', 'Prius'],
-        Audi: ['A4', 'A6', 'Q5', 'B8'],
-        Volkswagen: ['Golf', 'Passat', 'Tiguan'],
-        Honda: ['Civic', 'Accord', 'CR-V'],
+        BMW: ['320i', '520i', 'X5', 'F30', 'E90', 'X3', 'X1', '118i'],
+        Mercedes: ['C200', 'E220', 'GLC', 'W204', 'W212', 'A180', 'B200'],
+        Toyota: ['Camry', 'Corolla', 'RAV4', 'Prius', 'Yaris', 'Hilux'],
+        Audi: ['A4', 'A6', 'Q5', 'B8', 'A3', 'Q3', 'TT'],
+        Volkswagen: ['Golf', 'Passat', 'Tiguan', 'Polo', 'Jetta', 'Touareg'],
+        Honda: ['Civic', 'Accord', 'CR-V', 'Jazz', 'HR-V'],
+        Ford: ['Focus', 'Mondeo', 'Kuga', 'Fiesta', 'Explorer'],
+        Nissan: ['Qashqai', 'Juke', 'Micra', 'X-Trail', 'Leaf'],
+        Hyundai: ['i30', 'Tucson', 'Santa Fe', 'i20', 'Kona'],
+        Kia: ['Sportage', 'Ceed', 'Rio', 'Sorento', 'Picanto'],
       };
       const vehicle = form.vehicle || {};
       const selectedModels = vehicle.make && modelsByMake[vehicle.make] ? modelsByMake[vehicle.make] : [];
       
       return (
-        <View style={styles.modernStepContainer}>
-          <View style={styles.modernStepHeader}>
-            <View style={styles.modernStepIcon}>
-              <FontAwesome name="car" size={20} color="#475569" />
+        <View style={styles.newStepContainer}>
+          <View style={styles.newStepHeader}>
+            <View style={styles.newStepIcon}>
+              <FontAwesome name="car" size={24} color="#FFFFFF" />
             </View>
-            <View style={styles.modernStepContent}>
-              <Text style={styles.modernStepTitle}>მანქანის ინფორმაცია</Text>
-              <Text style={styles.modernStepSubtitle}>აირჩიე მანქანის ძირითადი მონაცემები</Text>
+            <View style={styles.newStepContent}>
+              <Text style={styles.newStepTitle}>მანქანის ინფორმაცია</Text>
+              <Text style={styles.newStepSubtitle}>აირჩიე მანქანის ძირითადი მონაცემები</Text>
             </View>
-            <View style={styles.modernStepBadge}>
-              <Text style={styles.modernStepBadgeText}>1/4</Text>
+            <View style={styles.newStepBadge}>
+              <Text style={styles.newStepBadgeText}>1/2</Text>
             </View>
           </View>
           
-          <View style={styles.modernFieldContainer}>
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="tag" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>მარკა</Text>
-              </View>
-              <Pressable style={styles.modernPickerInput} onPress={() => openPicker('make')}>
-                <Text style={[styles.modernPickerText, !vehicle.make && { color: '#9CA3AF' }]}>{vehicle.make || 'აირჩიე მარკა'}</Text>
-                <FontAwesome name="chevron-down" size={14} color="#6B7280" />
+          <View style={styles.newFieldContainer}>
+            <View style={styles.newFieldGroup}>
+              <Text style={styles.newFieldLabel}>მარკა *</Text>
+              <Pressable style={styles.newPickerInput} onPress={() => openPicker('make')}>
+                <Text style={[styles.newPickerText, !vehicle.make && { color: '#9CA3AF' }]}>
+                  {vehicle.make || 'აირჩიე მარკა'}
+                </Text>
+                <FontAwesome name="chevron-down" size={16} color="#6B7280" />
               </Pressable>
             </View>
 
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="cog" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>მოდელი</Text>
-              </View>
-              <Pressable disabled={!vehicle.make} style={[styles.modernPickerInput, !vehicle.make && styles.modernPickerDisabled]} onPress={() => vehicle.make && openPicker('model')}>
-                <Text style={[styles.modernPickerText, !vehicle.model && { color: '#9CA3AF' }]}>{vehicle.model || (vehicle.make ? 'აირჩიე მოდელი' : 'ჯერ აირჩიე მარკა')}</Text>
-                <FontAwesome name="chevron-down" size={14} color="#6B7280" />
+            <View style={styles.newFieldGroup}>
+              <Text style={styles.newFieldLabel}>მოდელი *</Text>
+              <Pressable 
+                disabled={!vehicle.make} 
+                style={[styles.newPickerInput, !vehicle.make && styles.newPickerDisabled]} 
+                onPress={() => vehicle.make && openPicker('model')}
+              >
+                <Text style={[styles.newPickerText, !vehicle.model && { color: '#9CA3AF' }]}>
+                  {vehicle.model || (vehicle.make ? 'აირჩიე მოდელი' : 'ჯერ აირჩიე მარკა')}
+                </Text>
+                <FontAwesome name="chevron-down" size={16} color="#6B7280" />
               </Pressable>
             </View>
 
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="barcode" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>VIN (არასავალდებულო)</Text>
-              </View>
+            <View style={styles.newFieldGroup}>
+              <Text style={styles.newFieldLabel}>VIN კოდი (არასავალდებულო)</Text>
               <TextInput 
-                placeholder="WV..." 
+                placeholder="WVWZZZ1KZ3W386752" 
                 placeholderTextColor="#9CA3AF" 
                 value={(form.vehicle && form.vehicle.vin) || ''} 
                 onChangeText={(t) => setForm({ ...form, vehicle: { ...(form.vehicle || {}), vin: t } })} 
-                style={styles.modernInput} 
+                style={styles.newInput} 
               />
             </View>
           </View>
@@ -709,251 +865,65 @@ function renderStepFields(
     if (step === 1) {
       // Step 2: ნაწილის დეტალები
       const vehicle = form.vehicle || {};
+      const years = generateRecentYears(30);
       
       return (
-        <View style={styles.modernStepContainer}>
-          <View style={styles.modernStepHeader}>
-            <View style={styles.modernStepIcon}>
-              <FontAwesome name="puzzle-piece" size={20} color="#475569" />
+        <View style={styles.newStepContainer}>
+          <View style={styles.newStepHeader}>
+            <View style={styles.newStepIcon}>
+              <FontAwesome name="cogs" size={24} color="#FFFFFF" />
             </View>
-            <View style={styles.modernStepContent}>
-              <Text style={styles.modernStepTitle}>ნაწილის დეტალები</Text>
-              <Text style={styles.modernStepSubtitle}>მიუთითე ნაწილის ინფორმაცია</Text>
+            <View style={styles.newStepContent}>
+              <Text style={styles.newStepTitle}>ნაწილის დეტალები</Text>
+              <Text style={styles.newStepSubtitle}>მიუთითე ნაწილის ინფორმაცია</Text>
             </View>
-            <View style={styles.modernStepBadge}>
-              <Text style={styles.modernStepBadgeText}>2/3</Text>
+            <View style={styles.newStepBadge}>
+              <Text style={styles.newStepBadgeText}>2/2</Text>
             </View>
           </View>
           
-          <View style={styles.modernFieldContainer}>
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="tag" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>ნაწილის დასახელება</Text>
-              </View>
+          <View style={styles.newFieldContainer}>
+            <View style={styles.newFieldGroup}>
+              <Text style={styles.newFieldLabel}>ნაწილის დასახელება *</Text>
               <TextInput 
-                placeholder="მაგ. ზეთის ფილტრი, ბრეკის ხუნდები" 
+                placeholder="მაგ. ზეთის ფილტრი, ბრეკის ხუნდები, ფარები" 
                 placeholderTextColor="#9CA3AF" 
                 value={form.partName || ''} 
                 onChangeText={(t) => setForm({ ...form, partName: t })} 
-                style={styles.modernInput} 
+                style={styles.newInput} 
               />
             </View>
             
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="file-text" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>აღწერა (არასავალდებულო)</Text>
-              </View>
+            <View style={styles.newFieldGroup}>
+              <Text style={styles.newFieldLabel}>დამატებითი დეტალები *</Text>
               <TextInput 
-                placeholder="დამატებითი დეტალები, პრობლემის აღწერა..." 
+                placeholder="მაგ. უკანა მარჯვენა კარები, წინა მარცხენა ფარები, ძრავის ზედა ნაწილი" 
                 placeholderTextColor="#9CA3AF" 
-                value={form.partDescription || ''} 
-                onChangeText={(t) => setForm({ ...form, partDescription: t })} 
-                style={[styles.modernInput, { height: 80, textAlignVertical: 'top' }]} 
+                value={form.partDetails || ''} 
+                onChangeText={(t) => setForm({ ...form, partDetails: t })} 
+                style={[styles.newInput, { height: 80, textAlignVertical: 'top' }]} 
                 multiline 
                 numberOfLines={3}
               />
             </View>
             
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="camera" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>ფოტო (არასავალდებულო)</Text>
-              </View>
-              <Pressable style={styles.modernPhotoUploadBtn} onPress={() => {
-                console.log('Photo upload pressed');
-              }}>
-                <FontAwesome name="camera" size={24} color="#6B7280" />
-                <Text style={styles.modernPhotoUploadText}>დააჭირე ფოტოს ასატვირთად</Text>
+            <View style={styles.newFieldGroup}>
+              <Text style={styles.newFieldLabel}>მანქანის წელი *</Text>
+              <Pressable style={styles.newPickerInput} onPress={() => openPicker('year')}>
+                <Text style={[styles.newPickerText, !vehicle.year && { color: '#9CA3AF' }]}>
+                  {vehicle.year || 'აირჩიე წელი'}
+                </Text>
+                <FontAwesome name="chevron-down" size={16} color="#6B7280" />
               </Pressable>
             </View>
           </View>
         </View>
       );
     }
-    
-    if (step === 2) {
-      // Step 3: დამატებითი ინფო
-      const vehicle = form.vehicle || {};
-      const yearChips = generateRecentYears(15);
-      
-      return (
-        <View style={styles.modernStepContainer}>
-          <View style={styles.modernStepHeader}>
-            <View style={styles.modernStepIcon}>
-              <FontAwesome name="cogs" size={20} color="#475569" />
-            </View>
-            <View style={styles.modernStepContent}>
-              <Text style={styles.modernStepTitle}>დამატებითი ინფორმაცია</Text>
-              <Text style={styles.modernStepSubtitle}>მიუთითე წელი, ბრენდი და პრიორიტეტი</Text>
-            </View>
-            <View style={styles.modernStepBadge}>
-              <Text style={styles.modernStepBadgeText}>3/3</Text>
-            </View>
-          </View>
-          
-          <View style={styles.modernFieldContainer}>
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="calendar" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>წელი</Text>
-              </View>
-              <RNView style={styles.modernYearSelectionRow}>
-                <Pressable style={[styles.modernYearOption, vehicle.yearType === 'single' && styles.modernYearOptionActive]} onPress={() => setForm({ ...form, vehicle: { ...vehicle, yearType: 'single', yearRange: undefined } })}>
-                  <Text style={[styles.modernYearOptionText, vehicle.yearType === 'single' && styles.modernYearOptionTextActive]}>კონკრეტული წელი</Text>
-                </Pressable>
-                <Pressable style={[styles.modernYearOption, vehicle.yearType === 'range' && styles.modernYearOptionActive]} onPress={() => setForm({ ...form, vehicle: { ...vehicle, yearType: 'range', year: undefined } })}>
-                  <Text style={[styles.modernYearOptionText, vehicle.yearType === 'range' && styles.modernYearOptionTextActive]}>წლების დიაპაზონი</Text>
-                </Pressable>
-              </RNView>
-              
-              {vehicle.yearType === 'single' ? (
-                <Pressable style={styles.modernPickerInput} onPress={() => openPicker('year')}>
-                  <Text style={[styles.modernPickerText, !vehicle.year && { color: '#9CA3AF' }]}>{vehicle.year || 'აირჩიე წელი'}</Text>
-                  <FontAwesome name="chevron-down" size={14} color="#6B7280" />
-                </Pressable>
-              ) : (
-                <RNView style={styles.modernYearRangeContainer}>
-                  <Text style={styles.modernYearRangeLabel}>წლების დიაპაზონი</Text>
-                  <RNView style={styles.modernYearRangeRow}>
-                    <RNView style={styles.modernYearRangeInputContainer}>
-                      <Text style={styles.modernYearRangeInputLabel}>დან</Text>
-                      <Pressable style={styles.modernYearRangeInput} onPress={() => openPicker('yearFrom')}>
-                        <Text style={[styles.modernYearRangeInputText, !vehicle.yearRange?.from && { color: '#9CA3AF' }]}>{vehicle.yearRange?.from || 'აირჩიე'}</Text>
-                        <FontAwesome name="chevron-down" size={14} color="#6B7280" />
-                      </Pressable>
-                    </RNView>
-                    <RNView style={styles.modernYearRangeDivider}>
-                      <View style={styles.modernYearRangeDividerLine} />
-                    </RNView>
-                    <RNView style={styles.modernYearRangeInputContainer}>
-                      <Text style={styles.modernYearRangeInputLabel}>მდე</Text>
-                      <Pressable style={styles.modernYearRangeInput} onPress={() => openPicker('yearTo')}>
-                        <Text style={[styles.modernYearRangeInputText, !vehicle.yearRange?.to && { color: '#9CA3AF' }]}>{vehicle.yearRange?.to || 'აირჩიე'}</Text>
-                        <FontAwesome name="chevron-down" size={14} color="#6B7280" />
-                      </Pressable>
-                    </RNView>
-                  </RNView>
-                </RNView>
-              )}
-            </View>
-
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="star" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>ბრენდი (არასავალდებულო)</Text>
-              </View>
-              <Pressable style={styles.modernPickerInput} onPress={() => openPicker('brand')}>
-                <Text style={[styles.modernPickerText, !form.partBrand && { color: '#9CA3AF' }]}>{form.partBrand || 'აირჩიე ბრენდი'}</Text>
-                <FontAwesome name="chevron-down" size={14} color="#6B7280" />
-              </Pressable>
-            </View>
-
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="money" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>ბიუჯეტი (₾)</Text>
-              </View>
-              <TextInput 
-                keyboardType="numeric" 
-                placeholder="მაგ. 150" 
-                placeholderTextColor="#9CA3AF" 
-                value={form.budget || ''} 
-                onChangeText={(t) => setForm({ ...form, budget: t })} 
-                style={styles.modernInput} 
-              />
-            </View>
-
-            <View style={styles.modernFieldGroup}>
-              <View style={styles.modernFieldHeader}>
-                <FontAwesome name="clock-o" size={14} color="#64748B" />
-                <Text style={styles.modernFieldLabel}>პრიორიტეტი</Text>
-              </View>
-              <RNView style={styles.modernChipsRow}>
-                {['დაბალი', 'ნორმალური', 'სასწრაფო'].map((u) => (
-                  <Pressable key={u} style={[styles.modernChip, form.urgency === u && styles.modernChipActive]} onPress={() => setForm({ ...form, urgency: u })}>
-                    <Text style={[styles.modernChipText, form.urgency === u && styles.modernChipTextActive]}>{u}</Text>
-                  </Pressable>
-                ))}
-              </RNView>
-            </View>
-          </View>
-        </View>
-      );
-    }
-    
-
   }
-
-  if (mode === 'tow') {
-    if (step === 0) {
-      const probs = ['ბატარეა დაჯდა', 'ბორბალი დაზიანდა', 'ავარია', 'საწვავი დაილია'];
-      return (
-        <View>
-          <Text style={styles.fieldLabel}>პრობლემა</Text>
-          <RNView style={styles.chipsRow}>
-            {probs.map((p) => (
-              <Pressable key={p} style={[styles.chip, form.problem === p && styles.chipActive]} onPress={() => setForm({ ...form, problem: p })}>
-                <Text style={[styles.chipText, form.problem === p && styles.chipTextActive]}>{p}</Text>
-              </Pressable>
-            ))}
-          </RNView>
-          <Text style={styles.fieldLabel}>დამატებითი აღწერა</Text>
-          <TextInput placeholder="კიდევ დეტალები" placeholderTextColor="#9CA3AF" value={form.notes || ''} onChangeText={(t) => setForm({ ...form, notes: t })} style={styles.input} />
-        </View>
-      );
-    }
-    if (step === 1) {
-      return (
-        <View>
-          <Text style={styles.fieldLabel}>მდებარეობა</Text>
-          <TextInput placeholder="მისამართი ან პინი" placeholderTextColor="#9CA3AF" value={form.location || ''} onChangeText={(t) => setForm({ ...form, location: t })} style={styles.input} />
-        </View>
-      );
-    }
-    return (
-      <View>
-        <Text style={styles.fieldLabel}>მანქანის დეტალები</Text>
-        <TextInput placeholder="მაგ. BMW 320i 2015" placeholderTextColor="#9CA3AF" value={form.car || ''} onChangeText={(t) => setForm({ ...form, car: t })} style={styles.input} />
-      </View>
-    );
-  }
-
-  // mechanic
-  if (step === 0) {
-    const sy = ['ხმა', 'კანკალი', 'გაჟონვა', 'კვამლი'];
-    return (
-      <View>
-        <Text style={styles.fieldLabel}>სიმპტომები</Text>
-        <RNView style={styles.chipsRow}>
-          {sy.map((s) => (
-            <Pressable key={s} style={[styles.chip, form.symptom === s && styles.chipActive]} onPress={() => setForm({ ...form, symptom: s })}>
-              <Text style={[styles.chipText, form.symptom === s && styles.chipTextActive]}>{s}</Text>
-            </Pressable>
-          ))}
-        </RNView>
-        <Text style={styles.fieldLabel}>აღწერა</Text>
-        <TextInput placeholder="მოკლე აღწერა" placeholderTextColor="#9CA3AF" value={form.notes || ''} onChangeText={(t) => setForm({ ...form, notes: t })} style={styles.input} />
-      </View>
-    );
-  }
-  if (step === 1) {
-    return (
-      <View>
-        <Text style={styles.fieldLabel}>სასურველი დრო</Text>
-        <TextInput placeholder="მაგ. ხვალ 12:00" placeholderTextColor="#9CA3AF" value={form.time || ''} onChangeText={(t) => setForm({ ...form, time: t })} style={styles.input} />
-        <Text style={styles.fieldLabel}>ბიუჯეტი (₾)</Text>
-        <TextInput keyboardType="numeric" placeholder="მაგ. 200" placeholderTextColor="#9CA3AF" value={form.budget || ''} onChangeText={(t) => setForm({ ...form, budget: t })} style={styles.input} />
-      </View>
-    );
-  }
-  return (
-    <View>
-      <Text style={styles.fieldLabel}>მისამართი</Text>
-      <TextInput placeholder="მისამართი" placeholderTextColor="#9CA3AF" value={form.location || ''} onChangeText={(t) => setForm({ ...form, location: t })} style={styles.input} />
-    </View>
-  );
+  
+  // TODO: Add other modes
+  return null;
 }
 
 async function onAdvance(
@@ -986,17 +956,14 @@ async function onAdvance(
     return;
   }
   
-  // Submit request to backend and show offers
-  try {
-    const payload: any = {
-      partName: form.partName,
-      partDescription: form.partDescription || undefined,
-      partBrand: form.partBrand || undefined,
-      budget: form.budget ? Number(form.budget) : undefined,
-      urgency: form.urgency || undefined,
-      notes: form.notes || undefined,
-      vehicle: form.vehicle || undefined,
-    };
+      // Submit request to backend and show offers
+    try {
+      const payload: any = {
+        partName: form.partName,
+        partDetails: form.partDetails,
+        urgency: 'სასწრაფო', // ყოველთვის უმაღლესი პრიორიტეტი
+        vehicle: form.vehicle || undefined,
+      };
     console.log('[API] POST /requests payload', payload);
     const res = await fetch(`${API_URL}/requests`, {
       method: 'POST',
@@ -1034,8 +1001,7 @@ function buildSummary(mode: Exclude<Mode, null>, form: Record<string, any>): str
   if (mode === 'parts') {
     const v = form.vehicle || {};
     const vehicleStr = [v.make, v.model, v.year].filter(Boolean).join(' ');
-    const partLabel = form.partName || form.partCat || '-';
-    return `მანქანა: ${vehicleStr || '-'} • ნაწილი: ${partLabel}${form.partBrand ? ` (${form.partBrand})` : ''} • ბიუჯეტი: ${form.budget ? `₾${form.budget}` : '-'} • დრო: ${form.time || '-'}`;
+    return `მანქანა: ${vehicleStr || '-'} • ნაწილი: ${form.partName || '-'} • დეტალები: ${form.partDetails || '-'}`;
   }
   if (mode === 'tow') {
     return `პრობლემა: ${form.problem || '-'} • ლოკაცია: ${form.location || '-'} • მანქანა: ${form.car || '-'}`;
@@ -1609,7 +1575,7 @@ const styles = StyleSheet.create({
   sortText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#111827' },
   sortTextActive: { color: '#FFFFFF' },
   chipContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  offerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3, marginBottom: 10 },
+  offerCard: { padding: 14, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3, marginBottom: 10 },
   offerCardActive: { borderColor: '#10B981' },
   offerName: { color: '#111827', fontFamily: 'NotoSans_700Bold', fontSize: 14 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1632,11 +1598,7 @@ const styles = StyleSheet.create({
   badgePartnerText: { color: '#065F46' },
   distanceChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
   distanceText: { fontFamily: 'NotoSans_700Bold', fontSize: 11, color: '#111827' },
-  summaryCard: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#EEF2F7', padding: 12, marginBottom: 10 },
-  summaryTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#111827', marginBottom: 6 },
-  summaryRowText: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  summaryEdit: { marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
-  summaryEditText: { fontFamily: 'NotoSans_700Bold', fontSize: 12, color: '#111827' },
+
   myOfferBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: '#111827' },
   myOfferBtnText: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
   emptyCard: { alignItems: 'center', gap: 6, padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
@@ -1646,10 +1608,10 @@ const styles = StyleSheet.create({
   modalCard: { width: '100%', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#EEF2F7', padding: 14 },
   modalTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 15, color: '#111827', marginBottom: 10 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  footerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderTopWidth: 1, borderTopColor: '#EEF2F7', backgroundColor: '#FFFFFF' },
-  secondaryBtn: { flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderTopWidth: 1, borderTopColor: '#EEF2F7', backgroundColor: '#FFFFFF' },
+  secondaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, height: 44, borderRadius: 12, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
   secondaryText: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#111827' },
-  primaryBtn: { flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111827' },
+  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, height: 44, borderRadius: 12, justifyContent: 'center', backgroundColor: '#111827' },
   primaryText: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#FFFFFF' },
   input: {
     flex: 1,
@@ -1705,6 +1667,341 @@ const styles = StyleSheet.create({
   partnerMeta: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 12 },
   partnerBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
   partnerBadgeText: { fontFamily: 'NotoSans_700Bold', fontSize: 11, color: '#111827' },
+  providerAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  providerInitials: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 12 },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 12 },
+  sourceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  sourceBadgeAi: { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' },
+  sourceBadgePartner: { backgroundColor: '#ECFDF5', borderColor: '#D1FAE5' },
+  sourceBadgeText: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 10 },
+  sourceBadgeTextAi: { color: '#111827' },
+  sourceBadgeTextPartner: { color: '#065F46' },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  priceAmount: { color: '#111827', fontFamily: 'NotoSans_700Bold', fontSize: 16 },
+  priceCurrency: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 12 },
+  detailsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  detailText: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 12 },
+  selectionIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offerCardMain: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  offerCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 12,
+  },
+  offerInfo: {
+    flex: 1,
+  },
+  offerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  offerCardRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 6,
+    minWidth: 80,
+  },
+  etaText: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 11 },
+  offerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  offerDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#111827',
+  },
+  chatButtonText: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+  selectButtonActive: { borderColor: '#10B981' },
+  selectButtonText: { color: '#111827', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
+  selectButtonTextActive: { color: '#10B981' },
+  chatButtonFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+  chatButtonFooterText: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
+  etaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  summaryCardNew: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    padding: 12,
+    marginBottom: 10,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  summaryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryTitleNew: {
+    color: '#111827',
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 14,
+  },
+  summaryEditNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+  summaryContent: {
+    gap: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  summaryLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  summaryLabelText: {
+    color: '#6B7280',
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 12,
+  },
+  summaryValue: {
+    color: '#111827',
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 14,
+  },
+  urgencyBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+  },
+  urgencyBadgeUrgent: { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' },
+  urgencyBadgeNormal: { backgroundColor: '#F3FAF7', borderColor: '#C6F6E4' },
+  urgencyBadgeLow: { backgroundColor: '#FFFBEB', borderColor: '#FEF3C7' },
+  urgencyText: {
+    color: '#15803D',
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 12,
+  },
+  urgencyTextUrgent: { color: '#B42318', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
+  urgencyTextNormal: { color: '#15803D', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
+  urgencyTextLow: { color: '#4D7C0F', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
+  newStepContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  newStepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 16,
+  },
+  newStepIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  newStepContent: {
+    flex: 1,
+  },
+  newStepTitle: {
+    color: '#1F2937',
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 18,
+    marginBottom: 2,
+  },
+  newStepSubtitle: {
+    color: '#6B7280',
+    fontFamily: 'NotoSans_400Regular',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  newStepBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  newStepBadgeText: {
+    color: '#475569',
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 11,
+  },
+  newFieldContainer: {
+    gap: 16,
+  },
+  newFieldGroup: {
+    gap: 6,
+  },
+  newFieldLabel: {
+    color: '#374151',
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 13,
+  },
+  newPickerInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  newPickerDisabled: {
+    opacity: 0.4,
+    backgroundColor: '#F1F5F9',
+  },
+  newPickerText: {
+    color: '#1F2937',
+    fontFamily: 'NotoSans_400Regular',
+    fontSize: 14,
+  },
+  newInput: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    color: '#1F2937',
+    fontFamily: 'NotoSans_400Regular',
+    fontSize: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
 });
 
 function onPickMode(next: Exclude<Mode, null>, setMode: (m: Mode) => void, setMessages: (fn: (prev: Message[]) => Message[]) => void) {

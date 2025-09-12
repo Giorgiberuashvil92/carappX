@@ -1,1153 +1,1849 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ImageBackground,
   TextInput,
   Platform,
-  FlatList,
   Dimensions,
-  Alert,
-  Modal,
   RefreshControl,
+  StatusBar,
+  ImageBackground,
+  FlatList,
+  Alert,
+  Animated,
   Image,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect, Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Colors from '../../constants/Colors';
-import { useColorScheme } from '../../components/useColorScheme';
-import Chip from '../../components/ui/Chip';
-import { useCars } from '../../contexts/CarContext';
+import { carwashApi, CarwashBooking } from '../../services/carwashApi';
+import { useUser } from '../../contexts/UserContext';
+import AddModal, { AddModalType } from '../../components/ui/AddModal';
+import { carwashLocationApi } from '../../services/carwashLocationApi';
 
 const { width, height } = Dimensions.get('window');
 
-const CAR_WASH_LOCATIONS = [
-  {
-    id: '1',
-    name: 'Premium Car Wash',
-    address: 'ვაჟა-ფშაველას 15, თბილისი',
-    rating: 4.8,
-    reviews: 124,
-    distance: '0.8 კმ',
-    price: '15₾-დან',
-    services: ['სრული სამრეცხაო', 'პრემიუმ სერვისი', 'ცვილის გამოყენება'],
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1000&auto=format&fit=crop',
-    isOpen: true,
-    waitTime: '10 წთ',
-    category: 'Premium',
-    discount: '20%',
-  },
-  {
-    id: '2',
-    name: 'Express Car Wash',
-    address: 'რუსთაველის 45, თბილისი',
-    rating: 4.5,
-    reviews: 89,
-    distance: '1.2 კმ',
-    price: '8₾-დან',
-    services: ['სწრაფი სამრეცხაო', 'გარე გაწმენდა'],
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1000&auto=format&fit=crop',
-    isOpen: true,
-    waitTime: '5 წთ',
-    category: 'Express',
-  },
-  {
-    id: '3',
-    name: 'Luxury Auto Spa',
-    address: 'პეკინის 78, თბილისი',
-    rating: 4.9,
-    reviews: 203,
-    distance: '2.1 კმ',
-    price: '25₾-დან',
-    services: ['დეტალური სამრეცხაო', 'პრემიუმ სერვისი', 'ცვილის გამოყენება', 'ქიმწმენდა'],
-    image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=1000&auto=format&fit=crop',
-    isOpen: true,
-    waitTime: '15 წთ',
-    category: 'Luxury',
-    featured: true,
-  },
-  {
-    id: '4',
-    name: 'Quick & Clean',
-    address: 'აღმაშენებლის 23, თბილისი',
-    rating: 4.3,
-    reviews: 67,
-    distance: '0.5 კმ',
-    price: '10₾-დან',
-    services: ['სწრაფი სამრეცხაო', 'გარე გაწმენდა'],
-    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?q=80&w=1000&auto=format&fit=crop',
-    isOpen: false,
-    waitTime: '20 წთ',
-    category: 'Standard',
-  },
-  {
-    id: '5',
-    name: 'Professional Car Care',
-    address: 'დიდუბის 12, თბილისი',
-    rating: 4.7,
-    reviews: 156,
-    distance: '1.8 კმ',
-    price: '20₾-დან',
-    services: ['სრული სამრეცხაო', 'პრემიუმ სერვისი', 'ცვილის გამოყენება'],
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1000&auto=format&fit=crop',
-    isOpen: true,
-    waitTime: '12 წთ',
-    category: 'Professional',
-  },
+
+
+
+// UI Configuration - Static data for tabs
+const FLOATING_TABS = [
+  { id: 'locations', title: 'სამრეცხაოები', icon: 'car-outline' },
+  { id: 'bookings', title: 'ჯავშნები', icon: 'calendar-outline' },
+  { id: 'favorites', title: 'ფავორიტები', icon: 'heart-outline' },
 ];
 
-const CATEGORIES = [
-  { id: 'repair', title: 'Repairing', image: 'https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=600&auto=format&fit=crop' },
-  { id: 'electrical', title: 'Electrical', image: 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=600&auto=format&fit=crop' },
-  { id: 'cleaning', title: 'Cleaning', image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=600&auto=format&fit=crop' },
-  { id: 'painting', title: 'Painting', image: 'https://images.unsplash.com/photo-1510414696678-2415ad8474aa?q=80&w=600&auto=format&fit=crop' },
+// UI Configuration - Static data for filter features
+const CAR_WASH_FEATURES = [
+  { id: 'night', title: 'ღამის სერვისი', icon: 'moon-outline' },
+  { id: 'parking', title: 'პარკინგი', icon: 'car-outline' },
+  { id: 'wifi', title: 'WiFi', icon: 'wifi-outline' },
+  { id: 'detailing', title: 'დეტეილინგი', icon: 'sparkles-outline' },
+  { id: 'eco', title: 'ეკო', icon: 'leaf-outline' },
 ];
-
-
 
 export default function CarWashScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const { cars, selectedCar, selectCar, addCar } = useCars();
+  const { user, isAuthenticated, updateUserRole, addToOwnedCarwashes } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showCarDropdown, setShowCarDropdown] = useState(false);
-  const [showAddCarModal, setShowAddCarModal] = useState(false);
-  const [pressedButtons, setPressedButtons] = useState<{ [key: string]: boolean }>({});
-  
-  // Custom dialog states
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showReBookModal, setShowReBookModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  
-  // Form state for adding new car
-  const [newCar, setNewCar] = useState({
-    make: '',
-    model: '',
-    year: '',
-    plateNumber: '',
-  });
-
-  // UI state
-  const [activeFilter, setActiveFilter] = useState<'All' | 'Premium' | 'Express' | 'Luxury' | 'Discount' | 'Open'>('All');
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [userBookings, setUserBookings] = useState<CarwashBooking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [bannerExpanded, setBannerExpanded] = useState(true);
+  const flatListRef = useRef<FlatList>(null);
+  const bannerHeight = useRef(new Animated.Value(180)).current;
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#F8FAFC',
-      position: 'relative',
-      paddingBottom: 100,
-    },
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: Platform.OS === 'ios' ? 60 : 20,
-      paddingBottom: 20,
-      backgroundColor: '#F8FAFC',
-    },
-    headerTop: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    carSelector: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFFFFF',
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      flex: 1,
-      marginRight: 12,
-    },
-    carInfo: {
-      flex: 1,
-      marginLeft: 12,
-    },
-    carLabel: {
-      fontSize: 12,
-      fontFamily: 'Poppins_500Medium',
-      color: '#6B7280',
-      marginBottom: 2,
-    },
-    carNumber: {
-      fontSize: 16,
-      fontFamily: 'Poppins_700Bold',
-      color: '#111827',
-      letterSpacing: 1,
-    },
-    addCarButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: '#FFFFFF',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.06,
-      shadowRadius: 2,
-      elevation: 2,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      justifyContent: 'flex-end',
-    },
-    modalContainer: {
-      backgroundColor: '#FFFFFF',
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingTop: 20,
-      paddingBottom: 40,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -8 },
-      shadowOpacity: 0.25,
-      shadowRadius: 20,
-      elevation: 15,
-    },
-    dropdownItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: '#F3F4F6',
-    },
-    dropdownItemSelected: {
-      backgroundColor: '#F0F9FF',
-    },
-    dropdownCarInfo: {
-      flex: 1,
-      marginLeft: 12,
-    },
-    dropdownCarNumber: {
-      fontSize: 16,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#1F2937',
-      letterSpacing: 1,
-    },
-    dropdownCarDetails: {
-      fontSize: 12,
-      fontFamily: 'Poppins_400Regular',
-      color: '#6B7280',
-      marginTop: 2,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: '#F3F4F6',
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#1F2937',
-    },
-    addCarModalContainer: {
-      backgroundColor: '#FFFFFF',
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingTop: 20,
-      paddingBottom: 40,
-      paddingHorizontal: 20,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -8 },
-      shadowOpacity: 0.25,
-      shadowRadius: 20,
-      elevation: 15,
-    },
-    addCarForm: {
-      gap: 20,
-    },
-    formGroup: {
-      gap: 8,
-    },
-    formLabel: {
-      fontSize: 14,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#1F2937',
-    },
-    formInput: {
-      backgroundColor: '#F9FAFB',
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      fontSize: 16,
-      fontFamily: 'Poppins_400Regular',
-      color: '#1F2937',
-    },
-    addCarSubmitButton: {
-      backgroundColor: '#111827',
-      borderRadius: 16,
-      paddingVertical: 16,
-      alignItems: 'center',
-      marginTop: 20,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 6,
-    },
-    addCarButtonText: {
-      fontSize: 16,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-      letterSpacing: -0.2,
-    },
-    headerSubtitle: {
-      fontSize: 16,
-      fontFamily: 'Poppins_400Regular',
-      color: '#6B7280',
-    },
-    searchContainer: {
-      paddingHorizontal: 20,
-      marginBottom: 20,
-    },
-    searchInputContainer: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
-      shadowRadius: 2,
-      elevation: 1,
-    },
-    searchIcon: {
-      marginRight: 12,
-      color: '#9CA3AF',
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: 16,
-      fontFamily: 'Poppins_400Regular',
-      color: '#111827',
-    },
-    // ფილტრების სტილები ამოვიღეთ
-    locationCard: {
-      marginHorizontal: 20,
-      marginBottom: 16,
-      backgroundColor: '#FFFFFF',
-      borderRadius: 24,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.12,
-      shadowRadius: 18,
-      elevation: 6,
-      borderWidth: 0,
-    },
-    locationImage: {
-      width: '100%',
-      height: 180,
-    },
-    locationOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.25)',
-      padding: 16,
-      justifyContent: 'space-between',
-    },
-    locationHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-    },
-    locationName: {
-      fontSize: 18,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-      flex: 1,
-      marginTop: 20,
-      textShadowColor: 'rgba(0, 0, 0, 0.3)',
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 4,
-    },
-    categoryBadge: { backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-    categoryText: { fontSize: 12, fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF' },
-    featuredBadge: {
-      position: 'absolute',
-      top: 12,
-      right: 12,
-      backgroundColor: '#F59E0B',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-    },
-    featuredText: {
-      fontSize: 10,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-    },
-    discountBadge: {
-      position: 'absolute',
-      top: 12,
-      left: 12,
-      backgroundColor: 'rgba(239, 68, 68, 0.9)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-    },
-    discountText: {
-      fontSize: 10,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-    },
-    locationDetails: { padding: 16, backgroundColor: '#FFFFFF' },
-    locationInfo: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    locationAddress: { fontSize: 14, fontFamily: 'Poppins_500Medium', color: '#6B7280', flex: 1 },
-    locationDistance: {
-      fontSize: 13,
-      fontFamily: 'Poppins_500Medium',
-      color: '#3B82F6',
-      backgroundColor: '#EFF6FF',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-    },
-    ratingContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    ratingText: { fontSize: 15, fontFamily: 'Poppins_700Bold', color: '#111827', marginLeft: 6 },
-    reviewsText: {
-      fontSize: 13,
-      fontFamily: 'Poppins_400Regular',
-      color: '#9CA3AF',
-      marginLeft: 6,
-    },
-    waitTimeContainer: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
-    waitTimeText: {
-      fontSize: 13,
-      fontFamily: 'Poppins_500Medium',
-      color: '#6B7280',
-      marginLeft: 4,
-    },
-    servicesContainer: {
-      marginBottom: 12,
-    },
-    servicesTitle: {
-      fontSize: 14,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#111827',
-      marginBottom: 8,
-    },
-    servicesList: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-    },
-    serviceTag: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-      backgroundColor: '#F3F4F6',
-    },
-    serviceTagText: {
-      fontSize: 11,
-      fontFamily: 'Poppins_500Medium',
-      color: '#374151',
-    },
-    priceContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    priceText: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: '#111827' },
-    bookButton: { backgroundColor: '#0B0B0E', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8 },
-    bookButtonText: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#FFFFFF' },
-    statusIndicator: {
-      position: 'absolute',
-      top: 12,
-      right: 12,
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      borderWidth: 2,
-      borderColor: '#FFFFFF',
-    },
-    mapButtonContainer: {
-      paddingHorizontal: 20,
-      marginBottom: 20,
-    },
-    mapButton: {
-      backgroundColor: '#111827',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 16,
-      paddingHorizontal: 24,
-      borderRadius: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 6,
-    },
-    mapButtonText: {
-      fontSize: 16,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-      marginLeft: 8,
-    },
-    bookingsSection: {
-      marginTop: 24,
-      marginBottom: 16,
-      paddingHorizontal: 20,
-    },
-    bookingsButton: {
-      borderRadius: 16,
-      paddingVertical: 16,
-      paddingHorizontal: 20,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.1,
-      shadowRadius: 12,
-      elevation: 6,
-      borderWidth: 1,
-      borderColor: '#E0E7FF',
-      position: 'relative',
-      overflow: 'hidden',
-      backgroundColor: '#FFFFFF',
-    },
-    bookingsButtonContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    bookingsButtonIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: 'rgba(255, 255, 255, 0.3)',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-      elevation: 2,
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    bookingsButtonText: {
-      flex: 1,
-      marginLeft: 20,
-    },
-    bookingsButtonTitle: {
-      fontSize: 16,
-      fontFamily: 'Poppins_700Bold',
-      color: '#FFFFFF',
-      marginBottom: 4,
-      textShadowColor: 'rgba(0, 0, 0, 0.1)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    bookingsButtonSubtitle: {
-      fontSize: 13,
-      fontFamily: 'Poppins_400Regular',
-      color: 'rgba(255, 255, 255, 0.9)',
-      lineHeight: 18,
-    },
-    profileRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-    },
-    userName: {
-      fontSize: 16,
-      fontFamily: 'Poppins_700Bold',
-      color: '#111827',
-    },
-    locationText: {
-      marginLeft: 4,
-      fontSize: 12,
-      color: '#6B7280',
-      fontFamily: 'Poppins_500Medium',
-    },
-    roundIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
-      shadowRadius: 2,
-    },
-    promoCard: {
-      marginTop: 4,
-      marginHorizontal: 4,
-      backgroundColor: '#111827',
-      borderRadius: 20,
-      overflow: 'hidden',
-      height: 160,
-      position: 'relative',
-    },
-    promoImage: {
-      width: '100%',
-      height: '100%',
-      position: 'absolute',
-    },
-    promoOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-    },
-    promoContent: {
-      position: 'absolute',
-      left: 16,
-      top: 16,
-      right: 16,
-    },
-    promoTitle: {
-      fontSize: 22,
-      lineHeight: 26,
-      color: '#FFFFFF',
-      fontFamily: 'Poppins_700Bold',
-    },
-    promoSubtitle: {
-      marginTop: 6,
-      color: '#E5E7EB',
-      fontFamily: 'Poppins_500Medium',
-    },
-    promoButton: {
-      marginTop: 14,
-      alignSelf: 'flex-start',
-      backgroundColor: '#6366F1',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 12,
-      shadowColor: '#6366F1',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 10,
-    },
-    promoButtonText: {
-      color: '#FFFFFF',
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 14,
-    },
-    filtersContainer: {
-      paddingHorizontal: 20,
-      marginTop: 12,
-      marginBottom: 8,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    filterChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      backgroundColor: '#FFFFFF',
-    },
-    filterChipActive: {
-      backgroundColor: '#EEF2FF',
-      borderColor: '#C7D2FE',
-    },
-    filterChipText: {
-      fontSize: 13,
-      fontFamily: 'Poppins_500Medium',
-      color: '#111827',
-    },
-    filterChipTextActive: {
-      color: '#3B82F6',
-    },
-    // Add new style for the list container
-    listContainer: {
-      marginTop: 20,
-      marginBottom: 20,
-    },
-  });
+  // New filter states
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterDistance, setFilterDistance] = useState(10);
+  const [filterPriceRange, setFilterPriceRange] = useState({ min: 0, max: 50000 });
+  const [filterSortBy, setFilterSortBy] = useState('rating');
+  
+  // Floating tab state
+  const [activeFloatingTab, setActiveFloatingTab] = useState<'locations' | 'bookings' | 'favorites' | 'my-carwashes'>('locations');
+  
+  // Favorites state
+  const [favoriteLocations, setFavoriteLocations] = useState<string[]>([]);
+  
+  // My carwashes state
+  const [myCarwashes, setMyCarwashes] = useState<any[]>([]);
+  const [allCarwashes, setAllCarwashes] = useState<any[]>([]);
+  
+  // Load my carwashes when user changes
+  useEffect(() => {
+    const loadMyCarwashes = async () => {
+      if (user?.role === 'owner' && user.ownedCarwashes.length > 0) {
+        try {
+          // Load carwashes from backend
+          const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);
+          setMyCarwashes(ownedCarwashes);
+        } catch (error) {
+          console.error('❌ [CARWASH] Error loading my carwashes:', error);
+          setMyCarwashes([]);
+        }
+      } else {
+        setMyCarwashes([]);
+      }
+    };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <Ionicons
-          key={i}
-          name={i <= rating ? 'star' : 'star-outline'}
-          size={16}
-          color={i <= rating ? '#F59E0B' : '#D1D5DB'}
-        />
-      );
+    loadMyCarwashes();
+  }, [user?.role, user?.ownedCarwashes]);
+  
+  // Add modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const getServiceIcon = (service: string) => {
+    switch (service) {
+      case 'car-wash':
+        return 'water';
+      case 'spray':
+        return 'water-outline';
+      case 'vacuum':
+        return 'remove-circle-outline';
+      case 'trash':
+        return 'trash-outline';
+      case 'wheel':
+        return 'car-sport-outline';
+      default:
+        return 'car-outline';
     }
-    return stars;
   };
 
-  // Monochrome theme — category color not used, keep badge subtle
-  const getCategoryColor = () => '#1F1F1F';
-
-  const handleBooking = (location: any) => {
-    router.push({
-      pathname: '/booking',
-      params: { location: JSON.stringify(location) }
-    });
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'მოლოდინში';
+      case 'confirmed':
+        return 'დადასტურებული';
+      case 'in_progress':
+        return 'მიმდინარე';
+      case 'completed':
+        return 'დასრულებული';
+      case 'cancelled':
+        return 'გაუქმებული';
+      default:
+        return status;
+    }
   };
 
-  const toggleFavorite = useCallback((id: string) => {
-    setFavoriteIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }, []);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '#D97706'; // Orange
+      case 'confirmed':
+        return '#1D4ED8'; // Blue
+      case 'in_progress':
+        return '#059669'; // Green
+      case 'completed':
+        return '#047857'; // Dark Green
+      case 'cancelled':
+        return '#DC2626'; // Red
+      default:
+        return '#6B7280'; // Gray
+    }
+  };
+
+  const toggleBanner = () => {
+    const newExpandedState = !bannerExpanded;
+    const toValue = newExpandedState ? 180 : 80;
+    
+    setBannerExpanded(newExpandedState);
+    
+    Animated.timing(bannerHeight, {
+      toValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
 
   const filteredLocations = useMemo(() => {
-    let list = CAR_WASH_LOCATIONS;
-    if (activeFilter === 'Premium' || activeFilter === 'Express' || activeFilter === 'Luxury') {
-      list = list.filter(l => l.category === activeFilter);
-    }
-    if (activeFilter === 'Discount') {
-      list = list.filter(l => !!l.discount);
-    }
-    if (activeFilter === 'Open') {
-      list = list.filter(l => l.isOpen);
-    }
+    
+    let list = allCarwashes;
+    
+    // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      list = list.filter(l => l.name.toLowerCase().includes(q) || l.address.toLowerCase().includes(q));
+      list = list.filter(l => 
+        l.name.toLowerCase().includes(q) || 
+        l.address.toLowerCase().includes(q) ||
+        l.description.toLowerCase().includes(q)
+      );
     }
+    
+    // Features filter
+    if (selectedFeatures.length > 0) {
+      list = list.filter(l => {
+        if (!l.features) return false;
+        
+        let featuresArray: string[];
+        if (typeof l.features === 'string') {
+          // If features is a string, try to parse it as JSON or split by comma
+          try {
+            featuresArray = JSON.parse(l.features);
+          } catch {
+            featuresArray = l.features.split(',').map((f: string) => f.trim());
+          }
+        } else if (Array.isArray(l.features)) {
+          featuresArray = l.features;
+        } else {
+          return false;
+        }
+        
+        return selectedFeatures.some(feature => featuresArray.includes(feature));
+      });
+    }
+    
+    // Distance filter
+    list = list.filter(l => {
+      // Check if distance exists and is a string
+      if (!l.distance || typeof l.distance !== 'string') {
+        return true; // Include items without distance info
+      }
+      const dist = parseFloat(l.distance.replace(/[^\d.]/g, ''));
+      return dist <= filterDistance;
+    });
+    
+    // Price filter
+    list = list.filter(l => {
+      let price: number;
+      if (typeof l.price === 'string') {
+        price = parseInt(l.price.replace(/[^\d]/g, ''));
+      } else if (typeof l.price === 'number') {
+        price = l.price;
+      } else {
+        return true; // Include items without price info
+      }
+      return price >= filterPriceRange.min && price <= filterPriceRange.max;
+    });
+    
     return list;
-  }, [activeFilter, searchQuery]);
+  }, [allCarwashes, searchQuery, selectedFeatures, filterDistance, filterPriceRange]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    // simulate refresh
-    setTimeout(() => setRefreshing(false), 800);
+  // Sort filtered locations
+  const sortedLocations = useMemo(() => {
+    return [...filteredLocations].sort((a, b) => {
+      switch (filterSortBy) {
+        case 'rating':
+          return b.rating - a.rating;
+        case 'price_low':
+          const priceA = parseInt(a.price.replace(/[^\d]/g, ''));
+          const priceB = parseInt(b.price.replace(/[^\d]/g, ''));
+          return priceA - priceB;
+        case 'price_high':
+          const priceAHigh = parseInt(a.price.replace(/[^\d]/g, ''));
+          const priceBHigh = parseInt(b.price.replace(/[^\d]/g, ''));
+          return priceBHigh - priceAHigh;
+        case 'distance':
+          const distanceA = parseFloat(a.distance.replace(/[^\d.]/g, ''));
+          const distanceB = parseFloat(b.distance.replace(/[^\d.]/g, ''));
+          return distanceA - distanceB;
+        default:
+          return 0;
+      }
+    });
+  }, [filteredLocations, filterSortBy]);
+
+  const loadUserBookings = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const bookings = await carwashApi.getAllBookings(user.id);
+      setUserBookings(bookings);
+    } catch (error) {
+      Alert.alert('შეცდომა', 'ჯავშნების ჩატვირთვისას მოხდა შეცდომა');
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, user]);
+
+  const loadAllCarwashes = useCallback(async () => {
+    try {
+      const carwashes = await carwashLocationApi.getAllLocations();
+      setAllCarwashes(carwashes);
+    } catch (error) {
+      console.error('❌ [CARWASH] Error loading carwashes:', error);
+      setAllCarwashes([]);
+    }
   }, []);
 
-  const renderLocationCard = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.locationCard}>
-      <ImageBackground
-        source={{ uri: item.image }}
-        style={styles.locationImage}
-      >
-        <View style={styles.locationOverlay}>
-          <TouchableOpacity
-            onPress={() => toggleFavorite(item.id)}
-            activeOpacity={0.8}
-            style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}
-          >
-            <View style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              backgroundColor: 'rgba(0,0,0,0.35)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.2)'
-            }}>
-              <Ionicons
-                name={favoriteIds.has(item.id) ? 'heart' : 'heart-outline'}
-                size={18}
-                color={favoriteIds.has(item.id) ? '#EF4444' : '#FFFFFF'}
-              />
-            </View>
-          </TouchableOpacity>
-          {item.featured && (
-            <View style={styles.featuredBadge}>
-              <Text style={styles.featuredText}>⭐ ფავორიტი</Text>
-            </View>
-          )}
-          
-          {item.discount && (
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>-{item.discount}</Text>
-            </View>
-          )}
+  // Load user bookings on component mount and when user changes
+  useEffect(() => {
+    loadUserBookings();
+  }, [loadUserBookings]);
 
-          <View style={styles.locationHeader}>
-            <Text style={styles.locationName}>{item.name}</Text>
-            <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor() }]}>
-              <Text style={styles.categoryText}>{item.category}</Text>
-            </View>
-          </View>
+  // Load all carwashes on component mount
+  useEffect(() => {
+    loadAllCarwashes();
+  }, [loadAllCarwashes]);
 
-          <View style={styles.statusIndicator}>
-            <View style={[
-              { 
-                width: 4, 
-                height: 4, 
-                borderRadius: 2, 
-                backgroundColor: item.isOpen ? '#10B981' : '#EF4444' 
-              }
-            ]} />
-          </View>
-        </View>
-      </ImageBackground>
+  // Auto-refresh when screen comes into focus (e.g., after booking)
+  useFocusEffect(
+    useCallback(() => {
+      loadUserBookings();
+      loadAllCarwashes();
+    }, [loadUserBookings, loadAllCarwashes])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadUserBookings(), loadAllCarwashes()]);
+    setRefreshing(false);
+  }, [loadUserBookings, loadAllCarwashes]);
+
+  const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      setCurrentSlide(viewableItems[0].index);
+    }
+  }, []);
+
+  const viewabilityConfig = {
+    itemVisiblePercentThreshold: 50,
+  };
+
+  const bannerData = useMemo(() => [
+    {
+      id: '1',
+      background: { uri: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80' },
+      gradient: ['rgba(0, 0, 0, 0.8)', 'rgba(59, 130, 246, 0.9)'],
+      title: 'ჩემი ჯავშნები',
+      bookings: userBookings.slice(0, 2),
+    },
+    {
+      id: '2',
+      background: { uri: 'https://images.unsplash.com/photo-1563298723-dcfebaa392e3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80' },
+      gradient: ['rgba(17, 24, 39, 0.8)', 'rgba(37, 99, 235, 0.9)'],
+      title: 'აქტიური ჯავშნები',
+      bookings: userBookings.slice(1, 3),
+    },
+    {
+      id: '3',
+      background: { uri: 'https://images.unsplash.com/photo-1583121274602-3e2820c69888?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80' },
+      gradient: ['rgba(30, 41, 59, 0.8)', 'rgba(29, 78, 216, 0.9)'],
+      title: 'პრემიუმ სერვისი',
+      bookings: userBookings.slice(0, 2),
+    },
+  ], [userBookings]);
+
+  const handleBooking = (location: any) => {
+    // Create the same detailed params as in details.tsx
+    const locationObject = {
+      id: location.id,
+      name: location.name,
+      address: location.address,
+      rating: location.rating,
+      reviews: location.reviews,
+      distance: location.distance,
+      price: location.price,
+      image: location.image,
+      category: location.category,
+      isOpen: location.isOpen,
+      waitTime: location.waitTime,
+      features: location.features || [],
+      services: location.services || [],
+      detailedServices: location.detailedServices || [],
+      timeSlotsConfig: location.timeSlotsConfig || {},
+      availableSlots: location.availableSlots || [],
+      realTimeStatus: location.realTimeStatus || {},
+      workingHours: location.workingHours || '09:00 - 18:00',
+      latitude: location.latitude || 41.7151,
+      longitude: location.longitude || 44.8271,
+    };
+
+    const bookingParams = {
+      location: JSON.stringify(locationObject),
+      locationName: location.name,
+      locationAddress: location.address,
+      locationRating: location.rating?.toString() || '4.9',
+      locationReviews: location.reviews?.toString() || '89',
+      locationDistance: location.distance || '1.2 კმ',
+      locationPrice: location.price || '15₾',
+      locationImage: location.image || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=400&auto=format&fit=crop',
+      locationCategory: location.category || 'სამრეცხაო',
+      locationIsOpen: location.isOpen?.toString() || 'true',
+      locationWaitTime: location.waitTime || 'მოლოდინი',
+      locationFeatures: JSON.stringify(location.features || []),
+      locationServices: JSON.stringify(location.services || []),
+      locationDetailedServices: JSON.stringify(location.detailedServices || []),
+      locationTimeSlotsConfig: JSON.stringify(location.timeSlotsConfig || {}),
+      locationAvailableSlots: JSON.stringify(location.availableSlots || []),
+      locationRealTimeStatus: JSON.stringify(location.realTimeStatus || {}),
+      locationWorkingHours: location.workingHours || '09:00 - 18:00',
+    };
+
+
+    router.push({
+      pathname: '/booking',
+      params: bookingParams
+    });
+  };
+
+  const handleBookingAction = async (bookingId: string, action: 'cancel' | 'confirm' | 'start' | 'complete') => {
+    try {
+      setLoading(true);
+      let updatedBooking: CarwashBooking;
       
-      <View style={styles.locationDetails}>
-        <View style={styles.locationInfo}>
-          <Text style={styles.locationAddress}>{item.address}</Text>
-          <Text style={styles.locationDistance}>{item.distance}</Text>
-        </View>
-        
-        <View style={styles.ratingContainer}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {renderStars(item.rating)}
-            <Text style={styles.ratingText}>{item.rating}</Text>
-            <Text style={styles.reviewsText}>({item.reviews} შეფასება)</Text>
+      switch (action) {
+        case 'cancel':
+          updatedBooking = await carwashApi.cancelBooking(bookingId);
+          break;
+        case 'confirm':
+          updatedBooking = await carwashApi.confirmBooking(bookingId);
+          break;
+        case 'start':
+          updatedBooking = await carwashApi.startBooking(bookingId);
+          break;
+        case 'complete':
+          updatedBooking = await carwashApi.completeBooking(bookingId);
+          break;
+        default:
+          throw new Error('Invalid action');
+      }
+      
+      // Update local state
+      setUserBookings(prev => 
+        prev.map(booking => 
+          booking.id === bookingId ? updatedBooking : booking
+        )
+      );
+      
+      Alert.alert('წარმატება', 'ჯავშანი წარმატებით განახლდა');
+    } catch (error) {
+      Alert.alert('შეცდომა', 'ჯავშნის განახლებისას მოხდა შეცდომა');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCategoryColor = (category: string) => {
+    const colors: { [key: string]: string } = {
+      'Premium': '#3B82F6',
+      'Express': '#10B981',
+      'Luxury': '#F59E0B',
+      'Standard': '#6B7280',
+      'Professional': '#8B5CF6',
+    };
+    return colors[category] || '#6B7280';
+  };
+
+  const resetFilters = () => {
+    setSelectedFeatures([]);
+    setFilterDistance(10);
+    setFilterPriceRange({ min: 0, max: 50000 });
+    setFilterSortBy('rating');
+  };
+
+  const applyFilters = () => {
+    setShowFilterModal(false);
+  };
+
+  const getFloatingTabIcon = (tab: string) => {
+    switch (tab) {
+      case 'locations': return 'car-outline';
+      case 'bookings': return 'calendar-outline';
+      case 'favorites': return 'heart-outline';
+      default: return 'grid-outline';
+    }
+  };
+
+  const handleFloatingTabChange = (tab: string) => {
+    setActiveFloatingTab(tab as 'locations' | 'bookings' | 'favorites' | 'my-carwashes');
+  };
+
+  const toggleFavorite = (locationId: string) => {
+    setFavoriteLocations(prev => 
+      prev.includes(locationId) 
+        ? prev.filter(id => id !== locationId)
+        : [...prev, locationId]
+    );
+  };
+
+  const isFavorite = (locationId: string) => {
+    return favoriteLocations.includes(locationId);
+  };
+
+  // Get data based on active tab
+  const getTabData = () => {
+    switch (activeFloatingTab) {
+      case 'locations':
+        return sortedLocations;
+      case 'bookings':
+        return userBookings;
+      case 'favorites':
+        return sortedLocations.filter(location => isFavorite(location.id));
+      case 'my-carwashes':
+        return myCarwashes;
+      default:
+        return sortedLocations;
+    }
+  };
+
+  const handleLocationPress = (location: any) => {
+    router.push({
+      pathname: '/details',
+      params: {
+        title: location.name,
+        lat: location.latitude || 41.7151,
+        lng: location.longitude || 44.8271,
+        rating: location.rating,
+        distance: location.distance,
+        price: location.price,
+        address: location.address,
+        description: location.description,
+        features: JSON.stringify(location.features),
+        category: location.category,
+        isOpen: location.isOpen,
+        waitTime: location.waitTime,
+        reviews: location.reviews,
+        services: JSON.stringify(location.services),
+        detailedServices: JSON.stringify(location.detailedServices || []),
+        timeSlotsConfig: JSON.stringify(location.timeSlotsConfig || {}),
+        availableSlots: JSON.stringify(location.availableSlots || []),
+        realTimeStatus: JSON.stringify(location.realTimeStatus || {}),
+        workingHours: location.workingHours,
+        image: location.image,
+      }
+    });
+  };
+
+  const renderLocationCard = (location: any) => (
+    <TouchableOpacity
+      key={location.id}
+      style={styles.locationCard}
+      onPress={() => handleLocationPress(location)}
+      activeOpacity={0.95}
+    >
+      {/* Card Header with Image */}
+      <View style={styles.cardImageContainer}>
+        <Image source={{ uri: location.image }} style={styles.cardImage} />
+        <View style={styles.cardImageOverlay}>
+          <View style={styles.cardBadges}>
+            <View style={[styles.cardCategoryBadge, { backgroundColor: getCategoryColor(location.category) }]}>
+              <Text style={styles.cardCategoryText}>{location.category}</Text>
           </View>
-          <View style={styles.waitTimeContainer}>
-            <Ionicons name="time-outline" size={14} color="#6B7280" />
-            <Text style={styles.waitTimeText}>{item.waitTime}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.servicesContainer}>
-          <Text style={styles.servicesTitle}>სერვისები:</Text>
-          <View style={styles.servicesList}>
-            {item.services.map((service: string, index: number) => (
-              <View key={index} style={styles.serviceTag}>
-                <Text style={styles.serviceTagText}>{service}</Text>
+            {location.isOpen && (
+              <View style={styles.cardOpenBadge}>
+                <View style={styles.cardOpenDot} />
+                <Text style={styles.cardOpenText}>ღიაა</Text>
               </View>
-            ))}
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.cardFavoriteButton}
+            onPress={() => toggleFavorite(location.id)}
+            activeOpacity={0.8}
+          >
+            <Ionicons 
+              name={isFavorite(location.id) ? "heart" : "heart-outline"} 
+              size={18} 
+              color={isFavorite(location.id) ? "#EF4444" : "#FFFFFF"} 
+            />
+          </TouchableOpacity>
           </View>
         </View>
         
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceText}>{item.price}</Text>
-          <TouchableOpacity 
-            style={styles.bookButton}
-            onPress={() => handleBooking(item)}
-          >
-            <Text style={styles.bookButtonText}>დაჯავშნა</Text>
-          </TouchableOpacity>
+      {/* Card Content */}
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>{location.name}</Text>
+          <View style={styles.cardRating}>
+            <Ionicons name="star" size={14} color="#F59E0B" />
+            <Text style={styles.cardRatingText}>{location.rating}</Text>
+            <Text style={styles.cardReviewsText}>({location.reviews})</Text>
+          </View>
+              </View>
+
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          {location.description}
+        </Text>
+
+        <View style={styles.cardInfo}>
+          <View style={styles.cardLocation}>
+            <Ionicons name="location-outline" size={14} color="#6B7280" />
+            <Text style={styles.cardLocationText}>{location.address}</Text>
+          </View>
+          <Text style={styles.cardDistance}>{location.distance}</Text>
         </View>
+        
+        <View style={styles.cardFooter}>
+          <View style={styles.cardPriceSection}>
+            <Text style={styles.cardPriceLabel}>ფასი</Text>
+            <Text style={styles.cardPrice}>{location.price}</Text>
+        </View>
+          <View style={styles.cardTimeSection}>
+            <Ionicons name="time-outline" size={14} color="#6B7280" />
+            <Text style={styles.cardTimeText}>{location.waitTime}</Text>
+      </View>
+        </View>
+
+        <View style={styles.cardFeatures}>
+          {(location.features || []).slice(0, 2).map((feature: string, index: number) => (
+            <View key={index} style={styles.cardFeatureTag}>
+              <Text style={styles.cardFeatureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Booking Button */}
+        <TouchableOpacity 
+          style={styles.bookingButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleBooking(location);
+          }}
+          activeOpacity={0.9}
+        >
+          <View style={styles.bookingButtonGradient}>
+            <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.bookingButtonText}>დაჯავშნა</Text>
+          </View>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        <View style={styles.header}>
-          <View style={styles.profileRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Image source={{ uri: 'https://i.pravatar.cc/100' }} style={styles.avatar} />
-              <View style={{ marginLeft: 10 }}>
-                <Text style={styles.userName}>გამარჯობა!</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="location-outline" size={14} color="#6B7280" />
-                  <Text style={styles.locationText}>თბილისი, საქართველო</Text>
+  const renderFilterModal = () => (
+    <Modal
+      visible={showFilterModal}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setShowFilterModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Modal Header */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>ფილტრები</Text>
+            <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            {/* Distance Filter */}
+          <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>მანძილი</Text>
+              <View style={styles.distanceContainer}>
+                <Text style={styles.filterDistanceText}>{filterDistance} კმ-ში</Text>
                 </View>
               </View>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={styles.roundIcon}><Ionicons name="search" size={18} color="#111827" /></View>
-              <View style={styles.roundIcon}><Ionicons name="notifications-outline" size={18} color="#111827" /></View>
-            </View>
-          </View>
 
-          {/* Promo Banner */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <View style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <Text style={styles.promoTitle}>Get Discount{"\n"}up to 35%</Text>
-              <Text style={styles.promoSubtitle}>On first carwash services</Text>
-              <TouchableOpacity style={styles.promoButton} activeOpacity={0.9} onPress={() => router.push('/booking')}>
-                <Text style={styles.promoButtonText}>Book Now</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      
-
-      
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="მოძებნეთ სამრეცხაო..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-      </View>
-
-      <View style={styles.mapButtonContainer}>
-        <TouchableOpacity 
-          style={styles.mapButton}
-          onPress={() => router.push('/map')}
-        >
-          <Ionicons name="map-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.mapButtonText}>რუკაზე ნახვა</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick filter chips */}
-      <View style={{ paddingHorizontal: 20 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          <Chip label="ყველა" active={activeFilter==='All'} onPress={() => setActiveFilter('All')} />
-          <Chip label="Premium" onPress={() => setActiveFilter('Premium')} active={activeFilter==='Premium'} />
-          <Chip label="Express" onPress={() => setActiveFilter('Express')} active={activeFilter==='Express'} />
-          <Chip label="Luxury" onPress={() => setActiveFilter('Luxury')} active={activeFilter==='Luxury'} />
-          <Chip label="ფასდაკლება" icon="tag" onPress={() => setActiveFilter('Discount')} active={activeFilter==='Discount'} />
-          <Chip label="ღიაა ახლა" icon="clock" onPress={() => setActiveFilter('Open')} active={activeFilter==='Open'} />
-        </ScrollView>
-      </View>
-
-      {/* Bookings Section */}
-      <View style={styles.bookingsSection}>
-        <TouchableOpacity 
-          onPress={() => router.push('/bookings')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.bookingsButton}>
-            {/* Background decorative elements */}
-            <View style={{
-              position: 'absolute',
-              top: -15,
-              right: -15,
-              width: 60,
-              height: 60,
-              borderRadius: 30,
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            }} />
-            <View style={{
-              position: 'absolute',
-              bottom: -20,
-              left: -20,
-              width: 70,
-              height: 70,
-              borderRadius: 35,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            }} />
-            <View style={styles.bookingsButtonContent}>
-              <View style={styles.bookingsButtonIcon}>
-                <Ionicons name="calendar-outline" size={24} color="#E5E5E5" />
+            {/* Price Range Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>ფასის დიაპაზონი</Text>
+              <View style={styles.priceRangeContainer}>
+                <Text style={styles.priceRangeText}>{filterPriceRange.min}₾ - {filterPriceRange.max}₾</Text>
               </View>
-              <View style={styles.bookingsButtonText}>
-                <Text style={styles.bookingsButtonTitle}>ჩემი ჯავშნები</Text>
-                <Text style={styles.bookingsButtonSubtitle}>თქვენი ყველა ჯავშანი ერთ ადგილას</Text>
-              </View>
-              <View style={{ alignItems: 'center' }}>
-                <Ionicons name="chevron-forward" size={20} color="#E5E5E5" />
-                <View style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: 8,
-                  backgroundColor: '#111111',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginTop: 4,
-                  borderWidth: 1,
-                  borderColor: '#1F1F1F',
-                }}>
-                  <Text style={{
-                    fontSize: 10,
-                    fontFamily: 'Poppins_600SemiBold',
-                    color: '#E5E5E5',
-                  }}>
-                    3
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* List container */}
-      <View style={styles.listContainer}>
-        {filteredLocations.map((location) => (
-          <TouchableOpacity
-            key={location.id}
-            style={styles.locationCard}
-            onPress={() => handleBooking(location)}
-            activeOpacity={0.9}
-          >
-            {renderLocationCard({ item: location })}
-          </TouchableOpacity>
-        ))}
-      </View>
-      </ScrollView>
-      
-      {/* Modals outside of ScrollView */}
-      <Modal
-        visible={showCarDropdown}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowCarDropdown(false)}
-
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity 
-            style={{ flex: 1 }} 
-            onPress={() => setShowCarDropdown(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>აირჩიეთ მანქანა</Text>
-              <TouchableOpacity onPress={() => setShowCarDropdown(false)}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-            {cars.map((car) => (
-              <TouchableOpacity
-                key={car.id}
-                style={[
-                  styles.dropdownItem,
-                  selectedCar?.id === car.id && styles.dropdownItemSelected
-                ]}
-                onPress={() => {
-                  selectCar(car);
-                  setShowCarDropdown(false);
-                }}
-              >
-                <Ionicons name="car-sport" size={20} color="#3B82F6" />
-                <View style={styles.dropdownCarInfo}>
-                  <Text style={styles.dropdownCarNumber}>{car.plateNumber}</Text>
-                  <Text style={styles.dropdownCarDetails}>
-                    {car.make} {car.model} ({car.year})
-                  </Text>
-                </View>
-                {selectedCar?.id === car.id && (
-                  <Ionicons name="checkmark" size={16} color="#3B82F6" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-      
-      <Modal
-        visible={showAddCarModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowAddCarModal(false)}
-
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity 
-            style={{ flex: 1 }} 
-            onPress={() => setShowAddCarModal(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.addCarModalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>მანქანის დამატება</Text>
-              <TouchableOpacity onPress={() => setShowAddCarModal(false)}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
             </View>
             
-            <View style={styles.addCarForm}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>მანქანის ნომერი</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="მაგ: AA-001-AA"
-                  placeholderTextColor="#9CA3AF"
-                  value={newCar.plateNumber}
-                  onChangeText={(text) => setNewCar(prev => ({ ...prev, plateNumber: text }))}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>ბრენდი</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="მაგ: BMW"
-                  placeholderTextColor="#9CA3AF"
-                  value={newCar.make}
-                  onChangeText={(text) => setNewCar(prev => ({ ...prev, make: text }))}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>მოდელი</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="მაგ: M5"
-                  placeholderTextColor="#9CA3AF"
-                  value={newCar.model}
-                  onChangeText={(text) => setNewCar(prev => ({ ...prev, model: text }))}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>წელი</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="მაგ: 2022"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                  value={newCar.year}
-                  onChangeText={(text) => setNewCar(prev => ({ ...prev, year: text }))}
-                />
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.addCarSubmitButton}
-                onPress={() => {
-                  if (!newCar.make || !newCar.model || !newCar.year || !newCar.plateNumber) {
-                    Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ყველა ველი');
-                    return;
-                  }
-                  
-                  addCar({
-                    make: newCar.make,
-                    model: newCar.model,
-                    year: parseInt(newCar.year),
-                    plateNumber: newCar.plateNumber,
-                  });
-                  
-                  setNewCar({ make: '', model: '', year: '', plateNumber: '' });
-                  setShowAddCarModal(false);
-                  Alert.alert('წარმატება', 'მანქანა წარმატებით დაემატა!');
-                }}
+            {/* Features Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>ფუნქციები</Text>
+              <View style={styles.filterFeaturesContainer}>
+                {CAR_WASH_FEATURES.map((feature) => (
+                  <TouchableOpacity
+                    key={feature.id}
+                    style={[
+                      styles.featureChip,
+                      selectedFeatures.includes(feature.id) && styles.featureChipActive,
+                    ]}
+                    onPress={() => {
+                      if (selectedFeatures.includes(feature.id)) {
+                        setSelectedFeatures(selectedFeatures.filter(id => id !== feature.id));
+                      } else {
+                        setSelectedFeatures([...selectedFeatures, feature.id]);
+                      }
+                    }}
+                  >
+                    <Ionicons 
+                      name={feature.icon as any} 
+                      size={16} 
+                      color={selectedFeatures.includes(feature.id) ? '#FFFFFF' : '#6B7280'} 
+                    />
+                    <Text style={[
+                      styles.featureChipText,
+                      { color: selectedFeatures.includes(feature.id) ? '#FFFFFF' : '#6B7280' }
+                    ]}>
+                      {feature.title}
+                    </Text>
+              </TouchableOpacity>
+                ))}
+            </View>
+          </View>
+
+            {/* Sort By Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>დალაგება</Text>
+              <View style={styles.sortContainer}>
+                {[
+                  { id: 'rating', title: 'რეიტინგი', icon: 'star-outline' },
+                  { id: 'price_low', title: 'ფასი (დაბალი)', icon: 'trending-down-outline' },
+                  { id: 'price_high', title: 'ფასი (მაღალი)', icon: 'trending-up-outline' },
+                  { id: 'distance', title: 'მანძილი', icon: 'location-outline' },
+                ].map((sort) => (
+                  <TouchableOpacity 
+                    key={sort.id}
+                    style={[
+                      styles.sortOption,
+                      filterSortBy === sort.id && styles.sortOptionActive,
+                    ]}
+                    onPress={() => setFilterSortBy(sort.id)}
+                              >
+                                <Ionicons 
+                      name={sort.icon as any} 
+                      size={18} 
+                      color={filterSortBy === sort.id ? '#FFFFFF' : '#6B7280'} 
+                    />
+                    <Text style={[
+                      styles.sortOptionText,
+                      { color: filterSortBy === sort.id ? '#FFFFFF' : '#6B7280' }
+                    ]}>
+                      {sort.title}
+                    </Text>
+                              </TouchableOpacity>
+                ))}
+                            </View>
+                          </View>
+          </ScrollView>
+
+          {/* Modal Footer */}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
+              <Text style={styles.resetButtonText}>გასუფთავება</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
+              <LinearGradient
+                colors={['#111827', '#374151']}
+                style={styles.applyButtonGradient}
               >
-                <Text style={styles.addCarButtonText}>დამატება</Text>
+                <Text style={styles.applyButtonText}>გამოყენება</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+                              </View>
+                            </View>
+                      </View>
+    </Modal>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
+      {/* Header */}
+      <LinearGradient
+        colors={['#F8FAFC', '#FFFFFF']}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#111827" />
+                </TouchableOpacity>
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>სამრეცხაოები</Text>
+            <View style={styles.titleUnderline} />
+          </View>
+          
+          <View style={styles.headerRightSection}>
+            <View style={styles.headerButtonContainer}>
+              <TouchableOpacity 
+                style={styles.headerAddBtn}
+                onPress={() => setShowAddModal(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={styles.headerButtonLabel}>დამატება</Text>
+            </View>
+            
+            <View style={styles.headerButtonContainer}>
+              <TouchableOpacity 
+                style={styles.headerFilterBtn}
+                onPress={() => setShowFilterModal(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="car-sport" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={styles.headerButtonLabel}>ფილტრი</Text>
+            </View>
+            
+            {/* Debug: Change user role to owner */}
+            {user?.role === 'user' && (
+              <View style={styles.headerButtonContainer}>
+                <TouchableOpacity 
+                  style={[styles.headerFilterBtn, { backgroundColor: '#10B981' }]}
+                  onPress={async () => {
+                    try {
+                      await updateUserRole('owner');
+                    } catch (error) {
+                      // Error changing user role
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="person-add" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={styles.headerButtonLabel}>Owner</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        
+        {/* Floating Tab Selector */}
+        <View style={styles.floatingTabSelector}>
+          {FLOATING_TABS.map((tab, idx) => (
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => handleFloatingTabChange(tab.id)}
+                    style={[
+                styles.floatingTabItem,
+                activeFloatingTab === tab.id && styles.floatingTabItemActive
+              ]}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Ionicons 
+                  name={getFloatingTabIcon(tab.id) as any} 
+                  size={20} 
+                  color={activeFloatingTab === tab.id ? "#FFFFFF" : "#111827"} 
+                />
+              </View>
+              <Text style={[
+                styles.floatingTabItemText, 
+                activeFloatingTab === tab.id && styles.floatingTabItemTextActive
+              ]}>
+                {tab.title}
+              </Text>
+            </TouchableOpacity>
+                ))}
+              </View>
+      </LinearGradient>
+
+        <ScrollView
+        style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+            colors={['#111827']}
+          />
+        }
+      >
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#6B7280" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="ძებნა სამრეცხაოების..."
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
+      </View>
+        </View>
+
+        {/* Owner Banner - Show if user is owner and has carwashes */}
+        {user?.role === 'owner' && myCarwashes.length > 0 && (
+          <View style={styles.ownerBanner}>
+            <View style={styles.ownerBannerContent}>
+              <View style={styles.ownerBannerLeft}>
+                <View style={styles.ownerBannerIcon}>
+                  <Ionicons name="business-outline" size={24} color="#3B82F6" />
+                </View>
+                <View style={styles.ownerBannerText}>
+                  <Text style={styles.ownerBannerTitle}>ჩემი სამრეცხაოები</Text>
+                  <Text style={styles.ownerBannerSubtitle}>
+                    {myCarwashes.length} სამრეცხაო მართვისთვის
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.ownerBannerButton}
+                onPress={() => router.push('/management')}
+              >
+                <Ionicons name="settings-outline" size={20} color="#3B82F6" />
+                <Text style={styles.ownerBannerButtonText}>მართვა</Text>
               </TouchableOpacity>
             </View>
           </View>
+        )}
+
+
+        {/* Results Count */}
+        <View style={styles.resultsContainer}>
+          <Text style={styles.resultsText}>
+            {activeFloatingTab === 'bookings' 
+              ? `${userBookings.length} ჯავშნა`
+              : activeFloatingTab === 'favorites'
+              ? `${getTabData().length} ფავორიტი`
+              : `${sortedLocations.length} შედეგი`
+              
+            }
+          </Text>
         </View>
-      </Modal>
-    </View>
+
+        {/* Content based on active tab */}
+        <View style={styles.locationsContainer}>
+          {activeFloatingTab === 'bookings' ? (
+            userBookings.length > 0 ? (
+              userBookings.map((booking, index) => (
+                <View key={booking.id || index} style={styles.bookingCard}>
+                  {/* Booking Card Header */}
+                  <View style={styles.bookingCardHeader}>
+                    <View style={styles.bookingLocationInfo}>
+                      <View style={styles.bookingLocationIcon}>
+                        <Ionicons name="car-outline" size={20} color="#3B82F6" />
+                      </View>
+                      <View style={styles.bookingLocationDetails}>
+                        <Text style={styles.bookingLocationName}>{booking.locationName}</Text>
+                        <Text style={styles.bookingLocationAddress}>{booking.locationAddress || 'მდებარეობა'}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.bookingStatus, { backgroundColor: getStatusColor(booking.status) }]}>
+                      <Text style={styles.bookingStatusText}>{getStatusText(booking.status)}</Text>
+                    </View>
+                  </View>
+
+                  {/* Service Details */}
+                  <View style={styles.bookingServiceSection}>
+                    <View style={styles.bookingServiceInfo}>
+                      <Ionicons name="sparkles-outline" size={16} color="#6B7280" />
+                      <Text style={styles.bookingServiceName}>{booking.serviceName}</Text>
+                    </View>
+                    <View style={styles.bookingPriceContainer}>
+                      <Text style={styles.bookingPrice}>{booking.servicePrice}₾</Text>
+                    </View>
+                  </View>
+
+                  {/* Date & Time */}
+                  <View style={styles.bookingDateTimeSection}>
+                    <View style={styles.bookingDateTimeItem}>
+                      <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                      <Text style={styles.bookingDate}>{new Date(booking.bookingDate).toLocaleDateString('ka-GE')}</Text>
+                    </View>
+                    <View style={styles.bookingDateTimeItem}>
+                      <Ionicons name="time-outline" size={16} color="#6B7280" />
+                      <Text style={styles.bookingTime}>{booking.bookingTime}</Text>
+                    </View>
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View style={styles.bookingActions}>
+                    <TouchableOpacity style={styles.bookingActionButton}>
+                      <Ionicons name="call-outline" size={16} color="#3B82F6" />
+                      <Text style={styles.bookingActionText}>დარეკვა</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.bookingActionButton}>
+                      <Ionicons name="navigate-outline" size={16} color="#10B981" />
+                      <Text style={styles.bookingActionText}>ნავიგაცია</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.bookingCancelButton}>
+                      <Ionicons name="close-outline" size={16} color="#EF4444" />
+                      <Text style={styles.bookingCancelText}>გაუქმება</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
+                </View>
+                <Text style={styles.emptyStateTitle}>ჯავშნები არ არის</Text>
+                <Text style={styles.emptyStateText}>ჯერ არ გაქვთ აქტიური ჯავშნები</Text>
+                <TouchableOpacity style={styles.emptyStateButton}>
+                  <Text style={styles.emptyStateButtonText}>ახალი ჯავშნა</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          ) : activeFloatingTab === 'favorites' ? (
+            getTabData().length > 0 ? (
+              getTabData().map(renderLocationCard)
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="heart-outline" size={48} color="#9CA3AF" />
+                <Text style={styles.emptyStateTitle}>ფავორიტები არ არის</Text>
+                <Text style={styles.emptyStateText}>ჯერ არ გაქვთ მოწონებული სამრეცხაოები</Text>
+              </View>
+            )
+          ) : (
+            getTabData().map(renderLocationCard)
+          )}
+        </View>
+
+        {/* Bottom Spacing */}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      {/* Filter Modal */}
+      {renderFilterModal()}
+      
+      {/* Add Modal */}
+      <AddModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSave={async (type: AddModalType, data: any) => {
+          setShowAddModal(false);
+          
+          // If carwash was added, refresh my carwashes and all carwashes
+          if (type === 'carwash' && data?.success) {
+           
+            
+            // If user is not owner yet, change role to owner
+            if (user?.role !== 'owner') {
+             
+              try {
+                await updateUserRole('owner');
+               
+              } catch (error) {
+              }
+            }
+            
+            // Add carwash to owned carwashes list
+            try {
+              await addToOwnedCarwashes(data.data.id);
+              
+            } catch (error) {
+            }
+            
+            // Reload my carwashes from backend
+            if (user?.role === 'owner') {
+              try {
+                const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);
+                setMyCarwashes(ownedCarwashes);
+                // Also reload all carwashes
+                await loadAllCarwashes();
+              } catch (error) {
+                // Add the new carwash to the list manually
+                const newCarwash = {
+                  id: data.data.id,
+                  name: data.data.name,
+                  address: data.data.address,
+                  rating: data.data.rating,
+                  reviews: data.data.reviews,
+                  distance: 'მდებარეობა',
+                  price: `${data.data.price}₾-დან`,
+                  services: data.data.services?.split(',') || [],
+                  isOpen: data.data.isOpen,
+                  waitTime: 'მოლოდინი',
+                  category: data.data.category,
+                  logo: '🚗', // Default logo
+                  image: data.data.images?.[0] || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=400&auto=format&fit=crop',
+                  description: data.data.description,
+                  features: data.data.features?.split(',') || [],
+                };
+                setMyCarwashes(prev => [...prev, newCarwash]);
+              }
+            }
+          }
+        }}
+        defaultType="carwash"
+      />
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    paddingTop: 10,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  titleUnderline: {
+    width: 40,
+    height: 3,
+    backgroundColor: '#3B82F6',
+    borderRadius: 2,
+    marginTop: 4,
+  },
+  headerRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  headerButtonContainer: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerAddBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  headerFilterBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  addBtnContent: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerButtonLabel: {
+    fontSize: 11,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    letterSpacing: 0.5,
+  },
+  addIcon: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+  },
+  addLabel: {
+    fontSize: 10,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  // Floating Tab Selector Styles
+  floatingTabSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    marginHorizontal: 4,
+  },
+  floatingTabItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  floatingTabItemActive: {
+    backgroundColor: '#111827',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabIconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingTabItemText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#6B7280',
+  },
+  floatingTabItemTextActive: {
+    color: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 50,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    fontFamily: 'NotoSans_500Medium',
+  },
+  resultsContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  resultsText: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  locationsContainer: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  // New Card Design Styles
+  locationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    overflow: 'hidden',
+  },
+  cardImageContainer: {
+    position: 'relative',
+    height: 120,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  cardBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  cardCategoryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  cardCategoryText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'NotoSans_700Bold',
+  },
+  cardOpenBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 197, 94, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 4,
+  },
+  cardOpenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  cardOpenText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: 'NotoSans_600SemiBold',
+  },
+  cardFavoriteButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 16,
+    padding: 8,
+    alignSelf: 'flex-end',
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#111827',
+    flex: 1,
+    marginRight: 12,
+  },
+  cardRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardRatingText: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#111827',
+  },
+  cardReviewsText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  cardDescription: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  cardInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  cardLocationText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  cardDistance: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#3B82F6',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardPriceSection: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  cardPriceLabel: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  cardPrice: {
+    fontSize: 18,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#111827',
+  },
+  cardTimeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardTimeText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  cardFeatures: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  cardFeatureTag: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  cardFeatureText: {
+    fontSize: 10,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#6B7280',
+  },
+  // Booking Button Styles
+  bookingButton: {
+    marginTop: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  bookingButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+    backgroundColor: '#111827',
+    borderRadius: 12,
+  },
+  bookingButtonText: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#FFFFFF',
+  },
+  filterFeaturesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  // Booking Card Styles
+  bookingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  bookingCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  bookingLocationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  bookingLocationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EBF8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  bookingLocationDetails: {
+    flex: 1,
+  },
+  bookingLocationName: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  bookingLocationAddress: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  bookingStatus: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  bookingStatusText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#FFFFFF',
+  },
+  bookingServiceSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+  },
+  bookingServiceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  bookingServiceName: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#374151',
+    marginLeft: 8,
+  },
+  bookingPriceContainer: {
+    backgroundColor: '#111827',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  bookingPrice: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#FFFFFF',
+  },
+  bookingDateTimeSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  bookingDateTimeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  bookingDate: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  bookingTime: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  bookingActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  bookingActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  bookingActionText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#374151',
+    marginLeft: 6,
+  },
+  bookingCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  bookingCancelText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#EF4444',
+    marginLeft: 6,
+  },
+  // Empty State Styles
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  emptyStateButton: {
+    backgroundColor: '#111827',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyStateButtonText: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#FFFFFF',
+  },
+  // Filter Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '95%',
+    minHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#1F2937',
+  },
+  modalBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  filterSection: {
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  distanceContainer: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  filterDistanceText: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#1F2937',
+  },
+  priceRangeContainer: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  priceRangeText: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#1F2937',
+  },
+  featureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    gap: 6,
+  },
+  featureChipActive: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  featureChipText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+  },
+  sortContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    gap: 8,
+    flex: 1,
+    minWidth: '45%',
+  },
+  sortOptionActive: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  sortOptionText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#6B7280',
+  },
+  // Owner Banner Styles
+  ownerBanner: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  ownerBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  ownerBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  ownerBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  ownerBannerText: {
+    flex: 1,
+  },
+  ownerBannerTitle: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  ownerBannerSubtitle: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+  },
+  ownerBannerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  ownerBannerButtonText: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#3B82F6',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#6B7280',
+  },
+  applyButton: {
+    flex: 2,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  applyButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#FFFFFF',
+  },
+});

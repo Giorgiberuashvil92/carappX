@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
+  TextInput,
   Platform,
+  Dimensions,
+  RefreshControl,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import Colors from '../constants/Colors';
-import { useColorScheme } from '../components/useColorScheme';
-import { BookingDetailsModal, CancelBookingModal, ReBookModal } from '../components/BookingDialogs';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { carwashApi, CarwashBooking } from '../services/carwashApi';
+import { useUser } from '../contexts/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -20,290 +23,389 @@ const { width, height } = Dimensions.get('window');
 const USER_BOOKINGS = [
   {
     id: '1',
-    title: 'Premium Car Wash',
+    locationName: 'CAR WASH CENTER',
+    serviceName: 'სრული სამრეცხაო',
     date: 'დღეს',
     time: '15:30',
     price: '15₾',
     status: 'მიმდინარე',
     statusColor: '#1D4ED8',
-    gradientColor: '#3B82F6',
-    icon: 'car-sport',
+    address: 'კოსტავას ქუჩა 70 (პეკინი)',
+    rating: 3.67,
+    reviews: 124,
   },
   {
     id: '2',
-    title: 'Express Car Wash',
+    locationName: 'ALL CLEAN',
+    serviceName: 'პრემიუმ სამრეცხაო',
     date: 'გუშინ',
     time: '10:15',
-    price: '8₾',
+    price: '25₾',
     status: 'დასრულებული',
     statusColor: '#047857',
-    gradientColor: '#10B981',
-    icon: 'flash',
+    address: 'ბალანჩივაძის ქუჩა 22',
+    rating: 5.0,
+    reviews: 89,
   },
   {
     id: '3',
-    title: 'Luxury Auto Spa',
+    locationName: 'LUCKY WASH',
+    serviceName: 'დეტალური სამრეცხაო',
     date: 'ხვალ',
     time: '14:00',
-    price: '25₾',
+    price: '35₾',
     status: 'დაჯავშნილი',
     statusColor: '#D97706',
-    gradientColor: '#F59E0B',
-    icon: 'diamond',
+    address: 'ვაჟა-ფშაველას 15',
+    rating: 4.33,
+    reviews: 203,
   },
   {
     id: '4',
-    title: 'Quick & Clean',
+    locationName: 'MZ CARWASH',
+    serviceName: 'სწრაფი სამრეცხაო',
     date: '15 დეკემბერი',
     time: '12:30',
-    price: '12₾',
+    price: '8₾',
     status: 'დაჯავშნილი',
     statusColor: '#D97706',
-    gradientColor: '#F59E0B',
-    icon: 'speedometer',
+    address: 'აღმაშენებლის 23',
+    rating: 4.7,
+    reviews: 67,
   },
   {
     id: '5',
-    title: 'Professional Car Care',
+    locationName: 'GLOSS',
+    serviceName: 'პროფესიონალური სამრეცხაო',
     date: '20 დეკემბერი',
     time: '16:45',
     price: '20₾',
     status: 'დაჯავშნილი',
     statusColor: '#D97706',
-    gradientColor: '#F59E0B',
-    icon: 'shield-checkmark',
+    address: 'დიდუბის 12',
+    rating: 4.7,
+    reviews: 156,
   },
 ];
 
 export default function BookingsScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const [pressedButtons, setPressedButtons] = useState<{ [key: string]: boolean }>({});
-  
-  // Custom dialog states
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showReBookModal, setShowReBookModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const { user, isAuthenticated } = useUser();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [userBookings, setUserBookings] = useState<CarwashBooking[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'მოლოდინში';
+      case 'confirmed':
+        return 'დადასტურებული';
+      case 'in_progress':
+        return 'მიმდინარე';
+      case 'completed':
+        return 'დასრულებული';
+      case 'cancelled':
+        return 'გაუქმებული';
+      default:
+        return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '#D97706'; // Orange
+      case 'confirmed':
+        return '#1D4ED8'; // Blue
+      case 'in_progress':
+        return '#059669'; // Green
+      case 'completed':
+        return '#047857'; // Dark Green
+      case 'cancelled':
+        return '#DC2626'; // Red
+      default:
+        return '#6B7280'; // Gray
+    }
+  };
+
+  const loadUserBookings = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      console.log('User not authenticated, skipping bookings load');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const bookings = await carwashApi.getAllBookings(user.id);
+      setUserBookings(bookings);
+    } catch (error) {
+      console.error('Error loading bookings:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, user]);
+
+  // Load user bookings on component mount
+  useFocusEffect(
+    useCallback(() => {
+      loadUserBookings();
+    }, [loadUserBookings])
+  );
 
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colorScheme === 'dark' ? '#0A0A0A' : '#F8FAFC',
+    safeArea: { 
+      flex: 1, 
+      backgroundColor: '#FFFFFF' 
+    },
+    container: { 
+      flex: 1, 
+      backgroundColor: '#FFFFFF' 
     },
     header: {
-      paddingHorizontal: 24,
-      paddingTop: Platform.OS === 'ios' ? 60 : 20,
-      paddingBottom: 32,
-      backgroundColor: colorScheme === 'dark' ? '#0A0A0A' : '#F8FAFC',
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
+      backgroundColor: '#FFFFFF',
+      borderBottomWidth: 1,
+      borderBottomColor: '#F8F9FA',
     },
-    headerTop: {
+    headerRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 20,
-    },
-    headerTitle: {
-      fontSize: 36,
-      fontFamily: 'Poppins_800Bold',
-      color: colors.text,
-      letterSpacing: -1.5,
+      justifyContent: 'space-between',
+      marginBottom: 24,
     },
     backButton: {
-      width: 52,
-      height: 52,
+      width: 40,
+      height: 40,
       borderRadius: 20,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      backgroundColor: '#FFFFFF',
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-    },
-    headerSubtitle: {
-      fontSize: 18,
-      fontFamily: 'Poppins_400Regular',
-      color: colors.secondary,
-      lineHeight: 26,
-      opacity: 0.8,
-    },
-    content: {
-      flex: 1,
-      paddingHorizontal: 24,
-      paddingTop: 0,
-      paddingBottom: 20,
-    },
-    bookingCard: {
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.9)',
-      borderRadius: 28,
-      padding: 28,
-      marginBottom: 24,
-      width: '100%',
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.15,
-      shadowRadius: 32,
-      elevation: 12,
-      borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)',
-      position: 'relative',
-      overflow: 'hidden',
-    },
-    bookingCardGradient: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: 6,
-      borderRadius: 3,
-    },
-    bookingCardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 24,
-    },
-    bookingCardLeft: {
-      flex: 1,
+      borderColor: '#F0F0F0',
       marginRight: 16,
-    },
-    bookingCardIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 12,
-    },
-    bookingCardTitle: {
-      fontSize: 22,
-      fontFamily: 'Poppins_700Bold',
-      color: colors.text,
-      lineHeight: 30,
-      marginBottom: 4,
-    },
-    bookingCardStatus: {
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      minWidth: 100,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      elevation: 6,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
     },
-    bookingCardStatusActive: {
-      backgroundColor: '#1E40AF',
-      borderWidth: 1,
-      borderColor: '#3B82F6',
-    },
-    bookingCardStatusCompleted: {
-      backgroundColor: '#065F46',
-      borderWidth: 1,
-      borderColor: '#10B981',
-    },
-    bookingCardStatusBooked: {
-      backgroundColor: '#92400E',
-      borderWidth: 1,
-      borderColor: '#F59E0B',
-    },
-    bookingCardStatusText: {
-      fontSize: 14,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-    bookingCardInfo: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 24,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.02)',
-      padding: 24,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-    },
-    bookingCardDateContainer: {
-      alignItems: 'flex-start',
-    },
-    bookingCardDate: {
-      fontSize: 15,
-      fontFamily: 'Poppins_500Medium',
-      color: colors.secondary,
-      marginBottom: 8,
-      opacity: 0.8,
-    },
-    bookingCardTime: {
-      fontSize: 26,
-      fontFamily: 'Poppins_700Bold',
-      color: colors.text,
+    headerTitle: {
+      fontFamily: 'NotoSans_700Bold',
+      fontSize: 20,
+      color: '#1A1A1A',
       letterSpacing: -0.5,
     },
-    bookingCardPriceContainer: {
-      alignItems: 'flex-end',
+    filterButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#FFFFFF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#F0F0F0',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
     },
-    bookingCardPrice: {
-      fontSize: 32,
-      fontFamily: 'Poppins_800Bold',
-      color: colors.text,
-      marginBottom: 6,
-      letterSpacing: -1,
+    filterSection: {
+      marginBottom: 24,
     },
-    bookingCardPriceLabel: {
-      fontSize: 14,
-      fontFamily: 'Poppins_500Medium',
-      color: colors.secondary,
-      opacity: 0.7,
-    },
-    bookingCardActions: {
+    filterRow: {
       flexDirection: 'row',
+      gap: 14,
+      marginBottom: 18,
+    },
+    filterCard: {
+      flex: 1,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#F0F0F0',
+      padding: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    filterIcon: {
+      color: '#6C757D',
+    },
+    filterText: {
+      fontFamily: 'NotoSans_600SemiBold',
+      fontSize: 12,
+      color: '#495057',
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      gap: 14,
+      alignItems: 'center',
+    },
+    searchInput: {
+      flex: 1,
+      backgroundColor: '#F8F9FA',
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontFamily: 'NotoSans_500Medium',
+      fontSize: 14,
+      color: '#1A1A1A',
+      borderWidth: 1,
+      borderColor: '#F0F0F0',
+    },
+    searchButton: {
+      width: 56,
+      height: 56,
+      backgroundColor: '#3B82F6',
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#3B82F6',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    content: { 
+      paddingHorizontal: 20, 
+      paddingBottom: 32 
+    },
+    bookingCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#F0F0F0',
+      marginBottom: 8,
+      padding: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    cardContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: 16,
     },
-    bookingCardButton: {
-      flex: 1,
-      backgroundColor: colors.primary,
-      borderRadius: 20,
-      paddingVertical: 18,
+    logoContainer: {
       alignItems: 'center',
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.3,
-      shadowRadius: 16,
-      elevation: 8,
+      gap: 6,
     },
-    bookingCardButtonPressed: {
-      backgroundColor: '#2563EB',
-      transform: [{ scale: 0.98 }],
-    },
-    bookingCardButtonText: {
-      fontSize: 16,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-    bookingCardButtonSecondary: {
-      flex: 1,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-      borderRadius: 20,
-      paddingVertical: 18,
+    logo: {
+      width: 40,
+      height: 40,
+      backgroundColor: '#F8F9FA',
+      borderRadius: 8,
       alignItems: 'center',
+      justifyContent: 'center',
       borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      borderColor: '#E9ECEF',
     },
-    bookingCardButtonSecondaryPressed: {
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-      transform: [{ scale: 0.98 }],
+    logoText: {
+      fontSize: 20,
     },
-    bookingCardButtonTextSecondary: {
-      fontSize: 16,
-      fontFamily: 'Poppins_600SemiBold',
-      color: colors.text,
+    ratingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
+    ratingText: {
+      fontSize: 11,
+      fontFamily: 'NotoSans_600SemiBold',
+      color: '#495057',
+    },
+    infoContainer: {
+      flex: 1,
+    },
+    cardTitle: {
+      fontFamily: 'NotoSans_700Bold',
+      fontSize: 12,
+      color: '#212529',
+      marginBottom: 6,
+      textTransform: 'uppercase',
       letterSpacing: 0.5,
+    },
+    serviceName: {
+      fontFamily: 'NotoSans_500Medium',
+      fontSize: 11,
+      color: '#6C757D',
+      marginBottom: 8,
+    },
+    addressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 8,
+    },
+    cardAddress: {
+      fontFamily: 'NotoSans_500Medium',
+      fontSize: 11,
+      color: '#6C757D',
+    },
+    bookingDetails: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    dateTimeContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    bookingDate: {
+      fontFamily: 'NotoSans_600SemiBold',
+      fontSize: 11,
+      color: '#212529',
+    },
+    bookingTime: {
+      fontFamily: 'NotoSans_600SemiBold',
+      fontSize: 11,
+      color: '#212529',
+    },
+    bookingPrice: {
+      fontFamily: 'NotoSans_700Bold',
+      fontSize: 14,
+      color: '#3B82F6',
+    },
+    statusContainer: {
+      alignItems: 'flex-end',
+      gap: 8,
+    },
+    statusBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      backgroundColor: '#F0F9FF',
+      borderWidth: 1,
+      borderColor: '#E0F2FE',
+    },
+    statusText: {
+      fontFamily: 'NotoSans_600SemiBold',
+      fontSize: 10,
+      color: '#1D4ED8',
+    },
+    actionButton: {
+      backgroundColor: '#3B82F6',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    actionButtonText: {
+      fontFamily: 'NotoSans_600SemiBold',
+      fontSize: 10,
+      color: '#FFFFFF',
     },
     emptyState: {
       flex: 1,
@@ -313,200 +415,220 @@ export default function BookingsScreen() {
       paddingVertical: 60,
     },
     emptyStateIcon: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: '#F8F9FA',
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 36,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.15,
-      shadowRadius: 24,
-      elevation: 12,
+      marginBottom: 24,
       borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      borderColor: '#E9ECEF',
     },
     emptyStateTitle: {
-      fontSize: 28,
-      fontFamily: 'Poppins_700Bold',
-      color: colors.text,
-      marginBottom: 16,
+      fontFamily: 'NotoSans_700Bold',
+      fontSize: 18,
+      color: '#1A1A1A',
+      marginBottom: 8,
       textAlign: 'center',
-      letterSpacing: -0.5,
     },
     emptyStateText: {
-      fontSize: 17,
-      fontFamily: 'Poppins_400Regular',
-      color: colors.secondary,
+      fontFamily: 'NotoSans_500Medium',
+      fontSize: 14,
+      color: '#6C757D',
       textAlign: 'center',
-      lineHeight: 28,
-      opacity: 0.8,
+      lineHeight: 20,
     },
   });
 
-  const handleBookingDetails = (booking: any) => {
-    setSelectedBooking(booking);
-    setShowDetailsModal(true);
-  };
-
-  const handleCancelBooking = (booking: any) => {
-    setSelectedBooking(booking);
-    setShowCancelModal(true);
-  };
-
-  const handleReBook = (booking: any) => {
-    setSelectedBooking(booking);
-    setShowReBookModal(true);
-  };
-
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'მიმდინარე':
-        return [styles.bookingCardStatus, styles.bookingCardStatusActive];
-      case 'დასრულებული':
-        return [styles.bookingCardStatus, styles.bookingCardStatusCompleted];
-      case 'დაჯავშნილი':
-        return [styles.bookingCardStatus, styles.bookingCardStatusBooked];
-      default:
-        return [styles.bookingCardStatus, styles.bookingCardStatusBooked];
-    }
-  };
-
-  const getStatusTextStyle = (status: string) => {
-    return styles.bookingCardStatusText;
-  };
-
-  const getActionButton = (booking: any) => {
-    if (booking.status === 'დასრულებული') {
-      return (
-        <TouchableOpacity 
-          style={[
-            styles.bookingCardButtonSecondary,
-            pressedButtons[`rebook${booking.id}`] && styles.bookingCardButtonSecondaryPressed
-          ]}
-          onPress={() => handleReBook(booking)}
-          onPressIn={() => setPressedButtons(prev => ({ ...prev, [`rebook${booking.id}`]: true }))}
-          onPressOut={() => setPressedButtons(prev => ({ ...prev, [`rebook${booking.id}`]: false }))}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.bookingCardButtonTextSecondary}>კვლავ დაჯავშნა</Text>
-        </TouchableOpacity>
-      );
-    } else {
-      return (
-        <TouchableOpacity 
-          style={[
-            styles.bookingCardButtonSecondary,
-            pressedButtons[`cancel${booking.id}`] && styles.bookingCardButtonSecondaryPressed
-          ]}
-          onPress={() => handleCancelBooking(booking)}
-          onPressIn={() => setPressedButtons(prev => ({ ...prev, [`cancel${booking.id}`]: true }))}
-          onPressOut={() => setPressedButtons(prev => ({ ...prev, [`cancel${booking.id}`]: false }))}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.bookingCardButtonTextSecondary}>გაუქმება</Text>
-        </TouchableOpacity>
+  const filteredBookings = useMemo(() => {
+    let list = userBookings;
+    
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(booking => 
+        booking.locationName.toLowerCase().includes(q) || 
+        booking.serviceName.toLowerCase().includes(q) ||
+        booking.locationAddress.toLowerCase().includes(q)
       );
     }
+    
+    if (selectedFilter !== 'all') {
+      list = list.filter(booking => {
+        switch (selectedFilter) {
+          case 'active':
+            return booking.status === 'in_progress' || booking.status === 'confirmed' || booking.status === 'pending';
+          case 'completed':
+            return booking.status === 'completed';
+          case 'cancelled':
+            return booking.status === 'cancelled';
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return list;
+  }, [userBookings, searchQuery, selectedFilter]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadUserBookings();
+    setRefreshing(false);
+  }, [loadUserBookings]);
+
+  const handleBookingDetails = (booking: CarwashBooking) => {
+    router.push({
+      pathname: '/booking-details',
+      params: { bookingId: booking.id }
+    });
+  };
+
+  const renderBookingCard = (booking: CarwashBooking) => {
+    const statusColor = getStatusColor(booking.status);
+    const statusText = getStatusText(booking.status);
+    const bookingDate = new Date(booking.bookingDate).toLocaleDateString('ka-GE');
+    
+    return (
+      <TouchableOpacity
+        key={booking.id}
+        style={styles.bookingCard}
+        onPress={() => handleBookingDetails(booking)}
+        activeOpacity={0.9}
+      >
+        <View style={styles.cardContent}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logo}>
+              <Text style={styles.logoText}>🚗</Text>
+            </View>
+            <View style={styles.ratingContainer}>
+              <Ionicons name="star" size={12} color="#F59E0B" />
+              <Text style={styles.ratingText}>4.5</Text>
+            </View>
+          </View>
+          
+          <View style={styles.infoContainer}>
+            <Text style={styles.cardTitle}>{booking.locationName}</Text>
+            <Text style={styles.serviceName}>{booking.serviceName}</Text>
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={10} color="#6C757D" />
+              <Text style={styles.cardAddress}>{booking.locationAddress}</Text>
+            </View>
+            <View style={styles.bookingDetails}>
+              <View style={styles.dateTimeContainer}>
+                <Text style={styles.bookingDate}>{bookingDate}</Text>
+                <Text style={styles.bookingTime}>{booking.bookingTime}</Text>
+              </View>
+              <Text style={styles.bookingPrice}>{booking.servicePrice}₾</Text>
+            </View>
+          </View>
+          
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusBadge, { 
+              backgroundColor: statusColor + '20',
+              borderColor: statusColor + '40'
+            }]}>
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {statusText}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.actionButton}>
+              <Text style={styles.actionButtonText}>დეტალები</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.secondary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>ჩემი ჯავშნები</Text>
-          <View style={{ width: 52 }} />
-        </View>
-        <Text style={styles.headerSubtitle}>თქვენი ყველა ჯავშანი ერთ ადგილას</Text>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {USER_BOOKINGS.length > 0 ? (
-          USER_BOOKINGS.map((booking) => (
-            <View key={booking.id} style={styles.bookingCard}>
-              <View style={[styles.bookingCardGradient, { backgroundColor: booking.gradientColor }]} />
-              <View style={styles.bookingCardHeader}>
-                <View style={styles.bookingCardLeft}>
-                  <View style={styles.bookingCardIcon}>
-                    <Ionicons name={booking.icon as any} size={24} color={colors.primary} />
-                  </View>
-                  <Text style={styles.bookingCardTitle}>{booking.title}</Text>
-                </View>
-                <View style={getStatusStyle(booking.status)}>
-                  <Text style={getStatusTextStyle(booking.status)}>{booking.status}</Text>
-                </View>
-              </View>
-              <View style={styles.bookingCardInfo}>
-                <View style={styles.bookingCardDateContainer}>
-                  <Text style={styles.bookingCardDate}>{booking.date}</Text>
-                  <Text style={styles.bookingCardTime}>{booking.time}</Text>
-                </View>
-                <View style={styles.bookingCardPriceContainer}>
-                  <Text style={styles.bookingCardPrice}>{booking.price}</Text>
-                  <Text style={styles.bookingCardPriceLabel}>ფასი</Text>
-                </View>
-              </View>
-              <View style={styles.bookingCardActions}>
-                <TouchableOpacity 
-                  style={[
-                    styles.bookingCardButton,
-                    pressedButtons[`details${booking.id}`] && styles.bookingCardButtonPressed
-                  ]}
-                  onPress={() => handleBookingDetails(booking)}
-                  onPressIn={() => setPressedButtons(prev => ({ ...prev, [`details${booking.id}`]: true }))}
-                  onPressOut={() => setPressedButtons(prev => ({ ...prev, [`details${booking.id}`]: false }))}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.bookingCardButtonText}>დეტალები</Text>
-                </TouchableOpacity>
-                {getActionButton(booking)}
-              </View>
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyStateIcon}>
-              <Ionicons name="calendar-outline" size={40} color={colors.secondary} />
-            </View>
-            <Text style={styles.emptyStateTitle}>ჯავშნები არ არის</Text>
-            <Text style={styles.emptyStateText}>
-              თქვენ ჯერ არ გაქვთ დაჯავშნილი სამრეცხაო. გადადით მთავარ გვერდზე და დაჯავშნეთ პირველი ჯავშანი!
-            </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="#1A1A1A" />
+      
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={18} color="#1A1A1A" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>ჩემი ჯავშნები</Text>
+            <TouchableOpacity style={styles.filterButton}>
+              <Ionicons name="options" size={18} color="#EF4444" />
+            </TouchableOpacity>
           </View>
-        )}
-      </ScrollView>
 
-      <BookingDetailsModal
-        visible={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
-        booking={selectedBooking}
-      />
-      <CancelBookingModal
-        visible={showCancelModal}
-        onClose={() => setShowCancelModal(false)}
-        onConfirm={() => {
-          setShowCancelModal(false);
-          console.log('Booking cancelled:', selectedBooking);
-        }}
-        booking={selectedBooking}
-      />
-      <ReBookModal
-        visible={showReBookModal}
-        onClose={() => setShowReBookModal(false)}
-        onConfirm={() => {
-          setShowReBookModal(false);
-          console.log('Booking re-booked:', selectedBooking);
-        }}
-        booking={selectedBooking}
-      />
-    </View>
+          {/* Filter Section */}
+          <View style={styles.filterSection}>
+            <View style={styles.filterRow}>
+              <View style={styles.filterCard}>
+                <Ionicons name="calendar" size={16} style={styles.filterIcon} />
+                <View>
+                  <Text style={styles.filterText}>ყველა ჯავშანი</Text>
+                  <Text style={[styles.filterText, { fontSize: 10, marginTop: 2 }]}>
+                    {USER_BOOKINGS.length} ჯავშანი
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.filterCard}>
+                <Ionicons name="time" size={16} style={styles.filterIcon} />
+                <View>
+                  <Text style={styles.filterText}>ფილტრი</Text>
+                  <Text style={[styles.filterText, { fontSize: 10, marginTop: 2 }]}>
+                    სტატუსის მიხედვით
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="ძებნა ჯავშნებში..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              <TouchableOpacity style={styles.searchButton}>
+                <Ionicons name="search" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              colors={['#3B82F6']}
+              tintColor="#3B82F6"
+            />
+          }
+        >
+          {filteredBookings.length > 0 ? (
+            filteredBookings.map(booking => renderBookingCard(booking))
+          ) : (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyStateIcon}>
+                <Ionicons name="calendar-outline" size={32} color="#6C757D" />
+              </View>
+              <Text style={styles.emptyStateTitle}>ჯავშნები არ მოიძებნა</Text>
+              <Text style={styles.emptyStateText}>
+                {searchQuery ? 
+                  'ძებნის შედეგები არ მოიძებნა. სცადეთ სხვა საკვანძო სიტყვები.' :
+                  'თქვენ ჯერ არ გაქვთ დაჯავშნილი სამრეცხაო. გადადით მთავარ გვერდზე და დაჯავშნეთ პირველი ჯავშანი!'
+                }
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }

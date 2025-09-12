@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,29 @@ import {
   Alert,
   ImageBackground,
   ActivityIndicator,
+  TouchableWithoutFeedback,
+  Keyboard,
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../useColorScheme';
+import { useUser } from '../../contexts/UserContext';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
   const [otp, setOTP] = useState(['', '', '', '']);
+  const [otpId, setOtpId] = useState<string | null>(null);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [pendingIntent, setPendingIntent] = useState<'login' | 'register' | null>(null);
+  const [showRegister, setShowRegister] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [role, setRole] = useState<'user' | 'partner' | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -32,6 +44,22 @@ export default function LoginScreen() {
     useRef<TextInput>(null),
     useRef<TextInput>(null),
   ];
+
+  function resolveApiBase(): string {
+    const envUrl = process.env.EXPO_PUBLIC_API_URL as string | undefined;
+    if (envUrl) return envUrl;
+    const hostUri = (Constants as any).expoConfig?.hostUri || (Constants as any).manifest?.hostUri;
+    if (typeof hostUri === 'string') {
+      const host = hostUri.split(':')[0];
+      if (host && /\d+\.\d+\.\d+\.\d+/.test(host)) {
+        return `http://${host}:4000`;
+      }
+    }
+    return 'http://localhost:4000';
+  }
+
+  const API_URL = resolveApiBase();
+  const { login } = useUser();
 
   const formatPhoneNumber = (text: string) => {
     // მხოლოდ ციფრების დატოვება
@@ -74,19 +102,71 @@ export default function LoginScreen() {
     }
   };
 
-  const verifyOTP = () => {
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (keyboardVisible) {
+        Keyboard.dismiss();
+        return true; // გადავჭერით back მოვლენას მხოლოდ როცა კლავიატურაა გახსნილი
+      }
+      return false; // სხვაგვარად მივცეთ ნავიგაციას უკანა ნაბიჯი
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      backSub.remove();
+    };
+  }, [keyboardVisible]);
+
+  const verifyOTP = async () => {
     const otpString = otp.join('');
     if (otpString.length !== 4) {
       Alert.alert('შეცდომა', 'გთხოვთ შეიყვანოთ სრული კოდი');
       return;
     }
 
-    setLoading(true);
-    // TODO: Implement actual OTP verification
-    setTimeout(() => {
+    if (!otpId) {
+      Alert.alert('შეცდომა', 'კოდი ვადაგასულია, სცადეთ ხელახლა');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otpId, code: otpString }),
+      });
+      const data = await res.json();
       setLoading(false);
-      router.replace('/(tabs)');
-    }, 1500);
+      if (!res.ok) {
+        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'ვერიფიკაცია ვერ მოხერხდა';
+        Alert.alert('შეცდომა', msg);
+        return;
+      }
+      // success
+      const intent = (data?.intent === 'register' ? 'register' : 'login') as 'login' | 'register';
+      const userId = data?.user?.id ? String(data.user.id) : null;
+      setPendingUserId(userId);
+      setPendingIntent(intent);
+      setShowOTP(false);
+      setOtpId(null);
+      if (intent === 'register') {
+        setShowRegister(true);
+      } else {
+        // Save user data to context for login
+        if (data?.user) {
+          await login(data.user);
+        }
+        router.replace('/(tabs)');
+      }
+    } catch (e) {
+      setLoading(false);
+      Alert.alert('შეცდომა', 'ქსელური შეცდომა');
+    }
   };
 
   const handleLogin = async () => {
@@ -96,12 +176,31 @@ export default function LoginScreen() {
       return;
     }
 
-    setLoading(true);
-    // TODO: Implement actual SMS sending
-    setTimeout(() => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/auth/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: `+995${cleanPhone}` }),
+      });
+      const data = await res.json();
       setLoading(false);
+      if (!res.ok) {
+        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'ვერ გაიგზავნა კოდი';
+        Alert.alert('შეცდომა', msg);
+        return;
+      }
+      if (data?.id) setOtpId(String(data.id));
+      if (data?.intent) setPendingIntent(data.intent === 'register' ? 'register' : 'login');
       setShowOTP(true);
-    }, 1500);
+      // dev only: თუ mockCode გვაქვს, შევავსოთ წასაკითხად კონსოლში
+      if (data?.mockCode) {
+        console.log('[AUTH] mockCode =', data.mockCode);
+      }
+    } catch (e) {
+      setLoading(false);
+      Alert.alert('შეცდომა', 'ქსელური შეცდომა');
+    }
   };
 
   const styles = StyleSheet.create({
@@ -249,6 +348,56 @@ export default function LoginScreen() {
       shadowRadius: 24,
       elevation: 20,
     },
+    registerOverlay: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    registerCentered: {
+      width: '100%',
+      alignItems: 'center',
+    },
+    registerCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      padding: 22,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.2,
+      shadowRadius: 32,
+      elevation: 24,
+    },
+    roleSegment: {
+      flexDirection: 'row',
+      backgroundColor: '#F3F4F6',
+      borderRadius: 14,
+      padding: 4,
+    },
+    roleSegmentOption: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderRadius: 10,
+    },
+    roleSegmentActive: {
+      backgroundColor: '#111827',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    roleSegmentText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#111827',
+      letterSpacing: -0.2,
+    },
     otpTitle: {
       fontSize: 20,
       fontWeight: '700',
@@ -348,6 +497,48 @@ export default function LoginScreen() {
       fontWeight: '600',
       marginLeft: 4,
     },
+    roleChip: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 14,
+      alignItems: 'center',
+      borderWidth: 1,
+    },
+    roleChipInactive: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#E5E7EB',
+    },
+    roleChipActive: {
+      backgroundColor: '#111827',
+      borderColor: '#111827',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 10,
+    },
+    roleChipText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#111827',
+      letterSpacing: -0.2,
+    },
+    primaryCta: {
+      backgroundColor: '#111827',
+      borderRadius: 16,
+      padding: 18,
+      alignItems: 'center',
+      marginTop: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 10,
+    },
+    secondaryCta: {
+      alignItems: 'center',
+      marginTop: 14,
+    },
   });
 
   return (
@@ -360,6 +551,7 @@ export default function LoginScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.container}
         >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.content}>            
             <View style={styles.modal}>
               <Text style={styles.subtitle}>შეიყვანეთ თქვენი ტელეფონის ნომერი</Text>
@@ -454,7 +646,98 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {showRegister && (
+              <View style={styles.otpModal}>
+                <Text style={styles.otpTitle}>ანგარიშის შექმნა</Text>
+                <Text style={styles.otpSubtitle}>შეიყვანეთ სახელი და აირჩიეთ როლი</Text>
+
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>სახელი</Text>
+                  <View style={styles.phoneInputContainer}>
+                    <TextInput
+                      style={styles.input}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholder="მაგ: გიორგი"
+                      placeholderTextColor={colors.placeholder}
+                    />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                  <TouchableOpacity
+                    onPress={() => setRole('user')}
+                    style={[styles.socialButton, role === 'user' && { borderWidth: 1, borderColor: colors.primary }]}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.socialButtonText}>მომხმარებელი</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setRole('partner')}
+                    style={[styles.socialButton, role === 'partner' && { borderWidth: 1, borderColor: colors.primary }]}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.socialButtonText}>პარტნიორი</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                  onPress={async () => {
+                    if (!pendingUserId) {
+                      Alert.alert('შეცდომა', 'დაბრუნდით თავიდან');
+                      setShowRegister(false);
+                      return;
+                    }
+                    if (!firstName.trim() || !role) {
+                      Alert.alert('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
+                      return;
+                    }
+                    try {
+                      setLoading(true);
+                      const res = await fetch(`${API_URL}/auth/complete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: pendingUserId, firstName: firstName.trim(), role }),
+                      });
+                      const data = await res.json();
+                      setLoading(false);
+                      if (!res.ok) {
+                        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'შენახვა ვერ მოხერხდა';
+                        Alert.alert('შეცდომა', msg);
+                        return;
+                      }
+                      // Save updated user data to context
+                      if (data?.user) {
+                        await login(data.user);
+                      }
+                      setShowRegister(false);
+                      router.replace('/(tabs)');
+                    } catch (e) {
+                      setLoading(false);
+                      Alert.alert('შეცდომა', 'ქსელური შეცდომა');
+                    }
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator color="#FFFFFF" />
+                      <Text style={[styles.loginButtonText, styles.loadingText]}>შენახვა...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.loginButtonText}>დასრულება</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.resendContainer} onPress={() => setShowRegister(false)}>
+                  <Text style={styles.resendText}>გაუქმება</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
     </ImageBackground>
   );

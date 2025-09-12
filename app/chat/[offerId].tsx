@@ -4,8 +4,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text, View } from '@/components/Themed';
+import Constants from 'expo-constants';
 
-const API_URL = 'http://localhost:4000';
+function resolveApiBase(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) return envUrl;
+  const hostUri = (Constants as any).expoConfig?.hostUri || (Constants as any).manifest?.hostUri;
+  if (typeof hostUri === 'string') {
+    const host = hostUri.split(':')[0];
+    if (host && /\d+\.\d+\.\d+\.\d+/.test(host)) {
+      return `http://${host}:4000`;
+    }
+  }
+  return 'http://localhost:4000';
+}
+
+const API_URL = resolveApiBase();
 
 type Role = 'user' | 'partner';
 
@@ -31,6 +45,10 @@ export default function ChatScreen() {
   const contentHeightRef = useRef(0);
   const scrollYRef = useRef(0);
 
+  useEffect(() => {
+    console.log('[CHAT] Using API_URL =', API_URL);
+  }, []);
+
   // Backend polling for messages
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +73,9 @@ export default function ChatScreen() {
           setLocal((prev) => mergeServerMessages(prev, mapped));
           if (atBottom) requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
         }
-      } catch {}
+      } catch (e) {
+        console.log('[CHAT] poll error:', e);
+      }
     };
     const iv = setInterval(poll, 1500);
     poll();
@@ -79,7 +99,9 @@ export default function ChatScreen() {
         }));
         setLocal((prev) => mergeServerMessages(prev, mapped));
       }
-    } catch {}
+    } catch (e) {
+      console.log('[CHAT] refresh error:', e);
+    }
     setIsRefreshing(false);
   };
 
@@ -94,16 +116,27 @@ export default function ChatScreen() {
     setReplyTo(null);
     setIsSending(true);
     try {
-      const res = await fetch(`${API_URL}/messages`, {
+      const payload = { offerId, author: role, text: t };
+      console.log('[CHAT] POST payload:', payload);
+      const url = `${API_URL}/messages`;
+      console.log('[CHAT] POST', url);
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ offerId, author: role, text: t }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('send-failed');
+      console.log('[CHAT] Response status:', res.status, 'ok:', res.ok);
+      if (!res.ok) {
+        const txt = await res.text();
+        console.log('[CHAT] Error body:', txt);
+        throw new Error('send-failed');
+      }
       const saved = await res.json();
+      console.log('[CHAT] Saved message:', saved);
       setLocal((prev) => prev.map((m) => (m.id === tempId ? { ...m, id: saved.id, createdAt: saved.createdAt ?? m.createdAt, status: 'sent', temp: false } : m)));
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-    } catch {
+    } catch (e) {
+      console.log('[CHAT] send error:', e);
       setLocal((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'error' } : m)));
       Alert.alert('შეტყობინება', 'გაგზავნა ვერ მოხერხდა. სცადე კვლავ.');
     } finally {
@@ -123,7 +156,8 @@ export default function ChatScreen() {
       if (!res.ok) throw new Error('retry-failed');
       const saved = await res.json();
       setLocal((prev) => prev.map((m) => (m.id === msg.id ? { ...m, id: saved.id, createdAt: saved.createdAt ?? m.createdAt, status: 'sent', temp: false } : m)));
-    } catch {
+    } catch (e) {
+      console.log('[CHAT] retry error:', e);
       setLocal((prev) => prev.map((m) => (m.id === msg.id ? { ...m, status: 'error' } : m)));
     }
   };

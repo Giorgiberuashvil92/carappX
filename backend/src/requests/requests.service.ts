@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { UpdateRequestDto } from './dto/update-request.dto';
+import { OffersService } from '../offers/offers.service';
 
 type RequestEntity = CreateRequestDto & {
   id: string;
@@ -12,7 +13,10 @@ type RequestEntity = CreateRequestDto & {
 
 @Injectable()
 export class RequestsService {
-  constructor(private readonly firebase: FirebaseService) {}
+  constructor(
+    private readonly firebase: FirebaseService,
+    private readonly offersService: OffersService,
+  ) {}
 
   private col() {
     return this.firebase.db.collection('requests');
@@ -32,7 +36,20 @@ export class RequestsService {
 
   async findAll() {
     const snap = await this.col().orderBy('createdAt', 'desc').get();
-    return snap.docs.map((d) => d.data() as RequestEntity);
+    const requests = snap.docs.map((d) => d.data() as RequestEntity);
+
+    // Add offers count for each request
+    const requestsWithOffersCount = await Promise.all(
+      requests.map(async (request) => {
+        const offers = await this.offersService.findAll(request.id);
+        return {
+          ...request,
+          offersCount: offers.length,
+        };
+      }),
+    );
+
+    return requestsWithOffersCount;
   }
 
   async findOne(id: string) {

@@ -14,16 +14,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
+import { useUser } from '../../contexts/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
-// Mock user data
-const USER_DATA = {
+// Mock user data for fallback
+const MOCK_USER_DATA = {
   name: 'გიორგი მაისურაძე',
   email: 'giorgi@example.com',
   phone: '+995 599 123 456',
-  avatar: null, // Will use default icon
-  avatarUri: null, // For uploaded photo
+  avatar: null,
+  avatarUri: null,
   totalBookings: 24,
   totalSpent: '320₾',
   memberSince: '2023 წლის მარტი',
@@ -38,6 +39,20 @@ const PROFILE_MENU_ITEMS = [
     subtitle: 'სახელი, ელ-ფოსტა, ტელეფონი',
     icon: 'person-outline',
     color: '#3B82F6',
+  },
+  {
+    id: 'loyalty',
+    title: 'ლოიალობის პროგრამა',
+    subtitle: 'ქულები, ჯილდოები და ფასდაკლებები',
+    icon: 'star-outline',
+    color: '#F59E0B',
+  },
+  {
+    id: 'partner',
+    title: 'პარტნიორი მაღაზიები',
+    subtitle: 'შეთავაზებები და ფასდაკლებები',
+    icon: 'storefront-outline',
+    color: '#22C55E',
   },
   {
     id: '9',
@@ -96,8 +111,15 @@ export default function ProfileScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { user, logout } = useUser();
   const [pressedButtons, setPressedButtons] = useState<{ [key: string]: boolean }>({});
-  const [userAvatar, setUserAvatar] = useState(USER_DATA.avatarUri);
+  const [userAvatar, setUserAvatar] = useState(MOCK_USER_DATA.avatarUri);
+
+  // Use real user data or fallback to mock data
+  const displayName = user?.name || MOCK_USER_DATA.name;
+  const displayPhone = user?.phone || MOCK_USER_DATA.phone;
+  const displayEmail = user?.email || MOCK_USER_DATA.email;
+  const memberSince = MOCK_USER_DATA.memberSince; // User interface doesn't have createdAt
 
   const handlePhotoUpload = () => {
     Alert.alert(
@@ -398,8 +420,14 @@ export default function ProfileScreen() {
   const handleMenuItemPress = (item: any) => {
     console.log('Menu item pressed:', item.title);
     
-    // Handle contact options
-    if (item.id === '8') {
+    // Handle specific menu items
+    if (item.id === 'loyalty') {
+      // Navigate to loyalty page
+      router.push('/loyalty');
+    } else if (item.id === 'partner') {
+      // Navigate to partner page
+      router.push('/partner');
+    } else if (item.id === '8') {
       // Contact us options
       handleContactOptions();
     } else if (item.id === '9') {
@@ -423,9 +451,25 @@ export default function ProfileScreen() {
     // Here you can integrate with chat service
   };
 
-  const handleLogout = () => {
-    console.log('Logout pressed');
-    // Handle logout logic here
+  const handleLogout = async () => {
+    Alert.alert(
+      'გასვლა',
+      'დარწმუნებული ხართ რომ გსურთ გასვლა?',
+      [
+        {
+          text: 'გაუქმება',
+          style: 'cancel',
+        },
+        {
+          text: 'გასვლა',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
   };
 
   const renderStars = (rating: number) => {
@@ -463,7 +507,7 @@ export default function ProfileScreen() {
                 <Image source={{ uri: userAvatar }} style={{ width: '100%', height: '100%', borderRadius: 30 }} />
               ) : (
                 <Text style={styles.avatarText}>
-                  {USER_DATA.name.charAt(0)}
+                  {displayName.charAt(0)}
                 </Text>
               )}
               <View style={styles.cameraIcon}>
@@ -471,23 +515,23 @@ export default function ProfileScreen() {
               </View>
             </TouchableOpacity>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{USER_DATA.name}</Text>
-              <Text style={styles.profileEmail}>{USER_DATA.email}</Text>
-              <Text style={styles.profilePhone}>{USER_DATA.phone}</Text>
+              <Text style={styles.profileName}>{displayName}</Text>
+              <Text style={styles.profileEmail}>{displayEmail}</Text>
+              <Text style={styles.profilePhone}>{displayPhone}</Text>
             </View>
           </View>
 
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{USER_DATA.totalBookings}</Text>
+              <Text style={styles.statValue}>{MOCK_USER_DATA.totalBookings}</Text>
               <Text style={styles.statLabel}>ჯავშნები</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{USER_DATA.totalSpent}</Text>
+              <Text style={styles.statValue}>{MOCK_USER_DATA.totalSpent}</Text>
               <Text style={styles.statLabel}>დახარჯული</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{USER_DATA.rating}</Text>
+              <Text style={styles.statValue}>{MOCK_USER_DATA.rating}</Text>
               <Text style={styles.statLabel}>შეფასება</Text>
             </View>
           </View>
@@ -525,21 +569,25 @@ export default function ProfileScreen() {
               </View>
             </TouchableOpacity>
           ))}
+          
+          {/* Logout Button */}
+          <TouchableOpacity
+            style={[styles.menuItem, styles.logoutButton]}
+            onPress={handleLogout}
+          >
+            <View style={[styles.menuItemIcon, { backgroundColor: '#EF4444' }]}>
+              <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: '#EF4444' }]}>გასვლა</Text>
+              <Text style={styles.menuItemSubtitle}>გამოხვიდეთ ანგარიშიდან</Text>
+            </View>
+            <View style={styles.menuItemArrow}>
+              <Ionicons name="chevron-forward" size={20} color="#EF4444" />
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={[
-            styles.logoutButton,
-            pressedButtons['logout'] && { backgroundColor: '#DC2626' }
-          ]}
-          onPress={handleLogout}
-          onPressIn={() => setPressedButtons(prev => ({ ...prev, logout: true }))}
-          onPressOut={() => setPressedButtons(prev => ({ ...prev, logout: false }))}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.logoutButtonText}>გასვლა</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
