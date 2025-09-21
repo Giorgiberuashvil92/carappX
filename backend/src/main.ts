@@ -16,6 +16,10 @@ async function bootstrap() {
         'https://carappx-backend.onrender.com', // Render backend
         'https://carappx.vercel.app', // Frontend
         'https://your-domain.com', // შენი production domain
+        'http://localhost:8081', // Expo development server
+        'http://192.168.1.100:8081', // მობილური device-ის IP
+        'http://172.20.10.4:8081', // შენი კომპის IP
+        /^exp:\/\/.*/, // Expo development URLs
       ],
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
       credentials: true,
