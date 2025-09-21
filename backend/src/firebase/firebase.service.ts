@@ -23,15 +23,24 @@ export class FirebaseService {
             project_id?: string;
             projectId?: string;
           };
-          admin.initializeApp({
-            credential: admin.credential.cert(creds),
-            projectId:
-              creds.projectId ||
-              creds.project_id ||
-              process.env.FIREBASE_PROJECT_ID ||
-              process.env.GOOGLE_CLOUD_PROJECT ||
-              process.env.GCLOUD_PROJECT,
-          });
+
+          if (creds) {
+            admin.initializeApp({
+              credential: admin.credential.cert(creds),
+              projectId:
+                creds.projectId ||
+                creds.project_id ||
+                process.env.FIREBASE_PROJECT_ID ||
+                process.env.GOOGLE_CLOUD_PROJECT ||
+                process.env.GCLOUD_PROJECT,
+            });
+            this.logger.log('Firebase initialized with service account');
+          } else {
+            // Production-ზე Firebase-ის გარეშე მუშაობა
+            this.logger.warn(
+              'Firebase credentials not available, skipping initialization',
+            );
+          }
         } else {
           admin.initializeApp({
             credential: admin.credential.applicationDefault(),
@@ -44,7 +53,12 @@ export class FirebaseService {
         this.logger.log('Firebase initialized');
       } catch (e) {
         this.logger.error('Failed to initialize Firebase', (e as Error)?.stack);
-        throw e;
+        // Production-ზე Firebase-ის გარეშე მუშაობა
+        if (process.env.NODE_ENV === 'production') {
+          this.logger.warn('Continuing without Firebase in production mode');
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -67,6 +81,12 @@ export class FirebaseService {
     // 2) If path provided, read file and parse
     if (pathEnv) {
       if (!fs.existsSync(pathEnv)) {
+        if (process.env.NODE_ENV === 'production') {
+          this.logger.warn(
+            `Service account path not found: ${pathEnv}, continuing without Firebase`,
+          );
+          return null;
+        }
         throw new Error(`Service account path not found: ${pathEnv}`);
       }
       const file = fs.readFileSync(pathEnv, 'utf8');
@@ -75,6 +95,12 @@ export class FirebaseService {
       return parsed;
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      this.logger.warn(
+        'No service account provided, continuing without Firebase',
+      );
+      return null;
+    }
     throw new Error('No service account provided');
   }
 
