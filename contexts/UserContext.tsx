@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import API_BASE_URL from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface User {
@@ -187,7 +188,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.log('🔄 [UPDATE_ROLE] Updating user role to:', role);
       
       // Update role in backend
-      const response = await fetch(`http://localhost:4000/auth/update-role`, {
+      const response = await fetch(`${API_BASE_URL}/auth/update-role`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +225,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.log('🔍 [ADD_CARWASH] Current ownedCarwashes:', user.ownedCarwashes);
       
       // Update ownedCarwashes in backend
-      const response = await fetch(`http://localhost:4000/auth/update-owned-carwashes`, {
+      const response = await fetch(`${API_BASE_URL}/auth/update-owned-carwashes`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

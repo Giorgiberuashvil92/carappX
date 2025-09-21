@@ -44,6 +44,14 @@ export interface RealTimeStatus {
   lastStatusUpdate: number;
 }
 
+export interface SocialMedia {
+  facebook?: string;
+  instagram?: string;
+  website?: string;
+  twitter?: string;
+  tiktok?: string;
+}
+
 export interface CarwashLocation {
   id: string;
   name: string;
@@ -69,4 +77,5 @@ export interface CarwashLocation {
   ownerId: string;
   createdAt: number;
   updatedAt: number;
+  socialMedia?: SocialMedia; // სოციალური მედია
 }

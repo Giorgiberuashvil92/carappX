@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,104 +9,218 @@ import {
   Image,
   RefreshControl,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '../../contexts/UserContext';
+import { useToast } from '../../contexts/ToastContext';
+import { communityApi, CommunityPost, CreatePostData } from '../../services/communityApi';
+import { communityRealtime } from '../../services/communityRealtime';
+import { useRouter } from 'expo-router';
 
-interface CommunityPost {
-  id: string;
-  userName: string;
-  userInitial: string;
-  postTime: string;
-  postText: string;
-  postImage?: string;
-  likes: number;
-  comments: number;
-  isLiked?: boolean;
-}
+// Helper function to format time
+const formatTime = (dateString: string): string => {
+  const now = new Date();
+  const postDate = new Date(dateString);
+  const diffInMs = now.getTime() - postDate.getTime();
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInDays = Math.floor(diffInHours / 24);
 
-const COMMUNITY_POSTS: CommunityPost[] = [
-  {
-    id: '1',
-    userName: 'გიორგი',
-    userInitial: 'გ',
-    postTime: '2 საათის წინ',
-    postText: 'ვინმემ იცის სად შეიძლება BMW-სთვის ხარისხიანი ზეთი იყიდოს? ფასი მნიშვნელოვანი არ არის, მთავარია ხარისხი იყოს! 🚗',
-    postImage: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=400&auto=format&fit=crop',
-    likes: 12,
-    comments: 5,
-    isLiked: false,
-  },
-  {
-    id: '2',
-    userName: 'ნინო',
-    userInitial: 'ნ',
-    postTime: '5 საათის წინ',
-    postText: 'დღეს ჩემი მანქანა სამრეცხაოში ვიყავი, ძალიან კმაყოფილი ვარ! რეკომენდაცია: CAR WASH CENTER - სწრაფი და ხარისხიანი! ✨',
-    likes: 8,
-    comments: 3,
-    isLiked: true,
-  },
-  {
-    id: '3',
-    userName: 'ლევანი',
-    userInitial: 'ლ',
-    postTime: '1 დღის წინ',
-    postText: 'ვინმეს ჰქონია Mercedes-ისთვის ტექდათვალიერება? რამდენი ღირს და სად ჯობს წავიდეს? 🤔',
-    postImage: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400&auto=format&fit=crop',
-    likes: 15,
-    comments: 7,
-    isLiked: false,
-  },
-  {
-    id: '4',
-    userName: 'ანა',
-    userInitial: 'ა',
-    postTime: '2 დღის წინ',
-    postText: 'ჩემი Toyota-სთვის ახალი საბურავები მჭირდება. ვინმემ იცის სად ჯობს იყიდოს? ზამთრის საბურავები მინდა! ❄️',
-    likes: 6,
-    comments: 4,
-    isLiked: false,
-  },
-  {
-    id: '5',
-    userName: 'დავითი',
-    userInitial: 'დ',
-    postTime: '3 დღის წინ',
-    postText: 'დღეს ჩემი მანქანა ტექდათვალიერებაზე ვიყავი. ყველაფერი კარგადაა, მაგრამ ზეთის გამოცვლა მჭირდება. რეკომენდაცია გჭირდებათ? 🔧',
-    postImage: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop',
-    likes: 9,
-    comments: 6,
-    isLiked: true,
-  },
-];
+  if (diffInHours < 1) {
+    return 'ახლახან';
+  } else if (diffInHours < 24) {
+    return `${diffInHours} საათის წინ`;
+  } else if (diffInDays < 7) {
+    return `${diffInDays} დღის წინ`;
+  } else {
+    return postDate.toLocaleDateString('ka-GE');
+  }
+};
 
 export default function CommunityScreen() {
   const { user } = useUser();
-  const [posts, setPosts] = useState<CommunityPost[]>(COMMUNITY_POSTS);
+  const { success, error, info } = useToast();
+  const router = useRouter();
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [newPostText, setNewPostText] = useState('');
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<Map<string, () => void>>(new Map());
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+  // Load posts on component mount
+  useEffect(() => {
+    loadPosts();
   }, []);
 
-  const toggleLike = (postId: string) => {
-    setPosts(prevPosts =>
-      prevPosts.map(post =>
-        post.id === postId
-          ? {
-              ...post,
-              isLiked: !post.isLiked,
-              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+  // Reload posts when screen comes into focus (e.g., returning from comments)
+  // Note: useFocusEffect is from @react-navigation/native, but we're using Expo Router
+  // For now, we'll rely on the useEffect and manual refresh
+
+  // Cleanup real-time subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      realtimeSubscriptions.forEach((unsubscribe) => unsubscribe());
+    };
+  }, []);
+
+  const loadPosts = async () => {
+    try {
+      setLoading(true);
+      const fetchedPosts = await communityApi.getPosts(user?.id);
+      setPosts(fetchedPosts);
+      
+      // Set up real-time listeners for each post
+      setupRealtimeListeners(fetchedPosts);
+    } catch (err) {
+      console.error('Error loading posts:', err);
+      error('შეცდომა', 'პოსტების ჩატვირთვა ვერ მოხერხდა');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setupRealtimeListeners = (posts: CommunityPost[]) => {
+    // Clean up existing subscriptions
+    realtimeSubscriptions.forEach((unsubscribe) => unsubscribe());
+    
+    const newSubscriptions = new Map<string, () => void>();
+    
+    posts.forEach((post) => {
+      const unsubscribe = communityRealtime.subscribeToPost(post.id, (data) => {
+        setPosts(prevPosts =>
+          prevPosts.map(p =>
+            p.id === post.id
+              ? {
+                  ...p,
+                  likesCount: data.likesCount,
+                  commentsCount: data.commentsCount,
+                }
+              : p
+          )
+        );
+      });
+      
+      newSubscriptions.set(post.id, unsubscribe);
+    });
+    
+    setRealtimeSubscriptions(newSubscriptions);
+  };
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const fetchedPosts = await communityApi.getPosts(user?.id);
+      setPosts(fetchedPosts);
+      success('განახლდა!', 'კომუნიტის პოსტები განახლდა');
+    } catch (err) {
+      console.error('Error refreshing posts:', err);
+      error('შეცდომა', 'პოსტების განახლება ვერ მოხერხდა');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.id, success, error]);
+
+  const toggleLike = async (postId: string) => {
+    if (!user?.id) {
+      error('შეცდომა', 'მომხმარებლის იდენტიფიკაცია საჭიროა');
+      return;
+    }
+
+    try {
+      const result = await communityApi.toggleLike(postId, user.id);
+      
+      // Update Firebase real-time data
+      if (result.isLiked) {
+        await communityRealtime.incrementLikes(postId);
+      } else {
+        await communityRealtime.decrementLikes(postId);
+      }
+      
+      // Update local state immediately for better UX
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? {
+                ...post,
+                isLiked: result.isLiked,
+                likesCount: result.likesCount,
+              }
+            : post
+        )
+      );
+    } catch (err) {
+      console.error('Error toggling like:', err);
+      error('შეცდომა', 'ლაიქის დამატება ვერ მოხერხდა');
+    }
+  };
+
+  const createPost = async () => {
+    if (!user?.id || !newPostText.trim()) {
+      error('შეცდომა', 'პოსტის ტექსტი აუცილებელია');
+      return;
+    }
+
+    try {
+      setIsCreatingPost(true);
+      const postData: CreatePostData = {
+        userId: user.id,
+        userName: user.name || 'უცნობი მომხმარებელი',
+        userInitial: user.name ? user.name.charAt(0).toUpperCase() : '?',
+        postText: newPostText.trim(),
+      };
+
+      const newPost = await communityApi.createPost(postData);
+      setPosts(prevPosts => [newPost, ...prevPosts]);
+      setNewPostText('');
+      success('წარმატება!', 'პოსტი გამოქვეყნდა');
+    } catch (err) {
+      console.error('Error creating post:', err);
+      error('შეცდომა', 'პოსტის გამოქვეყნება ვერ მოხერხდა');
+    } finally {
+      setIsCreatingPost(false);
+    }
+  };
+
+  const deletePost = async (postId: string) => {
+    Alert.alert(
+      'პოსტის წაშლა',
+      'დარწმუნებული ხართ რომ გსურთ პოსტის წაშლა?',
+      [
+        { text: 'გაუქმება', style: 'cancel' },
+        {
+          text: 'წაშლა',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await communityApi.deletePost(postId);
+              setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+              success('წარმატება!', 'პოსტი წაიშალა');
+            } catch (err) {
+              console.error('Error deleting post:', err);
+              error('შეცდომა', 'პოსტის წაშლა ვერ მოხერხდა');
             }
-          : post
-      )
+          },
+        },
+      ]
+    );
+  };
+
+  const showPostOptions = (postId: string) => {
+    Alert.alert(
+      'პოსტის ოფციები',
+      'რა გსურთ გააკეთოთ?',
+      [
+        { text: 'გაუქმება', style: 'cancel' },
+        {
+          text: 'წაშლა',
+          style: 'destructive',
+          onPress: () => deletePost(postId),
+        },
+      ]
     );
   };
 
@@ -119,10 +233,10 @@ export default function CommunityScreen() {
           </View>
           <View>
             <Text style={styles.userName}>{post.userName}</Text>
-            <Text style={styles.postTime}>{post.postTime}</Text>
+            <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
           </View>
         </View>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => showPostOptions(post.id)}>
           <Ionicons name="ellipsis-horizontal" size={20} color="#6B7280" />
         </TouchableOpacity>
       </View>
@@ -149,12 +263,23 @@ export default function CommunityScreen() {
             color={post.isLiked ? "#EF4444" : "#6B7280"} 
           />
           <Text style={[styles.actionText, post.isLiked && styles.likedText]}>
-            {post.likes}
+            {post.likesCount}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => router.push({
+            pathname: '/comments',
+            params: {
+              postId: post.id,
+              postText: post.postText,
+              userName: post.userName,
+              commentsCount: post.commentsCount,
+            }
+          })}
+        >
           <Ionicons name="chatbubble-outline" size={18} color="#6B7280" />
-          <Text style={styles.actionText}>{post.comments}</Text>
+          <Text style={styles.actionText}>{post.commentsCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton}>
           <Ionicons name="share-outline" size={18} color="#6B7280" />
@@ -224,17 +349,35 @@ export default function CommunityScreen() {
               <Text style={styles.createPostActionText}>ლოკაცია</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.createPostButton, styles.publishButton]}
-              disabled={!newPostText.trim()}
+              style={[styles.createPostButton, styles.publishButton, (!newPostText.trim() || isCreatingPost) && styles.disabledButton]}
+              disabled={!newPostText.trim() || isCreatingPost}
+              onPress={createPost}
             >
-              <Text style={styles.publishButtonText}>გამოქვეყნება</Text>
+              {isCreatingPost ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.publishButtonText}>გამოქვეყნება</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Posts */}
         <View style={styles.postsContainer}>
-          {posts.map(renderPost)}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#111827" />
+              <Text style={styles.loadingText}>პოსტები იტვირთება...</Text>
+            </View>
+          ) : posts.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>პოსტები არ არის</Text>
+              <Text style={styles.emptySubtitle}>იყავი პირველი, ვინც გამოაქვეყნებს პოსტს!</Text>
+            </View>
+          ) : (
+            posts.map(renderPost)
+          )}
         </View>
 
         {/* Bottom Spacing */}
@@ -448,5 +591,38 @@ const styles = StyleSheet.create({
   },
   likedText: {
     color: '#EF4444',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

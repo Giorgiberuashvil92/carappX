@@ -14,10 +14,17 @@ import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
 import { CreateReminderDto } from './dto/create-reminder.dto';
 import { UpdateReminderDto } from './dto/update-reminder.dto';
+import { CreateFuelEntryDto } from './dto/create-fuel-entry.dto';
+import { OffersService } from '../offers/offers.service';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 
 @Controller('garage')
 export class GarageController {
-  constructor(private readonly garageService: GarageService) {}
+  constructor(
+    private readonly garageService: GarageService,
+    private readonly offersService: OffersService,
+    private readonly recommendationsService: RecommendationsService,
+  ) {}
 
   // მანქანების API
   @Post('cars')
@@ -91,6 +98,37 @@ export class GarageController {
     return this.garageService.findOneReminder(userId, id);
   }
 
+  // Reminder-ზე შეთავაზებები (რეკომენდაციები)
+  @Get('reminders/:id/offers')
+  async recommendOffersForReminder(
+    @Request() req: ExpressRequest,
+    @Param('id') id: string,
+  ) {
+    const userId = (req.headers['x-user-id'] as string) || 'demo-user';
+    // Basic trace log
+
+    console.log('[GarageController] recommendOffersForReminder', {
+      id,
+      userId,
+    });
+    const reminder = await this.garageService.findOneReminder(userId, id);
+
+    console.log('[GarageController] reminder found', {
+      id: reminder.id,
+      type: reminder.type,
+    });
+    // Prefer new recommendations collection
+    const recs = await this.recommendationsService.byServiceType(reminder.type);
+    return recs.map((r) => ({
+      providerName: r.providerName,
+      priceGEL: r.priceGEL,
+      etaMin: r.etaMin,
+      distanceKm: r.distanceKm,
+      tags: r.tags,
+      partnerId: r.partnerId,
+    }));
+  }
+
   @Patch('reminders/:id')
   async updateReminder(
     @Request() req: ExpressRequest,
@@ -124,5 +162,30 @@ export class GarageController {
   async getGarageStats(@Request() req: ExpressRequest) {
     const userId = (req.headers['x-user-id'] as string) || 'demo-user';
     return this.garageService.getGarageStats(userId);
+  }
+
+  // საწვავის ლოგები
+  @Post('fuel')
+  async createFuelEntry(
+    @Request() req: ExpressRequest,
+    @Body() dto: CreateFuelEntryDto,
+  ) {
+    const userId = (req.headers['x-user-id'] as string) || 'demo-user';
+    return await this.garageService.createFuelEntry(userId, dto);
+  }
+
+  @Get('fuel')
+  async listFuelEntries(@Request() req: ExpressRequest) {
+    const userId = (req.headers['x-user-id'] as string) || 'demo-user';
+    return await this.garageService.listFuelEntries(userId);
+  }
+
+  @Get('fuel/car/:carId')
+  async listFuelEntriesByCar(
+    @Request() req: ExpressRequest,
+    @Param('carId') carId: string,
+  ) {
+    const userId = (req.headers['x-user-id'] as string) || 'demo-user';
+    return await this.garageService.listFuelEntriesByCar(userId, carId);
   }
 }

@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
 import { CreateReminderDto } from './dto/create-reminder.dto';
 import { UpdateReminderDto } from './dto/update-reminder.dto';
+import { CreateFuelEntryDto } from './dto/create-fuel-entry.dto';
 
 type CarEntity = CreateCarDto & {
   id: string;
@@ -24,6 +26,15 @@ type ReminderEntity = Omit<CreateReminderDto, 'reminderDate'> & {
   reminderDate: number; // timestamp
 };
 
+type FuelEntryEntity = CreateFuelEntryDto & {
+  id: string;
+  userId: string;
+  createdAt: number;
+  updatedAt: number;
+  isActive: boolean;
+  dateTs: number;
+};
+
 @Injectable()
 export class GarageService {
   constructor(private readonly firebase: FirebaseService) {}
@@ -34,6 +45,10 @@ export class GarageService {
 
   private remindersCol() {
     return this.firebase.db.collection('reminders');
+  }
+
+  private fuelCol() {
+    return this.firebase.db.collection('fuel_entries');
   }
 
   // მანქანების მართვა
@@ -283,5 +298,49 @@ export class GarageService {
       upcomingReminders: upcomingReminders.length,
       completedReminders: reminders.filter((r) => r.isCompleted).length,
     };
+  }
+
+  // საწვავი
+  async createFuelEntry(
+    userId: string,
+    dto: CreateFuelEntryDto,
+  ): Promise<FuelEntryEntity> {
+    await this.findOneCar(userId, dto.carId);
+    const id = `fuel_${Date.now()}`;
+    const dateTs = new Date(dto.date).getTime();
+    const entity: FuelEntryEntity = {
+      id,
+      userId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isActive: true,
+      dateTs,
+      ...dto,
+    };
+    await this.fuelCol().doc(id).set(entity);
+    return entity;
+  }
+
+  async listFuelEntries(userId: string): Promise<FuelEntryEntity[]> {
+    const snap = await this.fuelCol().where('userId', '==', userId).get();
+    return snap.docs
+      .map((d) => d.data() as FuelEntryEntity)
+      .filter((e) => e.isActive)
+      .sort((a, b) => b.dateTs - a.dateTs);
+  }
+
+  async listFuelEntriesByCar(
+    userId: string,
+    carId: string,
+  ): Promise<FuelEntryEntity[]> {
+    await this.findOneCar(userId, carId);
+    const snap = await this.fuelCol()
+      .where('userId', '==', userId)
+      .where('carId', '==', carId)
+      .get();
+    return snap.docs
+      .map((d) => d.data() as FuelEntryEntity)
+      .filter((e) => e.isActive)
+      .sort((a, b) => b.dateTs - a.dateTs);
   }
 }

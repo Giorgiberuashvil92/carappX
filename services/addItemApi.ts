@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:4000'; // Backend server port
+import API_BASE_URL from '../config/api';
 
 export interface DismantlerData {
   brand: string;

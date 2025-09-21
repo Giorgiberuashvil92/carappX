@@ -10,12 +10,13 @@ import { Text, View } from '@/components/Themed';
 import Button from '@/components/ui/Button';
 import { LinearGradient } from 'expo-linear-gradient';
 import { registerPushToken } from '@/utils/notifications';
+import API_BASE_URL from '../../config/api';
 
 export default function AILandingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { selectedCar } = useCars();
-  const API_URL = 'http://localhost:4000';
+  const API_URL = API_BASE_URL;
 
   const [rememberLocation, setRememberLocation] = useState<boolean>(false);
   const [lastDraft, setLastDraft] = useState<null | { mode: 'parts' | 'tow' | 'mechanic'; step: number; summary: string }>(null);

@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:4000/garage';
+import API_BASE_URL from '../config/api';
+
+const GARAGE_API_URL = `${API_BASE_URL}/garage`;
 
 export interface Car {
   id: string;
@@ -65,6 +67,19 @@ export interface GarageStats {
   completedReminders: number;
 }
 
+export interface FuelEntry {
+  id: string;
+  userId: string;
+  carId: string;
+  date: string; // ISO
+  liters: number;
+  pricePerLiter: number;
+  totalPrice: number;
+  mileage: number;
+  createdAt: string | number;
+  updatedAt: string | number;
+}
+
 class GarageApiService {
   private userId: string | null = null;
 
@@ -78,7 +93,7 @@ class GarageApiService {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${GARAGE_API_URL}${endpoint}`;
     const userId = this.userId || 'demo-user';
     
     console.log(`API Request: ${options.method || 'GET'} ${url}`);
@@ -209,6 +224,22 @@ class GarageApiService {
   // სტატისტიკა
   async getGarageStats(): Promise<GarageStats> {
     return this.request<GarageStats>('/stats');
+  }
+
+  // საწვავი
+  async getFuelEntries(): Promise<FuelEntry[]> {
+    return this.request<FuelEntry[]>('/fuel');
+  }
+
+  async getFuelEntriesByCar(carId: string): Promise<FuelEntry[]> {
+    return this.request<FuelEntry[]>(`/fuel/car/${carId}`);
+  }
+
+  async createFuelEntry(entry: Omit<FuelEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<FuelEntry> {
+    return this.request<FuelEntry>('/fuel', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    });
   }
 }
 

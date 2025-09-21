@@ -29,7 +29,8 @@ type Offer = {
   createdAt?: number;
 };
 
-const API_URL = 'http://localhost:4000';
+import API_BASE_URL from '../config/api';
+const API_URL = API_BASE_URL;
 
 export default function AIChatScreen() {
   const router = useRouter();

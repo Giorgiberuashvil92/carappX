@@ -173,7 +173,7 @@ export default function MarketplaceScreen() {
       <SafeAreaView style={styles.heroSection}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <Text style={styles.heroTitle}>Marketplace</Text>
+            <Text style={styles.heroTitle}>მაღაზია</Text>
             <Text style={styles.heroSubtitle}>
               ყველაფერი რაც თქვენს ავტომობილს სჭირდება
             </Text>

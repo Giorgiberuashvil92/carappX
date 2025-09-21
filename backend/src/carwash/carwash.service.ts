@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+
 import { Injectable } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { CreateCarwashBookingDto } from './dto/create-carwash-booking.dto';
@@ -12,6 +16,7 @@ import {
   DaySlots,
   TimeSlot,
 } from './entities/carwash-location.entity';
+import { Store } from '../stores/entities/store.entity';
 
 type CarwashBookingEntity = CreateCarwashBookingDto & {
   id: string;
@@ -154,8 +159,49 @@ export class CarwashService {
   }
 
   async findAllLocations(): Promise<CarwashLocation[]> {
-    const snap = await this.locationsCol().orderBy('createdAt', 'desc').get();
-    return snap.docs.map((d) => d.data() as CarwashLocation);
+    try {
+      const snap = await this.locationsCol().orderBy('createdAt', 'desc').get();
+      return snap.docs.map((d) => d.data() as CarwashLocation);
+    } catch (error) {
+      console.error('Error fetching all locations:', error);
+      return [];
+    }
+  }
+
+  private calculatePopularityScore(location: CarwashLocation): number {
+    let score = 0;
+
+    // 1. რეიტინგი (40% წონა)
+    const ratingWeight = 0.4;
+    score += (location.rating / 5) * 100 * ratingWeight;
+
+    // 2. რევიუების რაოდენობა (25% წონა)
+    const reviewsWeight = 0.25;
+    const reviewsScore = Math.min(location.reviews / 100, 1); // max 100 reviews = 100%
+    score += reviewsScore * 100 * reviewsWeight;
+
+    // 3. ღიაა თუ არა (15% წონა)
+    const openWeight = 0.15;
+    if (location.realTimeStatus?.isOpen || location.isOpen) {
+      score += 100 * openWeight;
+    }
+
+    // 4. ფასის კონკურენტუნარიანობა (10% წონა)
+    const priceWeight = 0.1;
+    const avgPrice = 50; // საშუალო ფასი
+    const priceScore = Math.max(
+      0,
+      1 - Math.abs(location.price - avgPrice) / avgPrice,
+    );
+    score += priceScore * 100 * priceWeight;
+
+    // 5. სერვისების რაოდენობა (10% წონა)
+    const servicesWeight = 0.1;
+    const servicesCount = location.detailedServices?.length || 0;
+    const servicesScore = Math.min(servicesCount / 10, 1); // max 10 services = 100%
+    score += servicesScore * 100 * servicesWeight;
+
+    return Math.round(score * 100) / 100; // 2 ათობითი ნიშანი
   }
 
   async findLocationById(id: string): Promise<CarwashLocation | null> {
@@ -391,5 +437,269 @@ export class CarwashService {
       currentQueue: queue,
       estimatedWaitTime: waitTime + queue * 15, // ვარაუდით 15 წუთი ყოველ ჯავშნაზე
     });
+  }
+
+  // პოპულარული ლოკაციების მიღება
+  async getPopularLocations(limit: number = 10): Promise<CarwashLocation[]> {
+    const snap = await this.locationsCol().where('isOpen', '==', true).get();
+
+    const locations = snap.docs.map((d) => d.data() as CarwashLocation);
+
+    // პოპულარობის ალგორითმი:
+    // 1. რეიტინგი (40%) - მაღალი რეიტინგი = პოპულარული
+    // 2. რევიუების რაოდენობა (25%) - მეტი რევიუ = უფრო პოპულარული
+    // 3. ღიაა თუ არა (15%) - ღია სერვისები პრიორიტეტულია
+    // 4. ფასის კონკურენტუნარიანობა (10%) - საშუალო ფასის მახლობლად
+    // 5. სერვისების რაოდენობა (10%) - მეტი სერვისი = უკეთესი
+
+    const scoredLocations = locations.map((location) => {
+      const ratingScore = location.rating * 40; // 0-40 ქულა
+      const reviewsScore = Math.min(location.reviews * 0.5, 25); // 0-25 ქულა
+      const openScore = location.realTimeStatus?.isOpen ? 15 : 0; // 0-15 ქულა
+      const priceScore = Math.max(0, 10 - Math.abs(location.price - 30) * 0.2); // 0-10 ქულა (საშუალო ფასი 30₾)
+      const servicesScore = Math.min(
+        location.detailedServices?.length || 0 * 2,
+        10,
+      ); // 0-10 ქულა
+
+      const totalScore =
+        ratingScore + reviewsScore + openScore + priceScore + servicesScore;
+
+      return {
+        ...location,
+        popularityScore: totalScore,
+      };
+    });
+
+    // დახარისხება პოპულარობის მიხედვით
+    scoredLocations.sort((a, b) => b.popularityScore - a.popularityScore);
+
+    return scoredLocations.slice(0, limit);
+  }
+
+  // ახლოს მყოფი ლოკაციების მიღება
+  async getNearbyLocations(
+    userLat: number,
+    userLon: number,
+    radiusKm: number = 5,
+  ): Promise<CarwashLocation[]> {
+    try {
+      const snap = await this.locationsCol()
+        .where('latitude', '!=', null)
+        .where('longitude', '!=', null)
+        .get();
+
+      console.log('Total carwash locations found:', snap.docs.length);
+      const locations = snap.docs.map((d) => d.data() as CarwashLocation);
+
+      // Haversine ფორმულა მანძილის გამოსათვლელად
+      const calculateDistance = (
+        lat1: number,
+        lon1: number,
+        lat2: number,
+        lon2: number,
+      ): number => {
+        const R = 6371; // დედამიწის რადიუსი კილომეტრებში
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+
+      // ფილტრაცია რადიუსის მიხედვით და მანძილის გამოთვლა
+      const nearbyLocations = locations
+        .filter(
+          (location) =>
+            location.latitude &&
+            location.longitude &&
+            calculateDistance(
+              userLat,
+              userLon,
+              location.latitude,
+              location.longitude,
+            ) <= radiusKm,
+        )
+        .map((location) => ({
+          ...location,
+          distance: calculateDistance(
+            userLat,
+            userLon,
+            location.latitude,
+            location.longitude,
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance); // დახარისხება მანძილის მიხედვით
+
+      console.log(
+        'Nearby carwash locations after filtering:',
+        nearbyLocations.length,
+      );
+      return nearbyLocations;
+    } catch (error) {
+      console.error('Error fetching nearby locations:', error);
+      console.log('getNearbyLocations: Returning empty array due to error');
+      return [];
+    }
+  }
+
+  // ყველა ტიპის ახლოს მყოფი სერვისების მიღება (carwash + stores)
+  async getAllNearbyServices(
+    userLat: number,
+    userLon: number,
+    radiusKm: number = 10,
+  ): Promise<any[]> {
+    try {
+      // Carwash locations
+      const carwashLocations = await this.getNearbyLocations(
+        userLat,
+        userLon,
+        radiusKm,
+      );
+
+      console.log('Carwash locations found:', carwashLocations.length);
+
+      // Store locations
+      const storeLocations = await this.getNearbyStores(
+        userLat,
+        userLon,
+        radiusKm,
+      );
+
+      console.log('Store locations found:', storeLocations.length);
+
+      // ყველა სერვისის გაერთიანება და დახარისხება მანძილის მიხედვით
+      console.log('Combining carwash and store locations...');
+      const allServices = [
+        ...carwashLocations.map((location) => ({
+          ...location,
+          type: 'carwash',
+          category: location.category || 'სამრეცხაო',
+          displayName: location.name,
+          displayAddress: location.address || location.location,
+          displayPrice: `${location.price}₾`,
+          displayRating: location.rating,
+          displayReviews: location.reviews,
+          isOpen: location.realTimeStatus?.isOpen || location.isOpen,
+          waitTime: location.realTimeStatus?.currentWaitTime || 0,
+          distance: (location as any).distance,
+          coordinates: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+        })),
+        ...storeLocations.map((store) => ({
+          ...store,
+          type: 'store',
+          category: store.type,
+          displayName: store.title || store.name,
+          displayAddress: store.address || store.location,
+          displayPrice:
+            store.type === 'ავტონაწილები' ? 'ფასები ცალ-ცალკე' : 'კონსულტაცია',
+          displayRating: store.rating || 0,
+          displayReviews: store.reviewCount || 0,
+          isOpen: store.status === 'active',
+          waitTime: 0,
+          distance: store.distance,
+          coordinates: store.coordinates,
+        })),
+      ];
+
+      console.log('Combined services before sorting:', allServices.length);
+      // დახარისხება მანძილის მიხედვით
+      allServices.sort((a, b) => a.distance - b.distance);
+
+      console.log('Total combined services:', allServices.length);
+      console.log(
+        'getAllNearbyServices: Returning',
+        allServices.length,
+        'services',
+      );
+      return allServices;
+    } catch (error) {
+      console.error('Error fetching all nearby services:', error);
+      console.log('Service: Returning empty array due to error');
+      return [];
+    }
+  }
+
+  // ახლოს მყოფი stores-ების მიღება
+  private async getNearbyStores(
+    userLat: number,
+    userLon: number,
+    radiusKm: number = 10,
+  ): Promise<any[]> {
+    try {
+      const storesCol = this.firebase.db.collection('stores');
+      console.log('Fetching stores from collection...');
+      const snap = await storesCol
+        .where('coordinates.latitude', '!=', null)
+        .where('coordinates.longitude', '!=', null)
+        .where('status', '==', 'active')
+        .get();
+
+      const stores = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as Store & { id: string },
+      );
+
+      console.log('Total stores found:', stores.length);
+
+      // Haversine ფორმულა მანძილის გამოსათვლელად
+      const calculateDistance = (
+        lat1: number,
+        lon1: number,
+        lat2: number,
+        lon2: number,
+      ): number => {
+        const R = 6371; // დედამიწის რადიუსი კილომეტრებში
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+
+      // ფილტრაცია რადიუსის მიხედვით და მანძილის გამოთვლა
+      const nearbyStores = stores
+        .filter(
+          (store) =>
+            store.coordinates?.latitude &&
+            store.coordinates?.longitude &&
+            calculateDistance(
+              userLat,
+              userLon,
+              store.coordinates.latitude,
+              store.coordinates.longitude,
+            ) <= radiusKm,
+        )
+        .map((store) => ({
+          ...store,
+          distance: calculateDistance(
+            userLat,
+            userLon,
+            store.coordinates.latitude,
+            store.coordinates.longitude,
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance);
+
+      console.log('Nearby stores after filtering:', nearbyStores.length);
+      console.log('getNearbyStores: Returning', nearbyStores.length, 'stores');
+      return nearbyStores;
+    } catch (error) {
+      console.error('Error fetching nearby stores:', error);
+      console.log('getNearbyStores: Returning empty array due to error');
+      return [];
+    }
   }
 }

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FirebaseModule } from './firebase/firebase.module';
 import { RequestsModule } from './requests/requests.module';
 import { OffersModule } from './offers/offers.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
 import { PartnersModule } from './partners/partners.module';
 import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -12,6 +13,9 @@ import { GarageModule } from './garage/garage.module';
 import { DismantlersModule } from './dismantlers/dismantlers.module';
 import { PartsModule } from './parts/parts.module';
 import { StoresModule } from './stores/stores.module';
+import { CommunityModule } from './community/community.module';
+import { CategoriesModule } from './categories/categories.module';
+import { LocationModule } from './location/location.module';
 
 @Module({
   imports: [
@@ -25,6 +29,7 @@ import { StoresModule } from './stores/stores.module';
     FirebaseModule,
     RequestsModule,
     OffersModule,
+    RecommendationsModule,
     PartnersModule,
     MessagesModule,
     NotificationsModule,
@@ -34,6 +39,9 @@ import { StoresModule } from './stores/stores.module';
     DismantlersModule,
     PartsModule,
     StoresModule,
+    CommunityModule,
+    CategoriesModule,
+    LocationModule,
   ],
 })
 export class AppModule {}

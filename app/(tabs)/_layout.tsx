@@ -23,7 +23,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => <CustomTabBar {...(props as any)} />}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#111827',
@@ -46,7 +46,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="marketplace"
         options={{
-          title: 'Marketplace',
+          title: 'მაღაზია',
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-bag" color={color} />,
         }}
       />
@@ -58,10 +58,39 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="ai"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
         name="two"
         options={{
-          title: 'პროფილი',
-          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="carwash"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="loyalty"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="management"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="partner"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

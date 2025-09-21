@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useToast } from '../../contexts/ToastContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -52,6 +53,7 @@ const PRIORITY_LEVELS = [
 ];
 
 export default function AddReminderModal({ visible, onClose, onAddReminder, cars }: AddReminderModalProps) {
+  const { error } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [reminderData, setReminderData] = useState<ReminderData>({
     title: '',
@@ -234,7 +236,7 @@ export default function AddReminderModal({ visible, onClose, onAddReminder, cars
 
   const handleSubmit = () => {
     if (!reminderData.title || !reminderData.carId || !reminderData.reminderDate || !reminderData.type) {
-      Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ყველა სავალდებულო ველი');
+      error('შეცდომა', 'გთხოვთ შეავსოთ ყველა სავალდებულო ველი');  
       return;
     }
 

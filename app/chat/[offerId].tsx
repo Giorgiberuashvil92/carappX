@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text, View } from '@/components/Themed';
 import Constants from 'expo-constants';
+import API_BASE_URL from '../../config/api';
 
 function resolveApiBase(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -16,7 +17,7 @@ function resolveApiBase(): string {
       return `http://${host}:4000`;
     }
   }
-  return 'http://localhost:4000';
+  return API_BASE_URL;
 }
 
 const API_URL = resolveApiBase();

@@ -16,13 +16,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
+import { useToast } from '@/contexts/ToastContext';
 import { carwashLocationApi } from '@/services/carwashLocationApi';
 import { CarwashLocation } from '@/services/carwashLocationApi';
+import API_BASE_URL from '@/config/api';
 
 const { width } = Dimensions.get('window');
 
 export default function ManagementScreen() {
   const { user } = useUser();
+  const { success, error } = useToast();
   const router = useRouter();
   const [myCarwashes, setMyCarwashes] = useState<CarwashLocation[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +66,7 @@ export default function ManagementScreen() {
   const toggleCarwashStatus = async (carwashId: string) => {
     try {
       // Call backend API to toggle status
-      const response = await fetch(`http://localhost:4000/carwash/locations/${carwashId}/toggle-open`, {
+      const response = await fetch(`${API_BASE_URL}/carwash/locations/${carwashId}/toggle-open`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -86,23 +89,34 @@ export default function ManagementScreen() {
         );
         
         // Show success message
-        Alert.alert(
+        success(
           'წარმატება',
           'სამრეცხაოს სტატუსი წარმატებით შეიცვალა',
-          [{ text: 'კარგი' }]
         );
       } else {
         throw new Error('Failed to update status');
       }
     } catch (error) {
       console.error('Error toggling carwash status:', error);
-      Alert.alert(
+      error(
         'შეცდომა',
         'სამრეცხაოს სტატუსის შეცვლა ვერ მოხერხდა',
-        [{ text: 'კარგი' }]
       );
     }
   };
+
+  const openAnalytics = (carwashId: string) => {
+    router.push(`/analytics/${carwashId}`);
+  };
+
+  const openBookings = (carwashId: string) => {
+    router.push(`/bookings/${carwashId}`);
+  };
+
+  const openSettings = (carwashId: string) => {
+    router.push(`/settings/${carwashId}`);
+  };
+
 
   const renderCarwashCard = ({ item }: { item: CarwashLocation }) => (
     <View style={styles.carwashCard}>
@@ -152,10 +166,16 @@ export default function ManagementScreen() {
           <Text style={styles.primaryActionText}>ანალიტიკა</Text>
         </TouchableOpacity>
         <View style={styles.secondaryActions}>
-          <TouchableOpacity style={styles.secondaryAction}>
+          <TouchableOpacity 
+            style={styles.secondaryAction}
+            onPress={() => openSettings(item.id)}
+          >
             <Ionicons name="settings-outline" size={18} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryAction}>
+          <TouchableOpacity 
+            style={styles.secondaryAction}
+            onPress={() => openBookings(item.id)}
+          >
             <Ionicons name="calendar-outline" size={18} color="#6B7280" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryAction}>
@@ -230,6 +250,7 @@ export default function ManagementScreen() {
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
       />
+
     </SafeAreaView>
   );
 }

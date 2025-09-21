@@ -113,7 +113,80 @@ export class CarwashController {
 
   @Get('locations')
   async findAllLocations() {
-    return this.carwashService.findAllLocations();
+    try {
+      return await this.carwashService.findAllLocations();
+    } catch (error) {
+      console.error('Error fetching all locations:', error);
+      return [];
+    }
+  }
+
+  @Get('locations/popular')
+  async getPopularLocations(@Query('limit') limit?: string) {
+    try {
+      return await this.carwashService.getPopularLocations(
+        limit ? parseInt(limit) : 10,
+      );
+    } catch (error) {
+      console.error('Error fetching popular locations:', error);
+      return [];
+    }
+  }
+
+  @Get('locations/nearby')
+  async getNearbyLocations(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('radius') radius?: string,
+  ) {
+    try {
+      const userLat = parseFloat(lat);
+      const userLon = parseFloat(lng);
+      const radiusKm = radius ? parseFloat(radius) : 5;
+
+      return await this.carwashService.getNearbyLocations(
+        userLat,
+        userLon,
+        radiusKm,
+      );
+    } catch (error) {
+      console.error('Error fetching nearby locations:', error);
+      return [];
+    }
+  }
+
+  @Get('locations/all-nearby')
+  async getAllNearbyServices(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('radius') radius?: string,
+  ) {
+    try {
+      const userLat = parseFloat(lat);
+      const userLon = parseFloat(lng);
+      const radiusKm = radius ? parseFloat(radius) : 10;
+
+      console.log(
+        'Controller: Fetching all nearby services for lat:',
+        userLat,
+        'lng:',
+        userLon,
+        'radius:',
+        radiusKm,
+      );
+      const services = await this.carwashService.getAllNearbyServices(
+        userLat,
+        userLon,
+        radiusKm,
+      );
+      console.log('Controller: Returning', services.length, 'services');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return services;
+    } catch (error) {
+      console.error('Error fetching nearby services:', error);
+      console.log('Controller: Returning empty array due to error');
+      return [];
+    }
   }
 
   @Get('locations/:id')

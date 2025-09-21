@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:4000/carwash';
+import API_BASE_URL from '../config/api';
+
+const CARWASH_API_URL = `${API_BASE_URL}/carwash`;
 
 export interface CarwashBooking {
   id: string;
@@ -75,7 +77,7 @@ class CarwashApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${CARWASH_API_URL}${endpoint}`;
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',

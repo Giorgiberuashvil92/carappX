@@ -23,8 +23,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { carwashApi, CarwashBooking } from '../../services/carwashApi';
 import { useUser } from '../../contexts/UserContext';
+import { useToast } from '../../contexts/ToastContext';
 import AddModal, { AddModalType } from '../../components/ui/AddModal';
 import { carwashLocationApi } from '../../services/carwashLocationApi';
+import API_BASE_URL from '../../config/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -50,6 +52,7 @@ const CAR_WASH_FEATURES = [
 export default function CarWashScreen() {
   const router = useRouter();
   const { user, isAuthenticated, updateUserRole, addToOwnedCarwashes } = useUser();
+  const { success, error, warning } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -150,6 +153,47 @@ export default function CarWashScreen() {
     }
   };
 
+  // Check if booking can be cancelled (more than 2 hours remaining and not started)
+  const canCancelBooking = (booking: CarwashBooking) => {
+    const now = new Date();
+    const bookingDateTime = new Date(booking.bookingDate);
+    
+    // If booking is already completed, cancelled, or in progress, can't cancel
+    if (booking.status === 'completed' || booking.status === 'cancelled' || booking.status === 'in_progress') {
+      return false;
+    }
+    
+    // Calculate time difference in hours
+    const timeDiffInHours = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    // Can cancel if more than 2 hours remaining
+    return timeDiffInHours > 2;
+  };
+
+  // Cancel booking function
+  const cancelBooking = async (bookingId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/carwash/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+
+      if (response.ok) {
+        // Refresh bookings
+        loadUserBookings();
+        success('წარმატება', 'ჯავშნა წარმატებით გაუქმდა');
+      } else {
+        throw new Error('Failed to cancel booking');
+      }
+    } catch (err) {
+      console.error('Error cancelling booking:', err);
+      error('შეცდომა', 'ჯავშნის გაუქმება ვერ მოხერხდა');
+    }
+  };
+
   const toggleBanner = () => {
     const newExpandedState = !bannerExpanded;
     const toValue = newExpandedState ? 180 : 80;
@@ -177,28 +221,6 @@ export default function CarWashScreen() {
       );
     }
     
-    // Features filter
-    if (selectedFeatures.length > 0) {
-      list = list.filter(l => {
-        if (!l.features) return false;
-        
-        let featuresArray: string[];
-        if (typeof l.features === 'string') {
-          // If features is a string, try to parse it as JSON or split by comma
-          try {
-            featuresArray = JSON.parse(l.features);
-          } catch {
-            featuresArray = l.features.split(',').map((f: string) => f.trim());
-          }
-        } else if (Array.isArray(l.features)) {
-          featuresArray = l.features;
-        } else {
-          return false;
-        }
-        
-        return selectedFeatures.some(feature => featuresArray.includes(feature));
-      });
-    }
     
     // Distance filter
     list = list.filter(l => {
@@ -259,8 +281,8 @@ export default function CarWashScreen() {
       setLoading(true);
       const bookings = await carwashApi.getAllBookings(user.id);
       setUserBookings(bookings);
-    } catch (error) {
-      Alert.alert('შეცდომა', 'ჯავშნების ჩატვირთვისას მოხდა შეცდომა');
+    } catch (err) {
+      error('შეცდომა', 'ჯავშნების ჩატვირთვისას მოხდა შეცდომა');
     } finally {
       setLoading(false);
     }
@@ -269,6 +291,8 @@ export default function CarWashScreen() {
   const loadAllCarwashes = useCallback(async () => {
     try {
       const carwashes = await carwashLocationApi.getAllLocations();
+      console.log('🔍 [CARWASH] Loaded carwashes from backend:', carwashes);
+      console.log('🔍 [CARWASH] First carwash structure:', carwashes[0]);
       setAllCarwashes(carwashes);
     } catch (error) {
       console.error('❌ [CARWASH] Error loading carwashes:', error);
@@ -416,9 +440,9 @@ export default function CarWashScreen() {
         )
       );
       
-      Alert.alert('წარმატება', 'ჯავშანი წარმატებით განახლდა');
-    } catch (error) {
-      Alert.alert('შეცდომა', 'ჯავშნის განახლებისას მოხდა შეცდომა');
+      success('წარმატება', 'ჯავშანი წარმატებით განახლდა');
+    } catch (err) {
+      error('შეცდომა', 'ჯავშნის განახლებისას მოხდა შეცდომა');
     } finally {
       setLoading(false);
     }
@@ -431,12 +455,14 @@ export default function CarWashScreen() {
       'Luxury': '#F59E0B',
       'Standard': '#6B7280',
       'Professional': '#8B5CF6',
+      'ავტოსერვისი': '#8B5CF6', // mechanic - purple
+      'სამრეცხაო': '#3B82F6',   // carwash - blue
+      'მაღაზია': '#10B981',      // store - green
     };
     return colors[category] || '#6B7280';
   };
 
   const resetFilters = () => {
-    setSelectedFeatures([]);
     setFilterDistance(10);
     setFilterPriceRange({ min: 0, max: 50000 });
     setFilterSortBy('rating');
@@ -488,9 +514,28 @@ export default function CarWashScreen() {
   };
 
   const handleLocationPress = (location: any) => {
+    console.log('🔍 [CARWASH] Location pressed:', location);
+    console.log('🔍 [CARWASH] Location features:', location.features);
+    console.log('🔍 [CARWASH] Location services:', location.services);
+    console.log('🔍 [CARWASH] Location detailedServices:', location.detailedServices);
+    
+    // სერვისის ტიპის განსაზღვრება category-ს მიხედვით
+    let serviceType = 'carwash'; // default
+    if (location.category === 'ავტოსერვისი' || location.category?.toLowerCase().includes('mechanic')) {
+      serviceType = 'mechanic';
+    } else if (location.category?.toLowerCase().includes('store') || location.category?.toLowerCase().includes('მაღაზია')) {
+      serviceType = 'store';
+    } else if (location.category === 'Premium' || location.category?.toLowerCase().includes('carwash')) {
+      serviceType = 'carwash';
+    }
+    
+    console.log('🔍 [CARWASH] Determined service type:', serviceType, 'for category:', location.category);
+    
     router.push({
       pathname: '/details',
       params: {
+        id: location.id,
+        type: serviceType, // დინამიური ტიპი category-ს მიხედვით
         title: location.name,
         lat: location.latitude || 41.7151,
         lng: location.longitude || 44.8271,
@@ -510,7 +555,7 @@ export default function CarWashScreen() {
         availableSlots: JSON.stringify(location.availableSlots || []),
         realTimeStatus: JSON.stringify(location.realTimeStatus || {}),
         workingHours: location.workingHours,
-        image: location.image,
+        image: location.images?.[0] || location.image,
       }
     });
   };
@@ -522,91 +567,90 @@ export default function CarWashScreen() {
       onPress={() => handleLocationPress(location)}
       activeOpacity={0.95}
     >
-      {/* Card Header with Image */}
-      <View style={styles.cardImageContainer}>
-        <Image source={{ uri: location.image }} style={styles.cardImage} />
-        <View style={styles.cardImageOverlay}>
-          <View style={styles.cardBadges}>
-            <View style={[styles.cardCategoryBadge, { backgroundColor: getCategoryColor(location.category) }]}>
-              <Text style={styles.cardCategoryText}>{location.category}</Text>
-          </View>
+      {/* Horizontal Layout: Image Left, Content Right */}
+      <View style={styles.cardHorizontalContainer}>
+        {/* Left Side - Image */}
+        <View style={styles.cardImageContainerHorizontal}>
+          <Image source={{ uri: location.images?.[0] || location.image }} style={styles.cardImageHorizontal} />
+          <View style={styles.cardImageOverlayHorizontal}>
+            {/* Category Badge */}
+            <View style={[styles.cardCategoryBadgeHorizontal, { backgroundColor: getCategoryColor(location.category) }]}>
+              <Text style={styles.cardCategoryTextHorizontal}>{location.category}</Text>
+            </View>
+            
+            {/* Favorite Button */}
+            <TouchableOpacity
+              style={styles.cardFavoriteButtonHorizontal}
+              onPress={() => toggleFavorite(location.id)}
+              activeOpacity={0.8}
+            >
+              <Ionicons 
+                name={isFavorite(location.id) ? "heart" : "heart-outline"} 
+                size={16} 
+                color={isFavorite(location.id) ? "#EF4444" : "#FFFFFF"} 
+              />
+            </TouchableOpacity>
+            
+            {/* Open Status */}
             {location.isOpen && (
-              <View style={styles.cardOpenBadge}>
-                <View style={styles.cardOpenDot} />
-                <Text style={styles.cardOpenText}>ღიაა</Text>
+              <View style={styles.cardOpenBadgeHorizontal}>
+                <View style={styles.cardOpenDotHorizontal} />
+                <Text style={styles.cardOpenTextHorizontal}>ღიაა</Text>
               </View>
             )}
           </View>
-          <TouchableOpacity
-            style={styles.cardFavoriteButton}
-            onPress={() => toggleFavorite(location.id)}
-            activeOpacity={0.8}
-          >
-            <Ionicons 
-              name={isFavorite(location.id) ? "heart" : "heart-outline"} 
-              size={18} 
-              color={isFavorite(location.id) ? "#EF4444" : "#FFFFFF"} 
-            />
-          </TouchableOpacity>
-          </View>
         </View>
         
-      {/* Card Content */}
-      <View style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{location.name}</Text>
-          <View style={styles.cardRating}>
-            <Ionicons name="star" size={14} color="#F59E0B" />
-            <Text style={styles.cardRatingText}>{location.rating}</Text>
-            <Text style={styles.cardReviewsText}>({location.reviews})</Text>
-          </View>
-              </View>
-
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {location.description}
-        </Text>
-
-        <View style={styles.cardInfo}>
-          <View style={styles.cardLocation}>
-            <Ionicons name="location-outline" size={14} color="#6B7280" />
-            <Text style={styles.cardLocationText}>{location.address}</Text>
-          </View>
-          <Text style={styles.cardDistance}>{location.distance}</Text>
-        </View>
-        
-        <View style={styles.cardFooter}>
-          <View style={styles.cardPriceSection}>
-            <Text style={styles.cardPriceLabel}>ფასი</Text>
-            <Text style={styles.cardPrice}>{location.price}</Text>
-        </View>
-          <View style={styles.cardTimeSection}>
-            <Ionicons name="time-outline" size={14} color="#6B7280" />
-            <Text style={styles.cardTimeText}>{location.waitTime}</Text>
-      </View>
-        </View>
-
-        <View style={styles.cardFeatures}>
-          {(location.features || []).slice(0, 2).map((feature: string, index: number) => (
-            <View key={index} style={styles.cardFeatureTag}>
-              <Text style={styles.cardFeatureText}>{feature}</Text>
+        {/* Right Side - Content */}
+        <View style={styles.cardContentHorizontal}>
+          {/* Header */}
+          <View style={styles.cardHeaderHorizontal}>
+            <Text style={styles.cardTitleHorizontal} numberOfLines={1}>{location.name}</Text>
+            <View style={styles.cardRatingHorizontal}>
+              <Ionicons name="star" size={12} color="#F59E0B" />
+              <Text style={styles.cardRatingTextHorizontal}>{location.rating}</Text>
+              <Text style={styles.cardReviewsTextHorizontal}>({location.reviews})</Text>
             </View>
-          ))}
-        </View>
-
-        {/* Booking Button */}
-        <TouchableOpacity 
-          style={styles.bookingButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleBooking(location);
-          }}
-          activeOpacity={0.9}
-        >
-          <View style={styles.bookingButtonGradient}>
-            <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
-            <Text style={styles.bookingButtonText}>დაჯავშნა</Text>
           </View>
-        </TouchableOpacity>
+
+          {/* Description */}
+          <Text style={styles.cardDescriptionHorizontal} numberOfLines={2}>
+            {location.description}
+          </Text>
+
+          {/* Location & Distance */}
+          <View style={styles.cardLocationHorizontal}>
+            <Ionicons name="location-outline" size={12} color="#6B7280" />
+            <Text style={styles.cardLocationTextHorizontal} numberOfLines={1}>{location.address}</Text>
+            <Text style={styles.cardDistanceHorizontal}>{location.distance}</Text>
+          </View>
+          
+          {/* Price & Time */}
+          <View style={styles.cardPriceTimeHorizontal}>
+            <View style={styles.cardPriceHorizontal}>
+              <Text style={styles.cardPriceLabelHorizontal}>ფასი</Text>
+              <Text style={styles.cardPriceTextHorizontal}>{location.price}</Text>
+            </View>
+            <View style={styles.cardTimeHorizontal}>
+              <Ionicons name="time-outline" size={12} color="#6B7280" />
+              <Text style={styles.cardTimeTextHorizontal}>{location.waitTime}</Text>
+            </View>
+          </View>
+
+
+          {/* Booking Button */}
+          <TouchableOpacity 
+            style={styles.bookingButtonHorizontal}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleBooking(location);
+            }}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
+            <Text style={styles.bookingButtonTextHorizontal}>დაჯავშნა</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -645,40 +689,6 @@ export default function CarWashScreen() {
               </View>
             </View>
             
-            {/* Features Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>ფუნქციები</Text>
-              <View style={styles.filterFeaturesContainer}>
-                {CAR_WASH_FEATURES.map((feature) => (
-                  <TouchableOpacity
-                    key={feature.id}
-                    style={[
-                      styles.featureChip,
-                      selectedFeatures.includes(feature.id) && styles.featureChipActive,
-                    ]}
-                    onPress={() => {
-                      if (selectedFeatures.includes(feature.id)) {
-                        setSelectedFeatures(selectedFeatures.filter(id => id !== feature.id));
-                      } else {
-                        setSelectedFeatures([...selectedFeatures, feature.id]);
-                      }
-                    }}
-                  >
-                    <Ionicons 
-                      name={feature.icon as any} 
-                      size={16} 
-                      color={selectedFeatures.includes(feature.id) ? '#FFFFFF' : '#6B7280'} 
-                    />
-                    <Text style={[
-                      styles.featureChipText,
-                      { color: selectedFeatures.includes(feature.id) ? '#FFFFFF' : '#6B7280' }
-                    ]}>
-                      {feature.title}
-                    </Text>
-              </TouchableOpacity>
-                ))}
-            </View>
-          </View>
 
             {/* Sort By Filter */}
             <View style={styles.filterSection}>
@@ -953,10 +963,15 @@ export default function CarWashScreen() {
                       <Ionicons name="navigate-outline" size={16} color="#10B981" />
                       <Text style={styles.bookingActionText}>ნავიგაცია</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.bookingCancelButton}>
-                      <Ionicons name="close-outline" size={16} color="#EF4444" />
-                      <Text style={styles.bookingCancelText}>გაუქმება</Text>
-                    </TouchableOpacity>
+                    {canCancelBooking(booking) && (
+                      <TouchableOpacity 
+                        style={styles.bookingCancelButton}
+                        onPress={() => cancelBooking(booking.id)}
+                      >
+                        <Ionicons name="close-outline" size={16} color="#EF4444" />
+                        <Text style={styles.bookingCancelText}>გაუქმება</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))
@@ -1089,7 +1104,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#111827',
     letterSpacing: -0.5,
   },
@@ -1142,7 +1157,7 @@ const styles = StyleSheet.create({
   },
   headerButtonLabel: {
     fontSize: 11,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#FFFFFF',
     textAlign: 'center',
     marginTop: 2,
@@ -1158,7 +1173,7 @@ const styles = StyleSheet.create({
   },
   addLabel: {
     fontSize: 10,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#6B7280',
     marginTop: 4,
   },
@@ -1199,7 +1214,7 @@ const styles = StyleSheet.create({
   },
   floatingTabItemText: {
     fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
   floatingTabItemTextActive: {
@@ -1225,7 +1240,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#1F2937',
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
   },
   resultsContainer: {
     paddingHorizontal: 20,
@@ -1233,14 +1248,14 @@ const styles = StyleSheet.create({
   },
   resultsText: {
     fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
   locationsContainer: {
     paddingHorizontal: 20,
     gap: 8,
   },
-  // New Card Design Styles
+  // Horizontal Card Design Styles
   locationCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -1252,15 +1267,23 @@ const styles = StyleSheet.create({
     elevation: 6,
     overflow: 'hidden',
   },
-  cardImageContainer: {
-    position: 'relative',
-    height: 120,
+  // Horizontal Layout Container
+  cardHorizontalContainer: {
+    flexDirection: 'row',
+    height: 180,
   },
-  cardImage: {
+  // Left Side - Image
+  cardImageContainerHorizontal: {
+    width: 140,
+    height: '100%',
+    position: 'relative',
+  },
+  cardImageHorizontal: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
-  cardImageOverlay: {
+  cardImageOverlayHorizontal: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -1268,156 +1291,167 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     justifyContent: 'space-between',
-    padding: 12,
-  },
-  cardBadges: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  cardCategoryBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  cardCategoryText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontFamily: 'NotoSans_700Bold',
-  },
-  cardOpenBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(34, 197, 94, 0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
-  },
-  cardOpenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  cardOpenText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontFamily: 'NotoSans_600SemiBold',
-  },
-  cardFavoriteButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 16,
     padding: 8,
-    alignSelf: 'flex-end',
   },
-  cardContent: {
-    padding: 16,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#111827',
-    flex: 1,
-    marginRight: 12,
-  },
-  cardRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  cardRatingText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#111827',
-  },
-  cardReviewsText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  cardDescription: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  cardInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  cardLocationText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  cardDistance: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#3B82F6',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardPriceSection: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-  },
-  cardPriceLabel: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  cardPrice: {
-    fontSize: 18,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#111827',
-  },
-  cardTimeSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  cardTimeText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  cardFeatures: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  cardFeatureTag: {
-    backgroundColor: '#F3F4F6',
+  cardCategoryBadgeHorizontal: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  cardFeatureText: {
-    fontSize: 10,
-    fontFamily: 'NotoSans_600SemiBold',
+  cardCategoryTextHorizontal: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  cardFavoriteButtonHorizontal: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 12,
+    padding: 6,
+    alignSelf: 'flex-end',
+  },
+  cardOpenBadgeHorizontal: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 197, 94, 0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 3,
+  },
+  cardOpenDotHorizontal: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  cardOpenTextHorizontal: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: 'Inter',
+  },
+  // Right Side - Content
+  cardContentHorizontal: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  cardHeaderHorizontal: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    gap: 6,
+  },
+  cardTitleHorizontal: {
+    fontSize: 17,
+    fontFamily: 'Inter',
+    color: '#111827',
+    flex: 1,
+    marginRight: 8,
+    fontWeight: '600',
+  },
+  cardRatingHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  cardRatingTextHorizontal: {
+    fontSize: 13,
+    fontFamily: 'Inter',
+    color: '#111827',
+    fontWeight: '600',
+  },
+  cardReviewsTextHorizontal: {
+    fontSize: 11,
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
-  // Booking Button Styles
+  cardDescriptionHorizontal: {
+    fontSize: 13,
+    fontFamily: 'Inter',
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  cardLocationHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 10,
+  },
+  cardLocationTextHorizontal: {
+    fontSize: 11,
+    fontFamily: 'Inter',
+    color: '#6B7280',
+    flex: 1,
+  },
+  cardDistanceHorizontal: {
+    fontSize: 11,
+    fontFamily: 'Inter',
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  cardPriceTimeHorizontal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  cardPriceHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  cardPriceLabelHorizontal: {
+    fontSize: 10,
+    fontFamily: 'Inter',
+    color: '#6B7280',
+  },
+  cardPriceTextHorizontal: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: '#111827',
+    fontWeight: '600',
+  },
+  cardTimeHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  cardTimeTextHorizontal: {
+    fontSize: 10,
+    fontFamily: 'Inter',
+    color: '#6B7280',
+  },
+  // Horizontal Booking Button Styles
+  bookingButtonHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    marginTop: 4,
+  },
+  bookingButtonTextHorizontal: {
+    fontSize: 13,
+    fontFamily: 'Inter',
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  // Legacy Booking Button Styles (for other components)
   bookingButton: {
     marginTop: 12,
     borderRadius: 12,
@@ -1440,13 +1474,8 @@ const styles = StyleSheet.create({
   },
   bookingButtonText: {
     fontSize: 14,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#FFFFFF',
-  },
-  filterFeaturesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   // Booking Card Styles
   bookingCard: {
@@ -1488,13 +1517,13 @@ const styles = StyleSheet.create({
   },
   bookingLocationName: {
     fontSize: 16,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#111827',
     marginBottom: 4,
   },
   bookingLocationAddress: {
     fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
   bookingStatus: {
@@ -1504,7 +1533,7 @@ const styles = StyleSheet.create({
   },
   bookingStatusText: {
     fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#FFFFFF',
   },
   bookingServiceSection: {
@@ -1524,7 +1553,7 @@ const styles = StyleSheet.create({
   },
   bookingServiceName: {
     fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#374151',
     marginLeft: 8,
   },
@@ -1536,7 +1565,7 @@ const styles = StyleSheet.create({
   },
   bookingPrice: {
     fontSize: 16,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#FFFFFF',
   },
   bookingDateTimeSection: {
@@ -1551,13 +1580,13 @@ const styles = StyleSheet.create({
   },
   bookingDate: {
     fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
     color: '#6B7280',
     marginLeft: 8,
   },
   bookingTime: {
     fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
     color: '#6B7280',
     marginLeft: 8,
   },
@@ -1577,7 +1606,7 @@ const styles = StyleSheet.create({
   },
   bookingActionText: {
     fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#374151',
     marginLeft: 6,
   },
@@ -1593,7 +1622,7 @@ const styles = StyleSheet.create({
   },
   bookingCancelText: {
     fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#EF4444',
     marginLeft: 6,
   },
@@ -1614,13 +1643,13 @@ const styles = StyleSheet.create({
   },
   emptyStateTitle: {
     fontSize: 20,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#374151',
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 24,
@@ -1634,7 +1663,7 @@ const styles = StyleSheet.create({
   },
   emptyStateButtonText: {
     fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#FFFFFF',
   },
   // Filter Modal Styles
@@ -1661,7 +1690,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#1F2937',
   },
   modalBody: {
@@ -1675,7 +1704,7 @@ const styles = StyleSheet.create({
   },
   filterSectionTitle: {
     fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#1F2937',
     marginBottom: 16,
   },
@@ -1688,7 +1717,7 @@ const styles = StyleSheet.create({
   },
   filterDistanceText: {
     fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#1F2937',
   },
   priceRangeContainer: {
@@ -1700,26 +1729,8 @@ const styles = StyleSheet.create({
   },
   priceRangeText: {
     fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#1F2937',
-  },
-  featureChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 6,
-  },
-  featureChipActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
-  },
-  featureChipText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
   },
   sortContainer: {
     flexDirection: 'row',
@@ -1744,7 +1755,7 @@ const styles = StyleSheet.create({
   },
   sortOptionText: {
     fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
   // Owner Banner Styles
@@ -1786,13 +1797,13 @@ const styles = StyleSheet.create({
   },
   ownerBannerTitle: {
     fontSize: 16,
-    fontFamily: 'NotoSans_700Bold',
+    fontFamily: 'Inter',
     color: '#111827',
     marginBottom: 2,
   },
   ownerBannerSubtitle: {
     fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
   ownerBannerButton: {
@@ -1808,7 +1819,7 @@ const styles = StyleSheet.create({
   },
   ownerBannerButtonText: {
     fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#3B82F6',
   },
   modalFooter: {
@@ -1829,7 +1840,7 @@ const styles = StyleSheet.create({
   },
   resetButtonText: {
     fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#6B7280',
   },
   applyButton: {
@@ -1843,7 +1854,7 @@ const styles = StyleSheet.create({
   },
   applyButtonText: {
     fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
+    fontFamily: 'Inter',
     color: '#FFFFFF',
   },
 });

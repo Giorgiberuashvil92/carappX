@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "carappX",
+    "name": "CarAppX",
     "slug": "carappX",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "carappx",
     "userInterfaceStyle": "automatic",
+    "description": "CarAppX - ყველაფერი მანქანისთვის ერთ ადგილზე",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
@@ -39,9 +40,12 @@
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
-      "usesCleartextTraffic": true
+      "package": "com.gioberuashvili15.carappx"
     },
     "web": {
       "bundler": "metro",
@@ -62,6 +66,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "64bbcf0d-d01d-46b3-9b26-5d9ccbc684fc"
+      }
     }
   }
 }

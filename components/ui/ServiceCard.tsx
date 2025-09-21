@@ -45,6 +45,11 @@ export default function ServiceCard({ image, title, category, rating, location, 
 
         <View style={styles.bottomArea}>
           <Text numberOfLines={1} style={styles.title}>{title}</Text>
+          {category && (
+            <View style={styles.categoryPill}>
+              <Text style={styles.categoryText}>{category}</Text>
+            </View>
+          )}
           <View style={styles.metaRow}>
             {location && (
               <View style={styles.metaPill}>
@@ -102,10 +107,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'Manrope_700Bold',
     fontSize: 18,
-    marginBottom: 10,
+    marginBottom: 8,
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  categoryPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(99, 102, 241, 0.8)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  categoryText: {
+    color: '#FFFFFF',
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   metaPill: {

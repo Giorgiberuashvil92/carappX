@@ -8,11 +8,15 @@ import {
   Image,
   RefreshControl,
   StatusBar,
+  Modal,
+  Alert,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '../../contexts/UserContext';
+import QRCode from 'react-native-qrcode-svg';
 
 interface LoyaltyReward {
   id: string;
@@ -127,6 +131,8 @@ export default function LoyaltyScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [currentPoints] = useState(1250); // მომხმარებლის მიმდინარე ქულები
   const [vipLevel] = useState('ვერცხლი'); // VIP სტატუსი
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedQRType, setSelectedQRType] = useState<'loyalty' | 'booking' | 'points' | 'partner'>('loyalty');
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -152,6 +158,57 @@ export default function LoyaltyScreen() {
   const nextReward = getNextReward();
   const pointsToNext = nextReward.pointsRequired - currentPoints;
 
+  // QR კოდების გენერაცია
+  const generateQRData = (type: string) => {
+    const baseData = {
+      userId: user?.id || 'guest',
+      timestamp: Date.now(),
+      app: 'CarAppX'
+    };
+
+    switch (type) {
+      case 'loyalty':
+        return JSON.stringify({
+          ...baseData,
+          type: 'loyalty_card',
+          points: currentPoints,
+          vipLevel: vipLevel
+        });
+      case 'booking':
+        return JSON.stringify({
+          ...baseData,
+          type: 'quick_booking',
+          service: 'carwash'
+        });
+      case 'points':
+        return JSON.stringify({
+          ...baseData,
+          type: 'points_earn',
+          points: 10
+        });
+      case 'partner':
+        return JSON.stringify({
+          ...baseData,
+          type: 'partner_discount',
+          discount: '10%'
+        });
+      default:
+        return JSON.stringify(baseData);
+    }
+  };
+
+  const handleQRShare = async () => {
+    try {
+      const qrData = generateQRData(selectedQRType);
+      await Share.share({
+        message: `CarAppX QR კოდი: ${qrData}`,
+        title: 'CarAppX QR კოდი'
+      });
+    } catch (error) {
+      Alert.alert('შეცდომა', 'QR კოდის გაზიარება ვერ მოხერხდა');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -168,9 +225,20 @@ export default function LoyaltyScreen() {
               მოაგროვე ქულები და მიიღე ჯილდოები
             </Text>
           </View>
-          <TouchableOpacity style={styles.infoButton}>
-            <Ionicons name="information-circle-outline" size={24} color="#6B7280" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.qrButton}
+              onPress={() => {
+                setSelectedQRType('loyalty');
+                setShowQRModal(true);
+              }}
+            >
+              <Ionicons name="qr-code-outline" size={24} color="#3B82F6" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.infoButton}>
+              <Ionicons name="information-circle-outline" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
@@ -251,6 +319,70 @@ export default function LoyaltyScreen() {
           </View>
         </View>
 
+        {/* QR კოდების სექცია */}
+        <View style={styles.qrSection}>
+          <Text style={styles.sectionTitle}>QR კოდები</Text>
+          <Text style={styles.sectionSubtitle}>სწრაფი ბუკინგი და ქულების დაგროვება</Text>
+          
+          <View style={styles.qrGrid}>
+            <TouchableOpacity 
+              style={styles.qrCard}
+              onPress={() => {
+                setSelectedQRType('loyalty');
+                setShowQRModal(true);
+              }}
+            >
+              <View style={[styles.qrIcon, { backgroundColor: '#6366F1' }]}>
+                <Ionicons name="card" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.qrTitle}>ლოიალობის ბარათი</Text>
+              <Text style={styles.qrDescription}>ციფრული QR ბარათი</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.qrCard}
+              onPress={() => {
+                setSelectedQRType('booking');
+                setShowQRModal(true);
+              }}
+            >
+              <View style={[styles.qrIcon, { backgroundColor: '#3B82F6' }]}>
+                <Ionicons name="calendar" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.qrTitle}>სწრაფი ბუკინგი</Text>
+              <Text style={styles.qrDescription}>სამრეცხაო & მექანიკოსი</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.qrCard}
+              onPress={() => {
+                setSelectedQRType('points');
+                setShowQRModal(true);
+              }}
+            >
+              <View style={[styles.qrIcon, { backgroundColor: '#10B981' }]}>
+                <Ionicons name="star" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.qrTitle}>ქულების დაგროვება</Text>
+              <Text style={styles.qrDescription}>QR სკანირებით</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.qrCard}
+              onPress={() => {
+                setSelectedQRType('partner');
+                setShowQRModal(true);
+              }}
+            >
+              <View style={[styles.qrIcon, { backgroundColor: '#F59E0B' }]}>
+                <Ionicons name="business" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.qrTitle}>პარტნიორები</Text>
+              <Text style={styles.qrDescription}>სპეციალური ღირებულება</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ხელმისაწვდომი ჯილდოები */}
         <View style={styles.rewardsContainer}>
           <Text style={styles.sectionTitle}>ხელმისაწვდომი ჯილდოები</Text>
@@ -328,6 +460,78 @@ export default function LoyaltyScreen() {
         {/* Bottom Spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* QR კოდის მოდალი */}
+      <Modal
+        visible={showQRModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowQRModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedQRType === 'loyalty' && 'ლოიალობის ბარათი'}
+                {selectedQRType === 'booking' && 'სწრაფი ბუკინგი'}
+                {selectedQRType === 'points' && 'ქულების დაგროვება'}
+                {selectedQRType === 'partner' && 'პარტნიორების ღირებულება'}
+              </Text>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowQRModal(false)}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.qrContainer}>
+              <QRCode
+                value={generateQRData(selectedQRType)}
+                size={200}
+                color="#1F2937"
+                backgroundColor="#FFFFFF"
+                logoSize={30}
+                logoMargin={2}
+                logoBorderRadius={15}
+                logoBackgroundColor="transparent"
+              />
+            </View>
+
+            <View style={styles.qrInfo}>
+              <Text style={styles.qrInfoTitle}>
+                {selectedQRType === 'loyalty' && 'შენი ციფრული ბარათი'}
+                {selectedQRType === 'booking' && 'სწრაფი ბუკინგის QR კოდი'}
+                {selectedQRType === 'points' && 'ქულების დაგროვების QR კოდი'}
+                {selectedQRType === 'partner' && 'პარტნიორების QR კოდი'}
+              </Text>
+              <Text style={styles.qrInfoDescription}>
+                {selectedQRType === 'loyalty' && 'ეს QR კოდი შეიცავს შენს ლოიალობის ინფორმაციას'}
+                {selectedQRType === 'booking' && 'QR კოდი სკანირებით შეგიძლია სწრაფი ბუკინგი'}
+                {selectedQRType === 'points' && 'QR კოდი სკანირებით მიიღე 10 ქულა'}
+                {selectedQRType === 'partner' && 'QR კოდი სკანირებით მიიღე 10% ფასდაკლება'}
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.shareButton}
+                onPress={handleQRShare}
+              >
+                <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.shareButtonText}>გაზიარება</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.closeModalButton}
+                onPress={() => setShowQRModal(false)}
+              >
+                <Text style={styles.closeModalButtonText}>დახურვა</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -351,6 +555,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  qrButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EBF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
   headerTitle: {
     fontSize: 24,
@@ -671,5 +890,160 @@ const styles = StyleSheet.create({
   transactionAmount: {
     fontSize: 16,
     fontFamily: 'NotoSans_700Bold',
+  },
+  // QR კოდების სტილები
+  qrSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  qrGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  qrCard: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  qrIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  qrTitle: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  qrDescription: {
+    fontSize: 12,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  // მოდალის სტილები
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'NotoSans_700Bold',
+    color: '#1F2937',
+    flex: 1,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+  },
+  qrInfo: {
+    marginBottom: 24,
+  },
+  qrInfoTitle: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  qrInfoDescription: {
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modalActions: {
+    gap: 12,
+  },
+  shareButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  shareButtonText: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#FFFFFF',
+  },
+  closeModalButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  closeModalButtonText: {
+    fontSize: 16,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#6B7280',
   },
 });

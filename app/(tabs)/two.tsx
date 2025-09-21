@@ -115,6 +115,7 @@ export default function ProfileScreen() {
   const [pressedButtons, setPressedButtons] = useState<{ [key: string]: boolean }>({});
   const [userAvatar, setUserAvatar] = useState(MOCK_USER_DATA.avatarUri);
 
+
   // Use real user data or fallback to mock data
   const displayName = user?.name || MOCK_USER_DATA.name;
   const displayPhone = user?.phone || MOCK_USER_DATA.phone;
@@ -178,6 +179,16 @@ export default function ProfileScreen() {
       fontFamily: 'Poppins_700Bold',
       color: colors.text,
       letterSpacing: -0.5,
+    },
+    backButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
     },
     settingsButton: {
       width: 44,
@@ -491,6 +502,13 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>პროფილი</Text>
           <TouchableOpacity style={styles.settingsButton}>
             <Ionicons name="settings-outline" size={24} color={colors.secondary} />

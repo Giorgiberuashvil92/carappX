@@ -14,6 +14,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   BackHandler,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -21,6 +22,8 @@ import Constants from 'expo-constants';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../useColorScheme';
 import { useUser } from '../../contexts/UserContext';
+import { useToast } from '../../contexts/ToastContext';
+import API_BASE_URL from '../../config/api';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -55,11 +58,12 @@ export default function LoginScreen() {
         return `http://${host}:4000`;
       }
     }
-    return 'http://localhost:4000';
+    return API_BASE_URL;
   }
 
   const API_URL = resolveApiBase();
   const { login } = useUser();
+  const { success, error, warning, info } = useToast();
 
   const formatPhoneNumber = (text: string) => {
     // მხოლოდ ციფრების დატოვება
@@ -124,12 +128,12 @@ export default function LoginScreen() {
   const verifyOTP = async () => {
     const otpString = otp.join('');
     if (otpString.length !== 4) {
-      Alert.alert('შეცდომა', 'გთხოვთ შეიყვანოთ სრული კოდი');
+      error('შეცდომა', 'გთხოვთ შეიყვანოთ სრული კოდი');
       return;
     }
 
     if (!otpId) {
-      Alert.alert('შეცდომა', 'კოდი ვადაგასულია, სცადეთ ხელახლა');
+      error('შეცდომა', 'კოდი ვადაგასულია, სცადეთ ხელახლა');
       return;
     }
 
@@ -144,7 +148,7 @@ export default function LoginScreen() {
       setLoading(false);
       if (!res.ok) {
         const msg = typeof data === 'object' && data?.message ? String(data.message) : 'ვერიფიკაცია ვერ მოხერხდა';
-        Alert.alert('შეცდომა', msg);
+        error('შეცდომა', msg);
         return;
       }
       // success
@@ -156,23 +160,25 @@ export default function LoginScreen() {
       setOtpId(null);
       if (intent === 'register') {
         setShowRegister(true);
+        success('წარმატება!', 'კოდი დადასტურებულია, გააგრძელეთ რეგისტრაცია');
       } else {
         // Save user data to context for login
         if (data?.user) {
           await login(data.user);
         }
+        success('წარმატება!', 'წარმატებით შეხვედით სისტემაში');
         router.replace('/(tabs)');
       }
     } catch (e) {
       setLoading(false);
-      Alert.alert('შეცდომა', 'ქსელური შეცდომა');
+      error('შეცდომა', 'ქსელური შეცდომა');
     }
   };
 
   const handleLogin = async () => {
     const cleanPhone = phone.replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 9) {
-      Alert.alert('შეცდომა', 'გთხოვთ შეიყვანოთ სწორი ტელეფონის ნომერი');
+      error('შეცდომა', 'გთხოვთ შეიყვანოთ სწორი ტელეფონის ნომერი');
       return;
     }
 
@@ -187,19 +193,20 @@ export default function LoginScreen() {
       setLoading(false);
       if (!res.ok) {
         const msg = typeof data === 'object' && data?.message ? String(data.message) : 'ვერ გაიგზავნა კოდი';
-        Alert.alert('შეცდომა', msg);
+        error('შეცდომა', msg);
         return;
       }
       if (data?.id) setOtpId(String(data.id));
       if (data?.intent) setPendingIntent(data.intent === 'register' ? 'register' : 'login');
       setShowOTP(true);
+      success('SMS გაიგზავნა!', `კოდი გაიგზავნა ნომერზე ${phone}`);
       // dev only: თუ mockCode გვაქვს, შევავსოთ წასაკითხად კონსოლში
       if (data?.mockCode) {
         console.log('[AUTH] mockCode =', data.mockCode);
       }
     } catch (e) {
       setLoading(false);
-      Alert.alert('შეცდომა', 'ქსელური შეცდომა');
+      error('შეცდომა', 'ქსელური შეცდომა');
     }
   };
 
@@ -207,10 +214,17 @@ export default function LoginScreen() {
     container: {
       flex: 1,
     },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      minHeight: '100%',
+    },
     content: {
       flex: 1,
-      paddingTop: Platform.OS === 'ios' ? 500 : 40,
+      paddingTop: Platform.OS === 'ios' ? 200 : 40,
       paddingHorizontal: 5,
+      paddingBottom: 20,
+      justifyContent: 'center',
     },
     modal: {
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -229,6 +243,8 @@ export default function LoginScreen() {
       letterSpacing: -0.2,
       marginBottom: 24,
       opacity: 0.8,
+      fontFamily: 'Inter',
+      fontWeight: '600',
     },
     form: {
       marginBottom: 32,
@@ -258,11 +274,12 @@ export default function LoginScreen() {
     prefix: {
       fontSize: 16,
       color: '#111827',
-      fontWeight: '500',
+      fontFamily: 'Inter',
+      fontWeight: '600',
     },
     label: {
       fontSize: 16,
-      fontWeight: '600',
+      fontFamily: 'Inter',
       color: colors.text,
       marginBottom: 8,
     },
@@ -273,6 +290,7 @@ export default function LoginScreen() {
       fontSize: 16,
       color: '#111827',
       letterSpacing: -0.2,
+      fontFamily: 'Inter',
     },
     inputFocused: {
       backgroundColor: colors.background,
@@ -300,7 +318,7 @@ export default function LoginScreen() {
     forgotPasswordText: {
       color: colors.primary,
       fontSize: 14,
-      fontWeight: '600',
+      fontFamily: 'Inter',
     },
     loginButton: {
       backgroundColor: '#111827',
@@ -320,7 +338,7 @@ export default function LoginScreen() {
     loginButtonText: {
       color: '#FFFFFF',
       fontSize: 16,
-      fontWeight: '600',
+      fontFamily: 'Inter',
       letterSpacing: -0.2,
     },
     loadingContainer: {
@@ -394,13 +412,13 @@ export default function LoginScreen() {
     },
     roleSegmentText: {
       fontSize: 15,
-      fontWeight: '700',
+      fontFamily: 'Inter',
       color: '#111827',
       letterSpacing: -0.2,
     },
     otpTitle: {
       fontSize: 20,
-      fontWeight: '700',
+      fontFamily: 'Inter_700Bold',
       color: '#111827',
       textAlign: 'center',
       marginBottom: 8,
@@ -425,7 +443,7 @@ export default function LoginScreen() {
       borderColor: '#E5E7EB',
       borderRadius: 16,
       fontSize: 24,
-      fontWeight: '600',
+      fontFamily: 'Inter',
       textAlign: 'center',
       color: '#111827',
       shadowColor: '#000',
@@ -445,7 +463,7 @@ export default function LoginScreen() {
     resendText: {
       color: colors.primary,
       fontSize: 15,
-      fontWeight: '600',
+      fontFamily: 'Inter_600SemiBold',
     },
     divider: {
       flexDirection: 'row',
@@ -461,6 +479,7 @@ export default function LoginScreen() {
       color: colors.secondary,
       paddingHorizontal: 16,
       fontSize: 14,
+      fontFamily: 'Inter',
     },
     socialButtons: {
       gap: 12,
@@ -478,7 +497,7 @@ export default function LoginScreen() {
     },
     socialButtonText: {
       fontSize: 15,
-      fontWeight: '500',
+      fontFamily: 'Inter',
       color: colors.text,
       letterSpacing: -0.2,
     },
@@ -490,11 +509,12 @@ export default function LoginScreen() {
     footerText: {
       color: colors.secondary,
       fontSize: 14,
+      fontFamily: 'Inter',
     },
     signupLink: {
       color: colors.primary,
       fontSize: 14,
-      fontWeight: '600',
+      fontFamily: 'Inter',
       marginLeft: 4,
     },
     roleChip: {
@@ -519,7 +539,7 @@ export default function LoginScreen() {
     },
     roleChipText: {
       fontSize: 15,
-      fontWeight: '700',
+      fontFamily: 'Inter',
       color: '#111827',
       letterSpacing: -0.2,
     },
@@ -548,52 +568,58 @@ export default function LoginScreen() {
       resizeMode="cover"
     >
       <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.content}>            
-            <View style={styles.modal}>
-              <Text style={styles.subtitle}>შეიყვანეთ თქვენი ტელეფონის ნომერი</Text>
-              
-              {/* Form */}
-              <View style={styles.form}>
-                <View style={styles.inputContainer}>
-                  <View style={styles.phoneInputContainer}>
-                    <View style={styles.prefixContainer}>
-                      <Text style={styles.prefix}>+995</Text>
+            <View style={styles.content}>            
+              <View style={styles.modal}>
+                <Text style={styles.subtitle}>შეიყვანეთ თქვენი ტელეფონის ნომერი</Text>
+                
+                {/* Form */}
+                <View style={styles.form}>
+                  <View style={styles.inputContainer}>
+                    <View style={styles.phoneInputContainer}>
+                      <View style={styles.prefixContainer}>
+                        <Text style={styles.prefix}>+995</Text>
+                      </View>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="მაგ: 599123456"
+                        placeholderTextColor={colors.placeholder}
+                        value={phone}
+                        onChangeText={handlePhoneChange}
+                        keyboardType="phone-pad"
+                        maxLength={12}
+                      />
                     </View>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="მაგ: 599123456"
-                      placeholderTextColor={colors.placeholder}
-                      value={phone}
-                      onChangeText={handlePhoneChange}
-                      keyboardType="phone-pad"
-                      maxLength={12}
-                    />
                   </View>
                 </View>
-              </View>
 
-              {/* Login Button */}
-              <TouchableOpacity
-                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-                onPress={handleLogin}
-                disabled={loading}
-              >
-                {loading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#FFFFFF" />
-                    <Text style={[styles.loginButtonText, styles.loadingText]}>
-                      მიმდინარეობს...
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.loginButtonText}>გაგრძელება</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                {/* Login Button */}
+                <TouchableOpacity
+                  style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator color="#FFFFFF" />
+                      <Text style={[styles.loginButtonText, styles.loadingText]}>
+                        მიმდინარეობს...
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.loginButtonText}>გაგრძელება</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
 
             {showOTP && (
               <View style={styles.otpModal}>
@@ -686,12 +712,12 @@ export default function LoginScreen() {
                   style={[styles.loginButton, loading && styles.loginButtonDisabled]}
                   onPress={async () => {
                     if (!pendingUserId) {
-                      Alert.alert('შეცდომა', 'დაბრუნდით თავიდან');
+                      error('შეცდომა', 'დაბრუნდით თავიდან');
                       setShowRegister(false);
                       return;
                     }
                     if (!firstName.trim() || !role) {
-                      Alert.alert('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
+                      error('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
                       return;
                     }
                     try {
@@ -705,18 +731,19 @@ export default function LoginScreen() {
                       setLoading(false);
                       if (!res.ok) {
                         const msg = typeof data === 'object' && data?.message ? String(data.message) : 'შენახვა ვერ მოხერხდა';
-                        Alert.alert('შეცდომა', msg);
+                        error('შეცდომა', msg);
                         return;
                       }
                       // Save updated user data to context
                       if (data?.user) {
                         await login(data.user);
                       }
+                      success('წარმატება!', 'ანგარიში წარმატებით შეიქმნა');
                       setShowRegister(false);
                       router.replace('/(tabs)');
                     } catch (e) {
                       setLoading(false);
-                      Alert.alert('შეცდომა', 'ქსელური შეცდომა');
+                      error('შეცდომა', 'ქსელური შეცდომა');
                     }
                   }}
                   disabled={loading}
@@ -736,9 +763,10 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
             )}
-          </View>
+            </View>
           </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ImageBackground>
   );
 }

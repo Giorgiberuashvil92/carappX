@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,75 +6,89 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-interface CommunityPost {
-  id: string;
-  userName: string;
-  userInitial: string;
-  postTime: string;
-  postText: string;
-  postImage?: string;
-  likes: number;
-  comments: number;
-  isLiked?: boolean;
-}
+import { useRouter } from 'expo-router';
+import { useUser } from '../../contexts/UserContext';
+import { useToast } from '../../contexts/ToastContext';
+import { communityApi, CommunityPost } from '../../services/communityApi';
 
 interface CommunitySectionProps {
-  posts?: CommunityPost[];
+  limit?: number;
 }
 
 const CommunitySection: React.FC<CommunitySectionProps> = ({
-  posts = [
-    {
-      id: '1',
-      userName: 'გიორგი',
-      userInitial: 'გ',
-      postTime: '2 საათის წინ',
-      postText: 'ვინმემ იცის სად შეიძლება BMW-სთვის ხარისხიანი ზეთი იყიდოს? ფასი მნიშვნელოვანი არ არის, მთავარია ხარისხი იყოს! 🚗',
-      postImage: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=400&auto=format&fit=crop',
-      likes: 12,
-      comments: 5,
-      isLiked: false,
-    },
-    {
-      id: '2',
-      userName: 'ნინო',
-      userInitial: 'ნ',
-      postTime: '5 საათის წინ',
-      postText: 'დღეს ჩემი მანქანა სამრეცხაოში ვიყავი, ძალიან კმაყოფილი ვარ! რეკომენდაცია: CAR WASH CENTER - სწრაფი და ხარისხიანი! ✨',
-      likes: 8,
-      comments: 3,
-      isLiked: true,
-    },
-    {
-      id: '3',
-      userName: 'ლევანი',
-      userInitial: 'ლ',
-      postTime: '1 დღის წინ',
-      postText: 'ვინმეს ჰქონია Mercedes-ისთვის ტექდათვალიერება? რამდენი ღირს და სად ჯობს წავიდეს? 🤔',
-      postImage: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400&auto=format&fit=crop',
-      likes: 15,
-      comments: 7,
-      isLiked: false,
-    },
-  ]
+  limit = 3
 }) => {
-  const [localPosts, setLocalPosts] = useState<CommunityPost[]>(posts);
+  const router = useRouter();
+  const { user } = useUser();
+  const { success, error } = useToast();
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleLike = (postId: string) => {
-    setLocalPosts(prevPosts =>
-      prevPosts.map(post =>
-        post.id === postId
-          ? {
-              ...post,
-              isLiked: !post.isLiked,
-              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-            }
-          : post
-      )
-    );
+  // Load posts on component mount
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const loadPosts = async () => {
+    try {
+      setLoading(true);
+      const fetchedPosts = await communityApi.getPosts(user?.id);
+      // Take only the first 'limit' posts for the section
+      setPosts(fetchedPosts.slice(0, limit));
+    } catch (err) {
+      console.error('Error loading community posts:', err);
+      error('შეცდომა', 'კომუნიტის პოსტების ჩატვირთვა ვერ მოხერხდა');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleLike = async (postId: string) => {
+    if (!user?.id) {
+      error('შეცდომა', 'მომხმარებლის იდენტიფიკაცია საჭიროა');
+      return;
+    }
+
+    try {
+      const result = await communityApi.toggleLike(postId, user.id);
+      
+      // Update local state immediately for better UX
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? {
+                ...post,
+                isLiked: result.isLiked,
+                likesCount: result.likesCount,
+              }
+            : post
+        )
+      );
+    } catch (err) {
+      console.error('Error toggling like:', err);
+      error('შეცდომა', 'ლაიქის დამატება ვერ მოხერხდა');
+    }
+  };
+
+  const formatTime = (dateString: string): string => {
+    const now = new Date();
+    const postDate = new Date(dateString);
+    const diffInMs = now.getTime() - postDate.getTime();
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInHours < 1) {
+      return 'ახლახან';
+    } else if (diffInHours < 24) {
+      return `${diffInHours} საათის წინ`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays} დღის წინ`;
+    } else {
+      return postDate.toLocaleDateString('ka-GE');
+    }
   };
   return (
     <View style={styles.container}>
@@ -83,13 +97,25 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
           <Ionicons name="people" size={20} color="#111827" />
           <Text style={styles.sectionTitle}>კომუნიტი</Text>
         </View>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/community')}>
           <Text style={styles.sectionAction}>ყველა</Text>
         </TouchableOpacity>
       </View>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityContent}>
-        {localPosts.map((post) => (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#111827" />
+            <Text style={styles.loadingText}>პოსტები იტვირთება...</Text>
+          </View>
+        ) : posts.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people-outline" size={48} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>პოსტები არ არის</Text>
+            <Text style={styles.emptySubtitle}>იყავი პირველი, ვინც გამოაქვეყნებს პოსტს!</Text>
+          </View>
+        ) : (
+          posts.map((post) => (
           <View key={post.id} style={styles.communityPost}>
             <View style={styles.postHeader}>
               <View style={styles.userInfo}>
@@ -98,7 +124,7 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
                 </View>
                 <View>
                   <Text style={styles.userName}>{post.userName}</Text>
-                  <Text style={styles.postTime}>{post.postTime}</Text>
+                  <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
                 </View>
               </View>
               <TouchableOpacity>
@@ -128,12 +154,23 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
                   color={post.isLiked ? "#EF4444" : "#6B7280"} 
                 />
                 <Text style={[styles.actionText, post.isLiked && styles.likedText]}>
-                  {post.likes}
+                  {post.likesCount}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => router.push({
+                  pathname: '/comments',
+                  params: {
+                    postId: post.id,
+                    postText: post.postText,
+                    userName: post.userName,
+                    commentsCount: post.commentsCount,
+                  }
+                })}
+              >
                 <Ionicons name="chatbubble-outline" size={18} color="#6B7280" />
-                <Text style={styles.actionText}>{post.comments}</Text>
+                <Text style={styles.actionText}>{post.commentsCount}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton}>
                 <Ionicons name="share-outline" size={18} color="#6B7280" />
@@ -141,7 +178,8 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
               </TouchableOpacity>
             </View>
           </View>
-        ))}
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -263,6 +301,37 @@ const styles = StyleSheet.create({
   },
   likedText: {
     color: '#EF4444',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Car } from '../types/garage';
-import { garageApi, Car as ApiCar, CreateCarData, Reminder, CreateReminderData } from '../services/garageApi';
+import { garageApi, Car as ApiCar, CreateCarData, Reminder, CreateReminderData, FuelEntry } from '../services/garageApi';
 import { useUser } from './UserContext';
 
 interface CarContextType {
   cars: Car[];
   selectedCar: Car | null;
   reminders: Reminder[];
+  fuelEntries: FuelEntry[];
   loading: boolean;
   error: string | null;
   addCar: (car: Omit<Car, 'id' | 'imageUri' | 'lastService' | 'nextService'>) => Promise<void>;
@@ -17,6 +18,8 @@ interface CarContextType {
   updateReminder: (reminderId: string, updates: Partial<CreateReminderData>) => Promise<void>;
   deleteReminder: (reminderId: string) => Promise<void>;
   markReminderCompleted: (reminderId: string) => Promise<void>;
+  loadFuel: (carId?: string) => Promise<void>;
+  addFuel: (entry: Omit<FuelEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -28,6 +31,7 @@ export function CarProvider({ children }: { children: ReactNode }) {
   const [cars, setCars] = useState<Car[]>([]);
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [fuelEntries, setFuelEntries] = useState<FuelEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,9 +56,10 @@ export function CarProvider({ children }: { children: ReactNode }) {
       garageApi.setUserId(user.id);
       console.log('User ID set for API calls:', user.id);
       
-      const [carsData, remindersData] = await Promise.all([
+      const [carsData, remindersData, fuelData] = await Promise.all([
         garageApi.getCars(),
-        garageApi.getReminders()
+        garageApi.getReminders(),
+        garageApi.getFuelEntries(),
       ]);
       
       console.log('Cars data loaded:', carsData.length);
@@ -74,6 +79,7 @@ export function CarProvider({ children }: { children: ReactNode }) {
 
       setCars(convertedCars);
       setReminders(remindersData);
+      setFuelEntries(fuelData);
 
       // თუ არჩეული მანქანა არ არის, პირველი აირჩიე
       if (!selectedCar && convertedCars.length > 0) {
@@ -268,11 +274,22 @@ export function CarProvider({ children }: { children: ReactNode }) {
     await loadData();
   };
 
+  const loadFuel = async (carId?: string) => {
+    const data = carId ? await garageApi.getFuelEntriesByCar(carId) : await garageApi.getFuelEntries();
+    setFuelEntries(data);
+  };
+
+  const addFuel = async (entry: Omit<FuelEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
+    const created = await garageApi.createFuelEntry(entry);
+    setFuelEntries(prev => [created, ...prev]);
+  };
+
   return (
     <CarContext.Provider value={{
       cars,
       selectedCar,
       reminders,
+      fuelEntries,
       loading,
       error,
       addCar,
@@ -283,6 +300,8 @@ export function CarProvider({ children }: { children: ReactNode }) {
       updateReminder,
       deleteReminder,
       markReminderCompleted,
+      loadFuel,
+      addFuel,
       refreshData,
     }}>
       {children}

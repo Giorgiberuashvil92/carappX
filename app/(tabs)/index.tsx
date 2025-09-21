@@ -10,6 +10,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,101 +18,19 @@ import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
+import { useCars } from '../../contexts/CarContext';
 import ServiceCard from '../../components/ui/ServiceCard';
 import Button from '../../components/ui/Button';
-import ReminderTicket from '../../components/ui/ReminderTicket';
 import Chip from '../../components/ui/Chip';
 import MiniServiceCard from '../../components/ui/MiniServiceCard';
 import NearbyCard from '../../components/ui/NearbyCard';
 import CommunitySection from '../../components/ui/CommunitySection';
+import ReminderSection from '../../components/ui/ReminderSection';
 
 const { width } = Dimensions.get('window');
 
-const REMINDERS = [
-  {
-    id: '1',
-    title: 'ზეთის გამოცვლა',
-    car: 'BMW M5',
-    date: '2024-07-15',
-    type: 'service',
-    icon: 'build-outline',
-    color: '#6366F1',
-    bgColor: '#EEF2FF',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1000&auto=format&fit=crop',
-  },
-  {
-    id: '2',
-    title: 'ტექდათვალიერება',
-    car: 'Mercedes C63',
-    date: '2024-08-01',
-    type: 'inspection',
-    icon: 'car-outline',
-    color: '#22C55E',
-    bgColor: '#F0FDF4',
-    image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=1000&auto=format&fit=crop',
-  },
-  {
-    id: '3',
-    title: 'ბორბლების გამოცვლა',
-    car: 'BMW M5',
-    date: '2024-09-10',
-    type: 'service',
-    icon: 'settings-outline',
-    color: '#F97316',
-    bgColor: '#FFF7ED',
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1000&auto=format&fit=crop',
-  },
-  {
-    id: '4',
-    title: 'კონდიციონერის სერვისი',
-    car: 'Mercedes C63',
-    date: '2024-06-20',
-    type: 'service',
-    icon: 'thermometer-outline',
-    color: '#EF4444',
-    bgColor: '#FEF2F2',
-    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?q=80&w=1000&auto=format&fit=crop',
-  },
-];
 
-const POPULAR_SERVICES = [
-  {
-    id: '1',
-    name: 'პრემიუმ სამრეცხაო',
-    location: 'საბურთალო',
-    rating: 4.8,
-    price: '15₾',
-    image: require('../../assets/images/car-bg.png'),
-    category: 'სამრეცხაო',
-  },
-  {
-    id: '2',
-    name: 'ავტო სერვისი',
-    location: 'ვაკე',
-    rating: 4.9,
-    price: '25₾',
-    image: require('../../assets/images/car-bg.png'),
-    category: 'სერვისი',
-  },
-  {
-    id: '3',
-    name: 'ტექდათვალიერება',
-    location: 'დიდუბე',
-    rating: 4.7,
-    price: '30₾',
-    image: require('../../assets/images/car-bg.png'),
-    category: 'ტექდათვალიერება',
-  },
-  {
-    id: '4',
-    name: 'ზეთის გამოცვლა',
-    location: 'მთაწმინდა',
-    rating: 4.6,
-    price: '40₾',
-    image: require('../../assets/images/car-bg.png'),
-    category: 'სერვისი',
-  },
-];
+// POPULAR_SERVICES ახლა API-დან მოვიღებთ
 
 export default function TabOneScreen() {
   const router = useRouter();
@@ -123,11 +42,173 @@ export default function TabOneScreen() {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   
+  // დინამიური სერვისები
+  const [popularServices, setPopularServices] = useState<any[]>([]);
+  const [nearbyServices, setNearbyServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nearbyLoading, setNearbyLoading] = useState(true);
+
+  console.log(popularServices, 'პოპულარული სერვისები');
+  
   const handleScroll = (event: any) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
     const index = Math.round(scrollPosition / (width - 60));
     setCurrentBannerIndex(index);
   };
+
+  // API-დან პოპულარული სერვისების მიღება
+  React.useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoading(true);
+        // პოპულარული სერვისების endpoint
+        const response = await fetch('http://192.168.1.73:4000/carwash/locations/popular?limit=6');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const text = await response.text();
+        if (!text) {
+          throw new Error('Empty response from server');
+        }
+        
+        const data = JSON.parse(text);
+        
+        // მონაცემების ფორმატირება
+        // პოპულარობის ალგორითმი:
+        // 1. რეიტინგი (40%) - მაღალი რეიტინგი = პოპულარული
+        // 2. რევიუების რაოდენობა (25%) - მეტი რევიუ = უფრო პოპულარული
+        // 3. ღიაა თუ არა (15%) - ღია სერვისები პრიორიტეტულია
+        // 4. ფასის კონკურენტუნარიანობა (10%) - საშუალო ფასის მახლობლად
+        // 5. სერვისების რაოდენობა (10%) - მეტი სერვისი = უკეთესი
+        const formattedServices = data.map((location: any) => ({
+          id: location.id,
+          name: location.name,
+          location: location.location,
+          rating: location.rating,
+          price: `${location.price}₾`,
+          image: location.images?.[0] || require('../../assets/images/car-bg.png'),
+          category: location.category,
+          address: location.address,
+          phone: location.phone,
+          services: location.detailedServices || [],
+          isOpen: location.realTimeStatus?.isOpen || location.isOpen,
+          waitTime: location.realTimeStatus?.currentWaitTime || 0,
+          socialMedia: location.socialMedia || {}, // Facebook, Instagram, Website
+          reviews: location.reviews || 0,
+        }));
+        
+        setPopularServices(formattedServices);
+      } catch (error) {
+        console.error('სერვისების ჩატვირთვის შეცდომა:', error);
+        // fallback სტატიკური მონაცემები
+        setPopularServices([
+          {
+            id: '1',
+            name: 'ძმაკაცი მოტორსი',
+            location: 'ვაჟა-ფშაველას გამზირი',
+            rating: 4.8,
+            price: '50₾',
+            image: require('../../assets/images/car-bg.png'),
+            category: 'ავტოსერვისი',
+          }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
+  // API-დან ყველა ტიპის ახლოს მყოფი სერვისების მიღება
+  React.useEffect(() => {
+    const fetchNearbyServices = async () => {
+      try {
+        setNearbyLoading(true);
+        
+        // რეალური ლოკაციის მიღება (თუ ხელმისაწვდომია)
+        let userLat = 41.7151; // თბილისის ცენტრალური კოორდინატები (fallback)
+        let userLon = 44.8271;
+        
+        try {
+          // Expo Location API-ს გამოყენება
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            userLat = location.coords.latitude;
+            userLon = location.coords.longitude;
+            console.log('მომხმარებლის ლოკაცია:', userLat, userLon);
+            
+            // თუ მომხმარებელი სან ფრანცისკოშია (Expo Go სიმულატორი), ვიყენებთ თბილისის კოორდინატებს
+            if (userLat > 37 && userLat < 38 && userLon > -123 && userLon < -122) {
+              console.log('მომხმარებელი სან ფრანცისკოშია, ვიყენებთ თბილისის კოორდინატებს');
+              userLat = 41.7151;
+              userLon = 44.8271;
+            }
+          }
+        } catch (locationError) {
+          console.log('ლოკაციის მიღება ვერ მოხერხდა, გამოიყენება default კოორდინატები');
+        }
+        
+        console.log('გამოყენებული კოორდინატები:', userLat, userLon);
+        
+        // ახალი endpoint - ყველა ტიპის სერვისი
+        const response = await fetch(`http://192.168.1.73:4000/carwash/locations/all-nearby?lat=${userLat}&lng=${userLon}&radius=10`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const text = await response.text();
+        if (!text) {
+          throw new Error('Empty response from server');
+        }
+        
+        const data = JSON.parse(text);
+        console.log('API-დან მიღებული მონაცემები:', data.length, 'სერვისი');
+        
+        const formattedNearbyServices = data.map((service: any) => ({
+          id: service.id,
+          name: service.displayName || service.name || service.title,
+          location: service.displayAddress || service.address || service.location,
+          rating: service.displayRating || service.rating || 0,
+          price: service.displayPrice || `${service.price}₾`,
+          image: service.images?.[0] || require('../../assets/images/car-bg.png'),
+          category: service.category || service.type,
+          address: service.displayAddress || service.address,
+          phone: service.phone,
+          services: service.detailedServices || service.services || [],
+          isOpen: service.isOpen,
+          waitTime: service.waitTime || 0,
+          socialMedia: service.socialMedia || {},
+          reviews: service.displayReviews || service.reviews || 0,
+          type: service.type, // 'carwash' ან 'store'
+          distance: service.distance, // კილომეტრებში
+          coordinates: service.coordinates,
+        }));
+        
+        console.log('ფორმატირებული სერვისები:', formattedNearbyServices.length);
+        setNearbyServices(formattedNearbyServices);
+      } catch (error) {
+        console.error('ახლოს მყოფი სერვისების ჩატვირთვის შეცდომა:', error);
+        // fallback - პოპულარული სერვისების გამოყენება
+        console.log('Fallback: Using popular services as nearby services');
+        console.log('Popular services count:', popularServices.length);
+        console.log('Popular services data:', popularServices);
+        console.log('Setting nearby services to popular services');
+        setNearbyServices(popularServices);
+      } finally {
+        setNearbyLoading(false);
+      }
+    };
+
+    fetchNearbyServices();
+  }, [popularServices]);
+
   type Category = { id: string; title: string; image: string };
   const CATEGORIES: Category[] = [
     { id: 'repair',     title: 'Repairing',  image: 'https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=600&auto=format&fit=crop' },
@@ -143,22 +224,55 @@ export default function TabOneScreen() {
     header: {
       paddingHorizontal: 20,
       paddingTop: 60,
-      paddingBottom: 16,
+      paddingBottom: 24,
       backgroundColor: 'transparent',
     },
     profileRow: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
       justifyContent: 'space-between' as const,
-      marginBottom: 16,
+      marginBottom: 24,
     },
-    avatarSmall: { width: 40, height: 40, borderRadius: 20 },
-    userName: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: colors.text },
-    smallLocation: { marginLeft: 4, fontSize: 12, color: colors.secondary, fontFamily: 'Poppins_500Medium' },
+    avatarSmall: { 
+      width: 48, 
+      height: 48, 
+      borderRadius: 24,
+      backgroundColor: '#6366F1',
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      shadowColor: '#6366F1',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    userName: { 
+      fontSize: 18, 
+      fontFamily: 'Inter', 
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    smallLocation: { 
+      fontSize: 13, 
+      color: colors.secondary, 
+      fontFamily: 'Inter',
+      opacity: 0.8,
+    },
     roundIcon: {
-      width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
-      alignItems: 'center' as const, justifyContent: 'center' as const,
-      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 2,
+      width: 44, 
+      height: 44, 
+      borderRadius: 22, 
+      backgroundColor: '#FFFFFF', 
+      borderWidth: 1, 
+      borderColor: '#E5E7EB',
+      alignItems: 'center' as const, 
+      justifyContent: 'center' as const,
+      shadowColor: '#000', 
+      shadowOffset: { width: 0, height: 2 }, 
+      shadowOpacity: 0.08, 
+      shadowRadius: 4, 
+      elevation: 3,
     },
     promoScrollContainer: {
       paddingHorizontal: 20,
@@ -190,19 +304,19 @@ export default function TabOneScreen() {
     },
     promoBadgeText: {
       color: '#FFFFFF',
-      fontFamily: 'NotoSans_700Bold',
+      fontFamily: 'Inter',
       fontSize: 11,
     },
     promoTitle: { 
       fontSize: 16, 
       lineHeight: 20, 
       color: '#FFFFFF', 
-      fontFamily: 'Manrope_700Bold',
+      fontFamily: 'Inter',
       marginBottom: 4,
     },
     promoSubtitle: { 
       color: '#E5E7EB', 
-      fontFamily: 'Manrope_500Medium', 
+      fontFamily: 'Inter', 
       fontSize: 12,
       marginBottom: 8,
     },
@@ -218,7 +332,7 @@ export default function TabOneScreen() {
     },
     promoButtonText: { 
       color: '#FFFFFF', 
-      fontFamily: 'Poppins_700Bold', 
+      fontFamily: 'Inter', 
       fontSize: 12,
     },
     paginationContainer: {
@@ -237,10 +351,6 @@ export default function TabOneScreen() {
     paginationDotActive: {
       backgroundColor: '#6366F1',
       width: 24,
-    },
-    recommendationContainer: {
-      paddingHorizontal: 20,
-      paddingBottom: 16,
     },
     recommendationCard: {
       backgroundColor: '#FFFFFF',
@@ -419,7 +529,7 @@ export default function TabOneScreen() {
       marginRight: 10,
     },
     quickActionsContainer: {
-      paddingHorizontal: 20,
+      paddingHorizontal: 5,
       paddingTop: 24,
       paddingBottom: 20,
     },
@@ -457,9 +567,10 @@ export default function TabOneScreen() {
     },
     sectionTitle: {
       fontSize: 20,
-      fontWeight: '700' as const,
       color: colors.text,
+      fontFamily: 'Inter',
       marginBottom: 16,
+      fontWeight: '600' as const,
     },
     categoriesList: {
       marginHorizontal: -20,
@@ -565,7 +676,7 @@ export default function TabOneScreen() {
       textShadowColor: 'rgba(0, 0, 0, 0.2)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
-      fontFamily: 'NotoSans_700Bold',
+      fontFamily: 'Inter',
     },
     popularContainer: {
       paddingTop: 32,
@@ -592,8 +703,8 @@ export default function TabOneScreen() {
       shadowRadius: 16,
       elevation: 8,
     },
-    mapBannerTitle: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 14 },
-    mapBannerSubtitle: { color: '#E5E7EB', fontFamily: 'NotoSans_500Medium', fontSize: 11, marginTop: 4 },
+    mapBannerTitle: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 14 },
+    mapBannerSubtitle: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 11, marginTop: 4 },
     sectionHeader: {
       flexDirection: 'row' as const,
       justifyContent: 'space-between' as const,
@@ -602,7 +713,7 @@ export default function TabOneScreen() {
     },
     sectionAction: {
       fontSize: 13,
-      fontFamily: 'NotoSans_600SemiBold',
+      fontFamily: 'Inter',
       color: colors.primary,
     },
     popularContent: {
@@ -643,7 +754,7 @@ export default function TabOneScreen() {
     },
     categoryText: {
       fontSize: 11,
-      fontFamily: 'NotoSans_600SemiBold',
+      fontFamily: 'Inter',
       color: '#FFFFFF',
     },
     ratingBadge: {
@@ -657,7 +768,7 @@ export default function TabOneScreen() {
     },
     popularName: {
       fontSize: 18,
-      fontFamily: 'NotoSans_700Bold',
+      fontFamily: 'Inter',
       color: '#FFFFFF',
       textShadowColor: 'rgba(0, 0, 0, 0.3)',
       textShadowOffset: { width: 0, height: 2 },
@@ -686,151 +797,8 @@ export default function TabOneScreen() {
     },
     priceText: {
       fontSize: 12,
-      fontFamily: 'NotoSans_700Bold',
+      fontFamily: 'Inter',
       color: '#FFFFFF',
-    },
-    remindersContainer: {
-      paddingTop: 32,
-      paddingHorizontal: 20,
-      paddingBottom: 24,
-    },
-    remindersList: {
-      marginHorizontal: -20,
-      paddingHorizontal: 20,
-    },
-    reminderCard: {
-      width: 280,
-      padding: 16,
-      borderRadius: 18,
-      marginRight: 16,
-      borderWidth: 0,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      elevation: 4,
-    },
-    reminderRow: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 12,
-    },
-    reminderThumb: { width: 56, height: 56, borderRadius: 14 },
-    reminderTexts: { flex: 1 },
-    reminderMetaRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginTop: 4 },
-    reminderRight: { alignItems: 'flex-end' as const, gap: 8 },
-    daysPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#111827' },
-    daysPillUrgent: { backgroundColor: '#EF4444' },
-    daysText: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 11 },
-    reminderHeader: {
-      flexDirection: 'row' as const,
-      justifyContent: 'space-between' as const,
-      alignItems: 'flex-start' as const,
-    },
-    reminderIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: '#F3F4F6',
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-    },
-    reminderBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-    },
-    reminderBadgeText: {
-      fontSize: 11,
-      fontFamily: 'NotoSans_600SemiBold',
-    },
-    reminderContent: {
-      gap: 16,
-    },
-    reminderInfo: {
-      gap: 8,
-    },
-    reminderTitle: {
-      fontSize: 14,
-      fontFamily: 'NotoSans_600SemiBold',
-      lineHeight: 20,
-    },
-    reminderCar: {
-      fontSize: 12,
-      fontFamily: 'NotoSans_500Medium',
-    },
-    reminderDate: {
-      fontSize: 11,
-      fontFamily: 'NotoSans_500Medium',
-    },
-    reminderGradient: {
-      flex: 1,
-      padding: 16,
-      borderRadius: 20,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    reminderTitleRow: {
-      flexDirection: 'row' as const,
-      justifyContent: 'space-between' as const,
-      alignItems: 'center' as const,
-      marginBottom: 12,
-    },
-    urgentIndicator: {
-      width: 20,
-      height: 20,
-      borderRadius: 10,
-      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-    },
-    reminderDetails: {
-      gap: 8,
-    },
-    reminderDetailItem: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 8,
-    },
-    reminderIconContainer: {
-      position: 'relative' as const,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-    },
-    progressRing: {
-      position: 'absolute' as const,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      borderWidth: 2,
-      borderColor: 'transparent',
-    },
-    reminderNeon: {
-      flex: 1,
-      padding: 20,
-      borderRadius: 24,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderWidth: 2,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.4,
-      shadowRadius: 16,
-      elevation: 12,
-    },
-    reminderIconWrapper: {
-      position: 'relative' as const,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-    },
-    iconGlow: {
-      position: 'absolute' as const,
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
     },
   });
 
@@ -839,7 +807,11 @@ export default function TabOneScreen() {
       {/* Header (new) */}
       <View style={styles.header}>
         <View style={styles.profileRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => router.push('/two')}
+            activeOpacity={0.7}
+          >
             <View style={styles.avatarSmall}>
               {user?.name ? (
                 <Text style={{ fontSize: 18, fontWeight: '600', color: '#FFFFFF' }}>
@@ -858,10 +830,22 @@ export default function TabOneScreen() {
                 <Text style={styles.smallLocation}>თბილისი, საქართველო</Text>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={styles.roundIcon}><Ionicons name="search" size={18} color={'#111827'} /></View>
-            <View style={styles.roundIcon}><Ionicons name="notifications-outline" size={18} color={'#111827'} /></View>
+            <TouchableOpacity 
+              style={styles.roundIcon}
+              onPress={() => router.push('/map')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="search" size={18} color={'#111827'} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.roundIcon}
+              onPress={() => router.push('/comments')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="notifications-outline" size={18} color={'#111827'} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -872,7 +856,7 @@ export default function TabOneScreen() {
           showsHorizontalScrollIndicator={false} 
           contentContainerStyle={styles.promoScrollContainer}
           pagingEnabled={true}
-          snapToInterval={width - 60}
+          snapToInterval={361}
           decelerationRate="fast"
           onScroll={handleScroll}
           scrollEventThrottle={16}
@@ -967,7 +951,7 @@ export default function TabOneScreen() {
 
         {/* სწრაფი მოქმედებები */}
         <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>სწრაფი მოქმედებები</Text>
+          <Text style={styles.sectionTitle}>კატეგორიები</Text>
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={styles.quickActionButton}
@@ -1014,22 +998,7 @@ export default function TabOneScreen() {
 
 
 
-      {/* Smart Recommendation */}
-      <View style={styles.recommendationContainer}>
-        <View style={styles.recommendationCard}>
-          <View style={styles.recommendationHeader}>
-            <Ionicons name="bulb" size={20} color="#8B5CF6" />
-            <Text style={styles.recommendationTitle}>შეხსენებები</Text>
-          </View>
-          <Text style={styles.recommendationText}>
-            შენი BMW M5-ისთვის რეკომენდირებული: ზეთის გამოცვლა 15 დღეში
-          </Text>
-          <TouchableOpacity style={styles.recommendationButton}>
-            <Text style={styles.recommendationButtonText}>დაჯავშნა</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+        <ReminderSection />
 
       {/* Community Section */}
      
@@ -1047,18 +1016,56 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularContent}>
-          {POPULAR_SERVICES.map((service) => (
-            <ServiceCard
-              key={service.id}
-              image={service.image}
-              title={service.name}
-              category={service.category}
-              rating={service.rating}
-              location={service.location}
-              price={service.price}
-              onPress={() => router.push({ pathname: '/details', params: { title: service.name } })}
-            />
-          ))}
+          {loading ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>სერვისების ჩატვირთვა...</Text>
+            </View>
+          ) : (
+            popularServices.map((service) => (
+              <ServiceCard
+                key={service.id}
+                image={service.image}
+                title={service.name}
+                category={service.category}
+                rating={service.rating}
+                location={service.location}
+                price={service.price}
+                onPress={() => {
+                  const detailsParams = {
+                    // ძირითადი ინფორმაცია (carwash ფეიჯის მიხედვით)
+                    id: service.id,
+                    title: service.name,
+                    lat: '41.7151', // თბილისის კოორდინატები
+                    lng: '44.8271',
+                    rating: service.rating?.toString() || '4.9',
+                    distance: service.distance || '1.2 კმ',
+                    price: service.price || '15₾',
+                    address: service.address || service.location,
+                    description: 'პრემიუმ ხარისხის მომსახურება, სწრაფად და უსაფრთხოდ. ჩვენი პროფესიონალური გუნდი უზრუნველყოფს შენი მანქანის სრულ გაწმენდას ყველაზე მოდერნული ტექნოლოგიების გამოყენებით.',
+                    features: JSON.stringify(['WiFi', 'პარკინგი', 'ღამის სერვისი', 'ბარათით გადახდა', 'დაზღვეული', 'VIP ოთახი']),
+                    category: service.category || 'სამრეცხაო',
+                    isOpen: service.isOpen?.toString() || 'true',
+                    waitTime: service.waitTime?.toString() || '10 წთ',
+                    reviews: service.reviews?.toString() || '89',
+                    services: JSON.stringify(service.services || ['შიდა რეცხვა', 'გარე რეცხვა', 'ვაკუუმი', 'ცვილის ფენა']),
+                    detailedServices: JSON.stringify(service.services || []),
+                    timeSlotsConfig: JSON.stringify({}),
+                    availableSlots: JSON.stringify([]),
+                    realTimeStatus: JSON.stringify({}),
+                    workingHours: '09:00 - 18:00',
+                    image: typeof service.image === 'string' ? service.image : 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=800&auto=format&fit=crop',
+                  };
+                  
+                  console.log('🔍 [POPULAR] Navigating to details with params:', detailsParams);
+                  
+                  router.push({ 
+                    pathname: '/details', 
+                    params: detailsParams
+                  });
+                }}
+              />
+            ))
+          )}
         </ScrollView>
       </View>
 
@@ -1072,35 +1079,60 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-          {POPULAR_SERVICES.map(s => (
-            <NearbyCard key={s.id} image={s.image} title={s.name} subtitle={s.location} rating={s.rating} distance={'1.2კმ'} price={s.price} onPress={() => router.push({ pathname: '/details', params: { title: s.name } })} />
-          ))}
+          {nearbyLoading ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>ახლოს შენთან...</Text>
+            </View>
+          ) : (
+            nearbyServices.map(s => (
+              <NearbyCard 
+                key={s.id} 
+                image={s.image} 
+                title={s.name} 
+                subtitle={s.location} 
+                rating={s.rating} 
+                distance={s.distance ? `${s.distance.toFixed(1)} კმ` : `${s.waitTime || 5} წთ`} 
+                price={s.price} 
+                onPress={() => {
+                  const detailsParams = { 
+                    title: s.name,
+                    type: s.type,
+                    id: s.id,
+                    rating: s.rating?.toString() || '4.9',
+                    reviews: s.reviews?.toString() || '0',
+                    address: s.address || s.location,
+                    price: s.price,
+                    image: s.image,
+                    category: s.category,
+                    isOpen: s.isOpen?.toString() || 'true',
+                    waitTime: s.waitTime?.toString() || '10',
+                    distance: s.distance ? `${s.distance.toFixed(1)} კმ` : '1.2 კმ',
+                    description: s.description || 'პრემიუმ ხარისხის მომსახურება',
+                    features: JSON.stringify(s.features || ['WiFi', 'პარკინგი', 'ღამის სერვისი']),
+                    services: JSON.stringify(s.services || ['შიდა რეცხვა', 'გარე რეცხვა', 'ვაკუუმი']),
+                    detailedServices: JSON.stringify(s.detailedServices || []),
+                    workingHours: s.workingHours || '09:00 - 18:00',
+                    phone: s.phone || '+995 32 123 4567',
+                    lat: s.coordinates?.latitude?.toString() || '41.7151',
+                    lng: s.coordinates?.longitude?.toString() || '44.8271',
+                  };
+                  
+                  console.log('🔍 [NEARBY] Navigating to details with params:', detailsParams);
+                  console.log('🔍 [NEARBY] Service data:', s);
+                  
+                  router.push({ 
+                    pathname: '/details', 
+                    params: detailsParams
+                  });
+                }} 
+              />
+            ))
+          )}
         </ScrollView>
       </View>
 
       <CommunitySection />
 
-      {/* Reminders */}
-      <View style={styles.remindersContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>შეხსენებები</Text>
-          <TouchableOpacity>
-            <Text style={styles.sectionAction}>ყველა</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.remindersList}>
-          {REMINDERS.map((r) => (
-            <ReminderTicket
-              key={r.id}
-              title={r.title}
-              car={r.car}
-              date={r.date}
-              icon={r.icon}
-              onPress={() => router.push('/booking')}
-            />
-          ))}
-        </ScrollView>
-      </View>
 
       {/* Bottom Spacing */}
       <View style={{ height: 40 }} />

@@ -8,6 +8,7 @@ import { registerPushToken } from '@/utils/notifications';
 import { useMarketplace } from '@/contexts/MarketplaceContext';
 import { subscribe, publish, OfferEvent } from '@/utils/OfferBus';
 import Constants from 'expo-constants';
+import API_BASE_URL from '../config/api';
 
 function resolveApiBase(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -19,8 +20,8 @@ function resolveApiBase(): string {
     if (host && /\d+\.\d+\.\d+\.\d+/.test(host)) {
       return `http://${host}:4000`;
     }
-  }
-  return 'http://localhost:4000';
+    }
+  return API_BASE_URL;
 }
 
 const API_URL = resolveApiBase();

@@ -7,46 +7,117 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
-  Platform,
   Dimensions,
+  Platform,
   Animated,
-  PanResponder,
   StatusBar,
+  Image,
+  Alert,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
-interface CarData {
+type CarData = {
   make: string;
   model: string;
   year: string;
   plateNumber: string;
-  color: string;
-  fuelType: string;
-  transmission: string;
-}
+  color?: string;
+  fuelType?: string;
+  transmission?: string;
+  photo?: string;
+};
 
-interface AddCarModalProps {
+type AddCarModalProps = {
   visible: boolean;
   onClose: () => void;
-  onAddCar: (carData: CarData) => void;
-}
+  onAddCar: (car: CarData) => void;
+};
 
-const CAR_MAKES = [
-  'BMW', 'Mercedes-Benz', 'Audi', 'Toyota', 'Honda', 'Nissan',
-  'Ford', 'Volkswagen', 'Hyundai', 'Kia', 'Mazda', 'Subaru',
-  'Lexus', 'Infiniti', 'Acura', 'Volvo', 'Jaguar', 'Porsche'
+const FUEL_OPTIONS = [
+  { id: 'ბენზინი', icon: '🔥', color: '#FF6B6B' },
+  { id: 'დიზელი', icon: '⛽', color: '#4ECDC4' },
+  { id: 'ჰიბრიდი', icon: '🔋', color: '#45B7D1' },
+  { id: 'ელექტრო', icon: '⚡', color: '#96CEB4' },
 ];
 
-const FUEL_TYPES = ['ბენზინი', 'დიზელი', 'ჰიბრიდი', 'ელექტრო', 'გაზი'];
-const TRANSMISSIONS = ['ავტომატი', 'მექანიკა', 'CVT'];
-const COLORS = ['შავი', 'თეთრი', 'შავი', 'წითელი', 'ლურჯი', 'მწვანე', 'ყვითელი', 'ნაცარისფერი'];
+const GEARBOX_OPTIONS = [
+  { id: 'ავტომატი', icon: '⚙️', color: '#FFEAA7' },
+  { id: 'მექანიკა', icon: '🔧', color: '#DDA0DD' },
+  { id: 'CVT', icon: '🔄', color: '#98D8C8' },
+];
+
+const CAR_MAKES = [
+  'BMW',
+  'Mercedes-Benz',
+  'Audi',
+  'Toyota',
+  'Honda',
+  'Ford',
+  'Volkswagen',
+  'Nissan',
+  'Hyundai',
+  'Kia',
+  'Mazda',
+  'Subaru',
+  'Lexus',
+  'Infiniti',
+  'Acura',
+  'Volvo',
+  'Saab',
+  'Opel',
+  'Peugeot',
+  'Renault',
+  'Citroën',
+  'Fiat',
+  'Alfa Romeo',
+  'Lancia',
+  'Skoda',
+  'Seat',
+  'Dacia',
+  'Chevrolet',
+  'Cadillac',
+  'Buick',
+  'Chrysler',
+  'Dodge',
+  'Jeep',
+  'Ram',
+  'Lincoln',
+  'Tesla',
+  'Porsche',
+  'Ferrari',
+  'Lamborghini',
+  'Maserati',
+  'Bentley',
+  'Rolls-Royce',
+  'Aston Martin',
+  'McLaren',
+  'Bugatti',
+  'Koenigsegg',
+  'Pagani',
+  'სხვა'
+];
+
+const CAR_MODELS: { [key: string]: string[] } = {
+  'BMW': ['X5', 'X3', 'X1', '3 Series', '5 Series', '7 Series', 'X7', 'X6', 'i3', 'i8', 'Z4', 'M3', 'M5', 'M8'],
+  'Mercedes-Benz': ['C-Class', 'E-Class', 'S-Class', 'A-Class', 'GLA', 'GLC', 'GLE', 'GLS', 'CLA', 'CLS', 'AMG GT', 'Sprinter', 'Vito'],
+  'Audi': ['A3', 'A4', 'A6', 'A8', 'Q3', 'Q5', 'Q7', 'Q8', 'TT', 'R8', 'e-tron', 'RS3', 'RS4', 'RS6'],
+  'Toyota': ['Camry', 'Corolla', 'RAV4', 'Highlander', 'Prius', 'Avalon', '4Runner', 'Tacoma', 'Tundra', 'Sienna', 'Land Cruiser'],
+  'Honda': ['Civic', 'Accord', 'CR-V', 'Pilot', 'HR-V', 'Passport', 'Odyssey', 'Ridgeline', 'Insight', 'Fit'],
+  'Ford': ['F-150', 'Explorer', 'Escape', 'Edge', 'Expedition', 'Mustang', 'Focus', 'Fiesta', 'Transit', 'Ranger'],
+  'Volkswagen': ['Golf', 'Jetta', 'Passat', 'Tiguan', 'Atlas', 'Beetle', 'Arteon', 'ID.4', 'Touareg'],
+  'Nissan': ['Altima', 'Sentra', 'Rogue', 'Murano', 'Pathfinder', 'Armada', 'Versa', 'Maxima', '370Z', 'GT-R'],
+  'Hyundai': ['Elantra', 'Sonata', 'Tucson', 'Santa Fe', 'Palisade', 'Accent', 'Veloster', 'Genesis', 'Kona'],
+  'Kia': ['Forte', 'Optima', 'Sportage', 'Sorento', 'Telluride', 'Soul', 'Stinger', 'Niro', 'Seltos'],
+  'სხვა': []
+};
 
 export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalProps) {
-  const [carData, setCarData] = useState<CarData>({
+  const [car, setCar] = useState<CarData>({
     make: '',
     model: '',
     year: '',
@@ -54,434 +125,347 @@ export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalP
     color: '',
     fuelType: '',
     transmission: '',
+    photo: undefined,
   });
 
   const [showMakeDropdown, setShowMakeDropdown] = useState(false);
-  const [showFuelDropdown, setShowFuelDropdown] = useState(false);
-  const [showTransmissionDropdown, setShowTransmissionDropdown] = useState(false);
-  const [showColorDropdown, setShowColorDropdown] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [filteredModels, setFilteredModels] = useState<string[]>([]);
 
-  // Animation values
-  const slideAnim = useRef(new Animated.Value(height)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const backgroundAnim = useRef(new Animated.Value(0)).current;
-  const cardScaleAnim = useRef(new Animated.Value(1)).current;
-
-  // Pan responder for swipe gestures
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 20;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          slideAnim.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100) {
-          handleClose();
-        } else {
-          Animated.spring(slideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  const slideY = useRef(new Animated.Value(height)).current;
+  const bgOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backgroundAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
+        Animated.timing(bgOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, friction: 8, tension: 100 }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: height,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backgroundAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+        Animated.timing(bgOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(slideY, { toValue: height, duration: 300, useNativeDriver: true }),
+      ]).start(() => {
+        setCar({ make: '', model: '', year: '', plateNumber: '', color: '', fuelType: '', transmission: '', photo: undefined });
+      });
     }
   }, [visible]);
 
-  const handleInputChange = (field: keyof CarData, value: string) => {
-    setCarData(prev => ({ ...prev, [field]: value }));
-    
-    // Card scale animation on selection
-    Animated.sequence([
-      Animated.timing(cardScaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(cardScaleAnim, {
-        toValue: 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const handleSubmit = () => {
-    // Validation
-    if (!carData.make || !carData.model || !carData.year || !carData.plateNumber) {
-      Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ყველა სავალდებულო ველი');
-      return;
-    }
-
-    if (carData.year.length !== 4 || isNaN(Number(carData.year))) {
-      Alert.alert('შეცდომა', 'წელი უნდა იყოს 4 ციფრიანი');
-      return;
-    }
-
-    const currentYear = new Date().getFullYear();
-    const year = Number(carData.year);
-    if (year < 1990 || year > currentYear + 1) {
-      Alert.alert('შეცდომა', `წელი უნდა იყოს 1990-${currentYear + 1} დიაპაზონში`);
-      return;
-    }
-
-    onAddCar(carData);
-    handleClose();
-  };
-
-  const handleClose = () => {
-    setCarData({
-      make: '',
-      model: '',
-      year: '',
-      plateNumber: '',
-      color: '',
-      fuelType: '',
-      transmission: '',
+  const handleChange = (key: keyof CarData, value: string) => {
+    setCar(prev => {
+      const newCar = { ...prev, [key]: value };
+      
+      // If make changed, reset model and update available models
+      if (key === 'make') {
+        newCar.model = '';
+        setFilteredModels(CAR_MODELS[value] || []);
+        setShowModelDropdown(false);
+      }
+      
+      return newCar;
     });
+  };
+
+  const selectMake = (make: string) => {
+    handleChange('make', make);
     setShowMakeDropdown(false);
-    setShowFuelDropdown(false);
-    setShowTransmissionDropdown(false);
-    setShowColorDropdown(false);
+  };
+
+  const selectModel = (model: string) => {
+    handleChange('model', model);
+    setShowModelDropdown(false);
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('შეცდომა', 'გამოყენების უფლება საჭიროა ფოტოების ასარჩევად');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      handleChange('photo', result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('შეცდომა', 'კამერის გამოყენების უფლება საჭიროა');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      handleChange('photo', result.assets[0].uri);
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      'ფოტოს არჩევა',
+      'როგორ გინდათ ფოტოს ატვირთვა?',
+      [
+        { text: 'გაუქმება', style: 'cancel' },
+        { text: 'კამერა', onPress: takePhoto },
+        { text: 'გალერეა', onPress: pickImage },
+      ]
+    );
+  };
+
+  const removePhoto = () => {
+    handleChange('photo', '');
+  };
+
+  const isValid = () => {
+    return car.make && car.model && car.year && car.plateNumber;
+  };
+
+  const submit = () => {
+    if (!isValid()) return;
+    onAddCar(car);
     onClose();
   };
 
-  const renderDropdown = (
-    items: string[],
-    selectedValue: string,
-    onSelect: (value: string) => void,
-    placeholder: string,
-    isVisible: boolean,
-    onToggle: () => void
-  ) => (
-    <View style={styles.dropdownContainer}>
-      <TouchableOpacity
-        style={styles.dropdownButton}
-        onPress={onToggle}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.dropdownText, !selectedValue && styles.placeholderText]}>
-          {selectedValue || placeholder}
-        </Text>
-        <Ionicons 
-          name={isVisible ? "chevron-up" : "chevron-down"} 
-          size={20} 
-          color="#6B7280" 
-        />
-      </TouchableOpacity>
-      
-      {isVisible && (
-        <View style={styles.dropdownList}>
-          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
-            {items.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dropdownItem,
-                  selectedValue === item && styles.dropdownItemSelected
-                ]}
-                onPress={() => {
-                  onSelect(item);
-                  onToggle();
-                }}
-              >
-                <Text style={[
-                  styles.dropdownItemText,
-                  selectedValue === item && styles.dropdownItemTextSelected
-                ]}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
-
   return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <StatusBar backgroundColor="rgba(0,0,0,0.5)" barStyle="light-content" />
-      
-      {/* Animated Background with Blur Effect */}
-      <Animated.View 
-        style={[
-          styles.modalOverlay,
-          {
-            opacity: backgroundAnim,
-          }
-        ]}
-      >
-        <View style={styles.backgroundBlur} />
-      </Animated.View>
+      <Animated.View style={[styles.overlay, { opacity: bgOpacity }]} />
 
-      <Animated.View 
-        style={[
-          styles.modalContainer,
-          {
-            transform: [
-              { translateY: slideAnim },
-              { scale: scaleAnim }
-            ]
-          }
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <View style={styles.modalContent}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.modalHeader}>
-              <View style={styles.headerLeft}>
-                <Text style={styles.modalTitle}>ახალი მანქანის დამატება</Text>
-                <Text style={styles.modalSubtitle}>შეავსეთ მანქანის ინფორმაცია</Text>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="car-outline" size={24} color="#1F2937" />
               </View>
-              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-                <Ionicons name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>ახალი მანქანა</Text>
+                <Text style={styles.subtitle}>შეიყვანეთ ინფორმაცია</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Ionicons name="close" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Photo Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ფოტო</Text>
+            <TouchableOpacity style={styles.photoContainer} onPress={showImageOptions}>
+              {car.photo ? (
+                <View style={styles.photoPreview}>
+                  <Image source={{ uri: car.photo }} style={styles.photoImage} />
+                  <TouchableOpacity style={styles.removePhotoButton} onPress={removePhoto}>
+                    <Ionicons name="close-circle" size={24} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
+                  <Text style={styles.photoPlaceholderText}>ფოტოს დამატება</Text>
+                  <Text style={styles.photoPlaceholderSubtext}>შეეხეთ ასარჩევად</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Basic Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ძირითადი ინფორმაცია</Text>
+            
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroupHalf}>
+                <Text style={styles.inputLabel}>მარკა *</Text>
+                <TouchableOpacity 
+                  style={styles.dropdownButton}
+                  onPress={() => setShowMakeDropdown(!showMakeDropdown)}
+                >
+                  <Text style={[styles.dropdownText, !car.make && styles.placeholderText]}>
+                    {car.make || 'აირჩიეთ მარკა'}
+                  </Text>
+                  <Ionicons 
+                    name={showMakeDropdown ? 'chevron-up' : 'chevron-down'} 
+                    size={20} 
+                    color="#6B7280" 
+                  />
+                </TouchableOpacity>
+                {showMakeDropdown && (
+                  <View style={styles.dropdown}>
+                    <FlatList
+                      data={CAR_MAKES}
+                      keyExtractor={(item) => item}
+                      style={styles.dropdownList}
+                      showsVerticalScrollIndicator={false}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={styles.dropdownItem}
+                          onPress={() => selectMake(item)}
+                        >
+                          <Text style={styles.dropdownItemText}>{item}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </View>
+                )}
+              </View>
+              <View style={styles.inputGroupHalf}>
+                <Text style={styles.inputLabel}>მოდელი *</Text>
+                <TouchableOpacity 
+                  style={[styles.dropdownButton, !car.make && styles.dropdownButtonDisabled]}
+                  onPress={() => car.make && setShowModelDropdown(!showModelDropdown)}
+                  disabled={!car.make}
+                >
+                  <Text style={[styles.dropdownText, !car.model && styles.placeholderText]}>
+                    {car.model || (car.make ? 'აირჩიეთ მოდელი' : 'ჯერ აირჩიეთ მარკა')}
+                  </Text>
+                  <Ionicons 
+                    name={showModelDropdown ? 'chevron-up' : 'chevron-down'} 
+                    size={20} 
+                    color={car.make ? "#6B7280" : "#D1D5DB"} 
+                  />
+                </TouchableOpacity>
+                {showModelDropdown && car.make && (
+                  <View style={styles.dropdown}>
+                    <FlatList
+                      data={filteredModels}
+                      keyExtractor={(item) => item}
+                      style={styles.dropdownList}
+                      showsVerticalScrollIndicator={false}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={styles.dropdownItem}
+                          onPress={() => selectModel(item)}
+                        >
+                          <Text style={styles.dropdownItemText}>{item}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroupHalf}>
+                <Text style={styles.inputLabel}>წელი *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="2020"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                  maxLength={4}
+                  value={car.year}
+                  onChangeText={(text) => handleChange('year', text)}
+                />
+              </View>
+              <View style={styles.inputGroupHalf}>
+                <Text style={styles.inputLabel}>ნომერი *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="AB-123-CD"
+                  placeholderTextColor="#9CA3AF"
+                  value={car.plateNumber}
+                  onChangeText={(text) => handleChange('plateNumber', text)}
+                />
+              </View>
             </View>
           </View>
 
-          {/* Content */}
-          <ScrollView 
-            style={styles.contentContainer} 
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
+          {/* Fuel Type */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>საწვავის ტიპი</Text>
+            <View style={styles.optionsContainer}>
+              {FUEL_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionButton,
+                    car.fuelType === option.id && styles.optionButtonSelected
+                  ]}
+                  onPress={() => handleChange('fuelType', option.id)}
+                >
+                  <Text style={styles.optionEmoji}>{option.icon}</Text>
+                  <Text style={[
+                    styles.optionButtonText,
+                    car.fuelType === option.id && styles.optionButtonTextSelected
+                  ]}>
+                    {option.id}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Transmission */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>პრიორიტეტი</Text>
+            <View style={styles.optionsContainer}>
+              {GEARBOX_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionButton,
+                    car.transmission === option.id && styles.optionButtonSelected
+                  ]}
+                  onPress={() => handleChange('transmission', option.id)}
+                >
+                  <Text style={styles.optionEmoji}>{option.icon}</Text>
+                  <Text style={[
+                    styles.optionButtonText,
+                    car.transmission === option.id && styles.optionButtonTextSelected
+                  ]}>
+                    {option.id}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Color */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ფერი</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="მაგ: თეთრი, შავი, ლურჯი..."
+              placeholderTextColor="#9CA3AF"
+              value={car.color}
+              onChangeText={(text) => handleChange('color', text)}
+            />
+          </View>
+        </ScrollView>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonText}>გაუქმება</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.submitButton, !isValid() && styles.submitButtonDisabled]} 
+            onPress={submit}
+            disabled={!isValid()}
           >
-            <Animated.View style={[styles.formContent, { opacity: fadeAnim }]}>
-              {/* Make */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="car" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>მარკა</Text>
-                  <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredText}>*</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  {renderDropdown(
-                    CAR_MAKES,
-                    carData.make,
-                    (value) => handleInputChange('make', value),
-                    'აირჩიეთ მარკა',
-                    showMakeDropdown,
-                    () => setShowMakeDropdown(!showMakeDropdown)
-                  )}
-                </View>
-              </View>
-
-              {/* Model */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="document-text" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>მოდელი</Text>
-                  <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredText}>*</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  <TextInput
-                    style={styles.enhancedTextInput}
-                    placeholder="მაგ: Camry, X5, A4"
-                    placeholderTextColor="rgba(17, 24, 39, 0.5)"
-                    value={carData.model}
-                    onChangeText={(value) => handleInputChange('model', value)}
-                  />
-                </View>
-              </View>
-
-              {/* Year */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="calendar" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>წელი</Text>
-                  <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredText}>*</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  <TextInput
-                    style={styles.enhancedTextInput}
-                    placeholder="მაგ: 2023"
-                    placeholderTextColor="rgba(17, 24, 39, 0.5)"
-                    value={carData.year}
-                    onChangeText={(value) => handleInputChange('year', value)}
-                    keyboardType="numeric"
-                    maxLength={4}
-                  />
-                </View>
-              </View>
-
-              {/* Plate Number */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="card" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>სანომრე ნიშანი</Text>
-                  <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredText}>*</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  <TextInput
-                    style={styles.enhancedTextInput}
-                    placeholder="მაგ: TB-123-AB"
-                    placeholderTextColor="rgba(17, 24, 39, 0.5)"
-                    value={carData.plateNumber}
-                    onChangeText={(value) => handleInputChange('plateNumber', value.toUpperCase())}
-                    autoCapitalize="characters"
-                  />
-                </View>
-              </View>
-
-              {/* Color */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="color-palette" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>ფერი</Text>
-                  <View style={styles.optionalBadge}>
-                    <Text style={styles.optionalText}>ოფციონალური</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  {renderDropdown(
-                    COLORS,
-                    carData.color,
-                    (value) => handleInputChange('color', value),
-                    'აირჩიეთ ფერი',
-                    showColorDropdown,
-                    () => setShowColorDropdown(!showColorDropdown)
-                  )}
-                </View>
-              </View>
-
-              {/* Fuel Type */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="water" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>საწვავის ტიპი</Text>
-                  <View style={styles.optionalBadge}>
-                    <Text style={styles.optionalText}>ოფციონალური</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  {renderDropdown(
-                    FUEL_TYPES,
-                    carData.fuelType,
-                    (value) => handleInputChange('fuelType', value),
-                    'აირჩიეთ საწვავის ტიპი',
-                    showFuelDropdown,
-                    () => setShowFuelDropdown(!showFuelDropdown)
-                  )}
-                </View>
-              </View>
-
-              {/* Transmission */}
-              <View style={styles.detailSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="settings" size={20} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.sectionTitle}>ტრანსმისია</Text>
-                  <View style={styles.optionalBadge}>
-                    <Text style={styles.optionalText}>ოფციონალური</Text>
-                  </View>
-                </View>
-                <View style={styles.enhancedInputContainer}>
-                  {renderDropdown(
-                    TRANSMISSIONS,
-                    carData.transmission,
-                    (value) => handleInputChange('transmission', value),
-                    'აირჩიეთ ტრანსმისია',
-                    showTransmissionDropdown,
-                    () => setShowTransmissionDropdown(!showTransmissionDropdown)
-                  )}
-                </View>
-              </View>
-            </Animated.View>
-          </ScrollView>
-
-          {/* Navigation */}
-          <View style={styles.navigation}>
-            <View style={styles.navigationContainer}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-                <Text style={styles.cancelButtonText}>გაუქმება</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.submitButtonText}>დამატება</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+            <Text style={[styles.submitButtonText, !isValid() && styles.submitButtonTextDisabled]}>
+              დამატება
+            </Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
     </Modal>
@@ -489,245 +473,288 @@ export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalP
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  sheet: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-  },
-  backgroundBlur: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  },
-  modalContainer: {
-    height: height * 0.95,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    overflow: 'hidden',
-    marginTop: height * 0.05,
-  },
-  modalContent: {
-    flex: 1,
+    height: height * 0.9,
     backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 20,
   },
   header: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(20px)',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  closeButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#111827',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  formContent: {
-    flex: 1,
     paddingTop: 20,
-  },
-  detailSection: {
-    gap: 16,
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  sectionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#111827',
-  },
-  requiredBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  requiredText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#FFFFFF',
-  },
-  optionalBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#E5E7EB',
-  },
-  optionalText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  enhancedInputContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#111827',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  enhancedTextInput: {
-    padding: 20,
-    fontSize: 16,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#111827',
-    minHeight: 56,
-  },
-  dropdownContainer: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  dropdownButton: {
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'transparent',
-  },
-  dropdownText: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#111827',
-  },
-  placeholderText: {
-    color: 'rgba(17, 24, 39, 0.5)',
-  },
-  dropdownList: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#111827',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 20,
-    zIndex: 9999,
-  },
-  dropdownScroll: {
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  dropdownItemSelected: {
-    backgroundColor: '#EEF2FF',
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  titleContainer: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '500',
+    color: '#1F2937',
+    fontFamily: 'Inter',
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontFamily: 'Inter',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  section: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+    fontFamily: 'Inter',
+    marginBottom: 12,
+  },
+  photoContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  photoPreview: {
+    position: 'relative',
+    height: 160,
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  photoPlaceholder: {
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  photoPlaceholderText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+    fontFamily: 'Inter',
+    marginTop: 8,
+  },
+  photoPlaceholderSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontFamily: 'Inter',
+    marginTop: 2,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  inputGroupHalf: {
+    flex: 1,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    fontFamily: 'Inter',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontFamily: 'Inter',
+    color: '#111827',
+  },
+  dropdownButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownButtonDisabled: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#D1D5DB',
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    color: '#111827',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#9CA3AF',
+  },
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    marginTop: 4,
+    maxHeight: 200,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownList: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   dropdownItemText: {
     fontSize: 16,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#111827',
+    fontFamily: 'Inter',
+    color: '#374151',
   },
-  dropdownItemTextSelected: {
-    color: '#3B82F6',
-    fontFamily: 'NotoSans_600SemiBold',
+  optionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  navigation: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(20px)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  optionButtonSelected: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#6366F1',
+  },
+  optionEmoji: {
+    fontSize: 16,
+  },
+  optionButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    fontFamily: 'Inter',
+  },
+  optionButtonTextSelected: {
+    color: '#6366F1',
+  },
+  footer: {
+    flexDirection: 'row',
     paddingHorizontal: 24,
     paddingVertical: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-  },
-  navigationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   cancelButton: {
-    flexDirection: 'row',
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   cancelButtonText: {
     fontSize: 16,
-    fontFamily: 'NotoSans_700Bold',
+    fontWeight: '500',
     color: '#6B7280',
+    fontFamily: 'Inter',
   },
   submitButton: {
-    flexDirection: 'row',
+    flex: 2,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#3B82F6',
     alignItems: 'center',
-    backgroundColor: '#10B981',
-    borderRadius: 16,
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    gap: 8,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 8,
+    justifyContent: 'center',
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#E5E7EB',
   },
   submitButtonText: {
-    fontSize: 18,
-    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    fontWeight: '500',
     color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  submitButtonTextDisabled: {
+    color: '#9CA3AF',
   },
 });
