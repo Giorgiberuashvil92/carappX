@@ -1,11 +1,11 @@
 // ავტომატურად განვსაზღვრავთ API URL-ს environment-ის მიხედვით
 const getApiUrl = () => {
   if (__DEV__) {
-    // Development mode - ლოკალური ბექენდი
-    return 'http://172.20.10.4:4000'; // შენი კომპის LAN IP
+    // Development mode - production API ტესტირებისთვის
+    return 'https://carappx.onrender.com'; // Render production URL
   } else {
     // Production mode - production ბექენდი
-    return 'https://carappx-backend.onrender.com'; // Render production URL
+    return 'https://carappx.onrender.com'; // Render production URL
   }
 };
 

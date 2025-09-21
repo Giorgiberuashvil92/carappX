@@ -15,6 +15,10 @@ export class FirebaseService {
           process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
           process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
+        this.logger.log(`Environment: ${process.env.NODE_ENV}`);
+        this.logger.log(`Service Account JSON exists: ${!!saJson}`);
+        this.logger.log(`Service Account Path exists: ${!!saPath}`);
+
         if (saJson || saPath) {
           const creds = this.loadServiceAccount(
             saJson,
@@ -34,23 +38,28 @@ export class FirebaseService {
                 process.env.GOOGLE_CLOUD_PROJECT ||
                 process.env.GCLOUD_PROJECT,
             });
-            this.logger.log('Firebase initialized with service account');
+            this.logger.log('✅ Firebase initialized with service account');
           } else {
-            // Production-ზე Firebase-ის გარეშე მუშაობა
             this.logger.warn(
               'Firebase credentials not available, skipping initialization',
             );
           }
         } else {
-          admin.initializeApp({
-            credential: admin.credential.applicationDefault(),
-            projectId:
-              process.env.FIREBASE_PROJECT_ID ||
-              process.env.GOOGLE_CLOUD_PROJECT ||
-              process.env.GCLOUD_PROJECT,
-          });
+          // Try application default credentials
+          try {
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              projectId:
+                process.env.FIREBASE_PROJECT_ID ||
+                process.env.GOOGLE_CLOUD_PROJECT ||
+                process.env.GCLOUD_PROJECT,
+            });
+            this.logger.log('✅ Firebase initialized with application default credentials');
+          } catch (appDefaultError) {
+            this.logger.warn('Application default credentials failed, continuing without Firebase');
+            this.logger.warn(appDefaultError.message);
+          }
         }
-        this.logger.log('Firebase initialized');
       } catch (e) {
         this.logger.error('Failed to initialize Firebase', (e as Error)?.stack);
         // Production-ზე Firebase-ის გარეშე მუშაობა
@@ -129,7 +138,12 @@ export class FirebaseService {
   }
 
   get db() {
-    return admin.firestore();
+    try {
+      return admin.firestore();
+    } catch (e) {
+      this.logger.warn('Firebase not initialized, returning null');
+      return null;
+    }
   }
 
   ping() {

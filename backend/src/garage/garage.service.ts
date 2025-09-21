@@ -40,14 +40,23 @@ export class GarageService {
   constructor(private readonly firebase: FirebaseService) {}
 
   private carsCol() {
+    if (!this.firebase.db) {
+      throw new Error('Firebase not initialized - please check Firebase configuration');
+    }
     return this.firebase.db.collection('cars');
   }
 
   private remindersCol() {
+    if (!this.firebase.db) {
+      throw new Error('Firebase not initialized - please check Firebase configuration');
+    }
     return this.firebase.db.collection('reminders');
   }
 
   private fuelCol() {
+    if (!this.firebase.db) {
+      throw new Error('Firebase not initialized - please check Firebase configuration');
+    }
     return this.firebase.db.collection('fuel_entries');
   }
 
