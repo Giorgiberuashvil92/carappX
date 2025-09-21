@@ -9,22 +9,7 @@ export class FirebaseService {
   constructor() {
     if (admin.apps.length === 0) {
       try {
-        // Try to build service account from individual environment variables first
-        const serviceAccount = this.buildServiceAccountFromEnvVars();
-
-        if (serviceAccount) {
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-            projectId:
-              serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID,
-          });
-          this.logger.log(
-            '✅ Firebase initialized with individual environment variables',
-          );
-          return;
-        }
-
-        // Fallback to single JSON environment variable
+        // Prefer explicit service account JSON via env, else fall back to application default
         const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
         const saPath =
           process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
@@ -69,13 +54,9 @@ export class FirebaseService {
                 process.env.GOOGLE_CLOUD_PROJECT ||
                 process.env.GCLOUD_PROJECT,
             });
-            this.logger.log(
-              '✅ Firebase initialized with application default credentials',
-            );
+            this.logger.log('✅ Firebase initialized with application default credentials');
           } catch (appDefaultError) {
-            this.logger.warn(
-              'Application default credentials failed, continuing without Firebase',
-            );
+            this.logger.warn('Application default credentials failed, continuing without Firebase');
             this.logger.warn(appDefaultError.message);
           }
         }
@@ -88,55 +69,6 @@ export class FirebaseService {
           throw e;
         }
       }
-    }
-  }
-
-  private buildServiceAccountFromEnvVars(): admin.ServiceAccount | null {
-    const requiredFields = [
-      'type',
-      'project_id',
-      'private_key_id',
-      'private_key',
-      'client_email',
-      'client_id',
-      'auth_uri',
-      'token_uri',
-      'auth_provider_x509_cert_url',
-      'client_x509_cert_url',
-    ];
-
-    // Check if all required fields are available as environment variables
-    const missingFields = requiredFields.filter((field) => !process.env[field]);
-
-    if (missingFields.length > 0) {
-      this.logger.log(`Missing Firebase env vars: ${missingFields.join(', ')}`);
-      return null;
-    }
-
-    try {
-      const serviceAccount: admin.ServiceAccount = {
-        type: process.env.type,
-        project_id: process.env.project_id,
-        private_key_id: process.env.private_key_id,
-        private_key: process.env.private_key.replace(/\\n/g, '\n'),
-        client_email: process.env.client_email,
-        client_id: process.env.client_id,
-        auth_uri: process.env.auth_uri,
-        token_uri: process.env.token_uri,
-        auth_provider_x509_cert_url: process.env.auth_provider_x509_cert_url,
-        client_x509_cert_url: process.env.client_x509_cert_url,
-      };
-
-      this.logger.log(
-        '✅ Successfully built Firebase service account from environment variables',
-      );
-      return serviceAccount;
-    } catch (error) {
-      this.logger.error(
-        'Failed to build service account from environment variables:',
-        error,
-      );
-      return null;
     }
   }
 
