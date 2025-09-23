@@ -3,19 +3,22 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { FirebaseService } from '../firebase/firebase.service';
+import {
+  CarwashLocation,
+  CarwashLocationDocument,
+  CarwashService as CarwashServiceEntity,
+  TimeSlotsConfig,
+  DaySlots,
+  TimeSlot,
+  RealTimeStatus,
+} from './schemas/carwash-location.schema';
 import { CreateCarwashBookingDto } from './dto/create-carwash-booking.dto';
 import { UpdateCarwashBookingDto } from './dto/update-carwash-booking.dto';
 import { CreateCarwashLocationDto } from './dto/create-carwash-location.dto';
 import { UpdateCarwashLocationDto } from './dto/update-carwash-location.dto';
-import {
-  CarwashLocation,
-  CarwashService as CarwashServiceEntity,
-  TimeSlotsConfig,
-  RealTimeStatus,
-  DaySlots,
-  TimeSlot,
-} from './entities/carwash-location.entity';
 import { Store } from '../stores/entities/store.entity';
 
 type CarwashBookingEntity = CreateCarwashBookingDto & {
@@ -27,15 +30,26 @@ type CarwashBookingEntity = CreateCarwashBookingDto & {
 
 @Injectable()
 export class CarwashService {
-  constructor(private readonly firebase: FirebaseService) {}
+  private popularLocationsCache: {
+    data: CarwashLocation[];
+    timestamp: number;
+  } | null = null;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 წუთი
+
+  constructor(
+    private readonly firebase: FirebaseService,
+    @InjectModel(CarwashLocation.name)
+    private carwashModel: Model<CarwashLocationDocument>,
+  ) {}
 
   private col() {
     return this.firebase.db.collection('carwash_bookings');
   }
 
-  private locationsCol() {
-    return this.firebase.db.collection('carwash_locations');
-  }
+  // MongoDB-ისთვის აღარ გვჭირდება
+  // private locationsCol() {
+  //   return this.firebase.db.collection('carwash_locations');
+  // }
 
   async createBooking(createBookingDto: CreateCarwashBookingDto) {
     const id = `booking_${Date.now()}`;
@@ -154,14 +168,15 @@ export class CarwashService {
       },
       ...createLocationDto,
     };
-    await this.locationsCol().doc(id).set(entity);
-    return entity;
+    // MongoDB-ში შექმნა
+    const createdLocation = new this.carwashModel(entity);
+    await createdLocation.save();
+    return createdLocation.toObject();
   }
 
   async findAllLocations(): Promise<CarwashLocation[]> {
     try {
-      const snap = await this.locationsCol().orderBy('createdAt', 'desc').get();
-      return snap.docs.map((d) => d.data() as CarwashLocation);
+      return await this.carwashModel.find().sort({ createdAt: -1 }).exec();
     } catch (error) {
       console.error('Error fetching all locations:', error);
       return [];
@@ -205,47 +220,33 @@ export class CarwashService {
   }
 
   async findLocationById(id: string): Promise<CarwashLocation | null> {
-    const doc = await this.locationsCol().doc(id).get();
-    return doc.exists ? (doc.data() as CarwashLocation) : null;
+    return await this.carwashModel.findOne({ id }).exec();
   }
 
   async findLocationsByOwner(ownerId: string): Promise<CarwashLocation[]> {
-    const snap = await this.locationsCol()
-      .where('ownerId', '==', ownerId)
-      .get();
-
-    // Sort in memory instead of using orderBy to avoid index requirement
-    const locations = snap.docs.map((d) => d.data() as CarwashLocation);
-    return locations.sort((a, b) => b.createdAt - a.createdAt);
+    return await this.carwashModel
+      .find({ ownerId })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
   async updateLocation(
     id: string,
     updateLocationDto: UpdateCarwashLocationDto,
   ): Promise<CarwashLocation | null> {
-    const docRef = this.locationsCol().doc(id);
-    const doc = await docRef.get();
-    if (!doc.exists) return null;
-
     const updateData = {
       ...updateLocationDto,
       updatedAt: Date.now(),
     };
 
-    await docRef.update(updateData);
-    const merged = {
-      ...(doc.data() as CarwashLocation),
-      ...updateData,
-    } as CarwashLocation;
-    return merged;
+    return await this.carwashModel
+      .findOneAndUpdate({ id }, updateData, { new: true })
+      .exec();
   }
 
   async deleteLocation(id: string): Promise<boolean> {
-    const docRef = this.locationsCol().doc(id);
-    const doc = await docRef.get();
-    if (!doc.exists) return false;
-    await docRef.delete();
-    return true;
+    const result = await this.carwashModel.deleteOne({ id }).exec();
+    return result.deletedCount > 0;
   }
 
   // ახალი მეთოდები სერვისების, დროის სლოტების და რეალური დროის სტატუსისთვის
@@ -439,11 +440,27 @@ export class CarwashService {
     });
   }
 
-  // პოპულარული ლოკაციების მიღება
+  // პოპულარული ლოკაციების მიღება - ოპტიმიზირებული + კეშირება
   async getPopularLocations(limit: number = 10): Promise<CarwashLocation[]> {
-    const snap = await this.locationsCol().where('isOpen', '==', true).get();
+    // კეშირებული მონაცემების შემოწმება
+    if (
+      this.popularLocationsCache &&
+      Date.now() - this.popularLocationsCache.timestamp < this.CACHE_DURATION
+    ) {
+      console.log('📦 Returning cached popular locations');
+      return this.popularLocationsCache.data.slice(0, limit);
+    }
 
-    const locations = snap.docs.map((d) => d.data() as CarwashLocation);
+    console.log('🔄 Fetching fresh popular locations from database');
+    // MongoDB query - ბევრად უფრო სწრაფი!
+    const locations = await this.carwashModel
+      .find({
+        isOpen: true,
+        rating: { $gte: 4.0 },
+      })
+      .sort({ rating: -1, reviews: -1 })
+      .limit(limit * 2)
+      .exec();
 
     // პოპულარობის ალგორითმი:
     // 1. რეიტინგი (40%) - მაღალი რეიტინგი = პოპულარული
@@ -474,103 +491,39 @@ export class CarwashService {
     // დახარისხება პოპულარობის მიხედვით
     scoredLocations.sort((a, b) => b.popularityScore - a.popularityScore);
 
-    return scoredLocations.slice(0, limit);
+    const result = scoredLocations.slice(0, limit);
+
+    // კეშირება
+    this.popularLocationsCache = {
+      data: scoredLocations,
+      timestamp: Date.now(),
+    };
+
+    return result;
   }
 
-  // ახლოს მყოფი ლოკაციების მიღება
-  async getNearbyLocations(
-    userLat: number,
-    userLon: number,
-    radiusKm: number = 5,
-  ): Promise<CarwashLocation[]> {
-    try {
-      const snap = await this.locationsCol()
-        .where('latitude', '!=', null)
-        .where('longitude', '!=', null)
-        .get();
+  // ახლოს მყოფი ლოკაციების მიღება - ოპტიმიზირებული
 
-      console.log('Total carwash locations found:', snap.docs.length);
-      const locations = snap.docs.map((d) => d.data() as CarwashLocation);
-
-      // Haversine ფორმულა მანძილის გამოსათვლელად
-      const calculateDistance = (
-        lat1: number,
-        lon1: number,
-        lat2: number,
-        lon2: number,
-      ): number => {
-        const R = 6371; // დედამიწის რადიუსი კილომეტრებში
-        const dLat = ((lat2 - lat1) * Math.PI) / 180;
-        const dLon = ((lon2 - lon1) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((lat1 * Math.PI) / 180) *
-            Math.cos((lat2 * Math.PI) / 180) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-      };
-
-      // ფილტრაცია რადიუსის მიხედვით და მანძილის გამოთვლა
-      const nearbyLocations = locations
-        .filter(
-          (location) =>
-            location.latitude &&
-            location.longitude &&
-            calculateDistance(
-              userLat,
-              userLon,
-              location.latitude,
-              location.longitude,
-            ) <= radiusKm,
-        )
-        .map((location) => ({
-          ...location,
-          distance: calculateDistance(
-            userLat,
-            userLon,
-            location.latitude,
-            location.longitude,
-          ),
-        }))
-        .sort((a, b) => a.distance - b.distance); // დახარისხება მანძილის მიხედვით
-
-      console.log(
-        'Nearby carwash locations after filtering:',
-        nearbyLocations.length,
-      );
-      return nearbyLocations;
-    } catch (error) {
-      console.error('Error fetching nearby locations:', error);
-      console.log('getNearbyLocations: Returning empty array due to error');
-      return [];
-    }
-  }
-
-  // ყველა ტიპის ახლოს მყოფი სერვისების მიღება (carwash + stores)
+  // ყველა ტიპის ახლოს მყოფი სერვისების მიღება (carwash + stores) - ოპტიმიზირებული
   async getAllNearbyServices(
     userLat: number,
     userLon: number,
     radiusKm: number = 10,
   ): Promise<any[]> {
+    const startTime = Date.now();
     try {
-      // Carwash locations
-      const carwashLocations = await this.getNearbyLocations(
-        userLat,
-        userLon,
-        radiusKm,
-      );
+      console.log('🚀 Starting parallel fetch for nearby services...');
+
+      // პარალელური შეკითხვები - ორივე ერთდროულად
+      const [carwashLocations, storeLocations] = await Promise.all([
+        this.getNearbyLocations(userLat, userLon, radiusKm),
+        this.getNearbyStores(userLat, userLon, radiusKm),
+      ]);
+
+      const fetchTime = Date.now() - startTime;
+      console.log(`⚡ Parallel fetch completed in ${fetchTime}ms`);
 
       console.log('Carwash locations found:', carwashLocations.length);
-
-      // Store locations
-      const storeLocations = await this.getNearbyStores(
-        userLat,
-        userLon,
-        radiusKm,
-      );
-
       console.log('Store locations found:', storeLocations.length);
 
       // ყველა სერვისის გაერთიანება და დახარისხება მანძილის მიხედვით
@@ -614,11 +567,10 @@ export class CarwashService {
       // დახარისხება მანძილის მიხედვით
       allServices.sort((a, b) => a.distance - b.distance);
 
+      const totalTime = Date.now() - startTime;
       console.log('Total combined services:', allServices.length);
       console.log(
-        'getAllNearbyServices: Returning',
-        allServices.length,
-        'services',
+        `✅ getAllNearbyServices: Returning ${allServices.length} services in ${totalTime}ms`,
       );
       return allServices;
     } catch (error) {
@@ -628,7 +580,7 @@ export class CarwashService {
     }
   }
 
-  // ახლოს მყოფი stores-ების მიღება
+  // ახლოს მყოფი stores-ების მიღება - ოპტიმიზირებული
   private async getNearbyStores(
     userLat: number,
     userLon: number,
@@ -638,9 +590,10 @@ export class CarwashService {
       const storesCol = this.firebase.db.collection('stores');
       console.log('Fetching stores from collection...');
       const snap = await storesCol
+        .where('status', '==', 'active')
         .where('coordinates.latitude', '!=', null)
         .where('coordinates.longitude', '!=', null)
-        .where('status', '==', 'active')
+        .limit(30) // ლიმიტი რომ ნაკლები მონაცემი გადავიტანოთ
         .get();
 
       const stores = snap.docs.map(

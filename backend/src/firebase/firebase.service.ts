@@ -46,15 +46,23 @@ export class FirebaseService {
                 process.env.GOOGLE_CLOUD_PROJECT ||
                 process.env.GCLOUD_PROJECT,
             });
-            this.logger.log('✅ Firebase initialized with application default credentials');
+            this.logger.log(
+              '✅ Firebase initialized with application default credentials',
+            );
           } catch (appDefaultError) {
-            this.logger.warn('Application default credentials failed, continuing without Firebase');
-            this.logger.warn(appDefaultError.message);
+            this.logger.warn(
+              'Application default credentials failed, continuing without Firebase',
+            );
+            this.logger.warn((appDefaultError as Error)?.message);
           }
         }
       } catch (e) {
         this.logger.error('Failed to initialize Firebase', (e as Error)?.stack);
-        throw e;
+        if (process.env.NODE_ENV === 'production') {
+          this.logger.warn('Continuing without Firebase in production mode');
+        } else {
+          this.logger.warn('Continuing without Firebase in development mode');
+        }
       }
     }
   }
@@ -77,7 +85,14 @@ export class FirebaseService {
     // 2) If path provided, read file and parse
     if (pathEnv) {
       if (!fs.existsSync(pathEnv)) {
-        throw new Error(`Service account path not found: ${pathEnv}`);
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error(`Service account path not found: ${pathEnv}`);
+        } else {
+          this.logger.warn(
+            `Service account path not found: ${pathEnv}, continuing without Firebase`,
+          );
+          return null;
+        }
       }
       const file = fs.readFileSync(pathEnv, 'utf8');
       const parsed = JSON.parse(file) as Record<string, unknown>;
@@ -115,7 +130,8 @@ export class FirebaseService {
   get db() {
     try {
       return admin.firestore();
-    } catch (e) {
+    } catch (e: any) {
+      console.log(e);
       this.logger.warn('Firebase not initialized, returning null');
       return null;
     }

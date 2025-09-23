@@ -1,5 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { FirebaseService } from '../firebase/firebase.service';
+import { Recommendation, RecommendationDocument } from '../schemas/recommendation.schema';
 
 export type RecommendationEntity = {
   id: string;
@@ -20,11 +24,11 @@ export type RecommendationEntity = {
 
 @Injectable()
 export class RecommendationsService {
-  constructor(private readonly firebase: FirebaseService) {}
-
-  private col() {
-    return this.firebase.db.collection('recommendations');
-  }
+  constructor(
+    private readonly firebase: FirebaseService,
+    @InjectModel(Recommendation.name)
+    private recommendationModel: Model<RecommendationDocument>,
+  ) {}
 
   async create(payload: Omit<RecommendationEntity, 'id' | 'createdAt'>) {
     const id = `rec_${Date.now()}`;
@@ -33,19 +37,23 @@ export class RecommendationsService {
       createdAt: Date.now(),
       ...payload,
     };
-    await this.col().doc(id).set(entity);
-    return entity;
+    
+    // MongoDB-ში შექმნა
+    const createdRecommendation = new this.recommendationModel(entity);
+    await createdRecommendation.save();
+    return createdRecommendation.toObject();
   }
 
   async byServiceType(serviceType: string, city?: string) {
-    let q: FirebaseFirestore.Query = this.col().where(
-      'targeting.serviceTypes',
-      'array-contains',
-      (serviceType || '').toLowerCase(),
-    );
-    if (city) q = q.where('targeting.city', '==', city);
-    const snap = await q.get();
-    return snap.docs.map((d) => d.data() as RecommendationEntity);
+    const query: any = {
+      'targeting.serviceTypes': { $in: [(serviceType || '').toLowerCase()] }
+    };
+    
+    if (city) {
+      query['targeting.city'] = city;
+    }
+    
+    return await this.recommendationModel.find(query).exec();
   }
 }
 

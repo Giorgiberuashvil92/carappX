@@ -123,10 +123,14 @@ export class CarwashController {
 
   @Get('locations/popular')
   async getPopularLocations(@Query('limit') limit?: string) {
+    const startTime = Date.now();
     try {
-      return await this.carwashService.getPopularLocations(
+      const result = await this.carwashService.getPopularLocations(
         limit ? parseInt(limit) : 10,
       );
+      const duration = Date.now() - startTime;
+      console.log(`🎯 Popular locations API: ${result.length} results in ${duration}ms`);
+      return result;
     } catch (error) {
       console.error('Error fetching popular locations:', error);
       return [];
@@ -139,16 +143,20 @@ export class CarwashController {
     @Query('lng') lng: string,
     @Query('radius') radius?: string,
   ) {
+    const startTime = Date.now();
     try {
       const userLat = parseFloat(lat);
       const userLon = parseFloat(lng);
       const radiusKm = radius ? parseFloat(radius) : 5;
 
-      return await this.carwashService.getNearbyLocations(
+      const result = await this.carwashService.getNearbyLocations(
         userLat,
         userLon,
         radiusKm,
       );
+      const duration = Date.now() - startTime;
+      console.log(`📍 Nearby locations API: ${result.length} results in ${duration}ms`);
+      return result;
     } catch (error) {
       console.error('Error fetching nearby locations:', error);
       return [];

@@ -7,11 +7,17 @@ export class AuthController {
 
   @Post('start')
   start(@Body() body: { phone: string }) {
+    console.log(
+      `🚀 [AUTH_CONTROLLER] Start request received for phone: ${body?.phone}`,
+    );
     return this.service.start(body?.phone);
   }
 
   @Post('verify')
   verify(@Body() body: { otpId: string; code: string }) {
+    console.log(
+      `🔐 [AUTH_CONTROLLER] Verify request received for OTP ID: ${body?.otpId}, Code: ${body?.code}`,
+    );
     return this.service.verify(body?.otpId, body?.code);
   }
 

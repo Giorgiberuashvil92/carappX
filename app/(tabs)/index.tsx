@@ -18,12 +18,8 @@ import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
-import { useCars } from '../../contexts/CarContext';
+import API_BASE_URL from '../../config/api';
 import ServiceCard from '../../components/ui/ServiceCard';
-import Button from '../../components/ui/Button';
-import Chip from '../../components/ui/Chip';
-import MiniServiceCard from '../../components/ui/MiniServiceCard';
-import NearbyCard from '../../components/ui/NearbyCard';
 import CommunitySection from '../../components/ui/CommunitySection';
 import ReminderSection from '../../components/ui/ReminderSection';
 
@@ -48,6 +44,18 @@ export default function TabOneScreen() {
   const [loading, setLoading] = useState(true);
   const [nearbyLoading, setNearbyLoading] = useState(true);
 
+  // Recent chats (last 3 offers with latest message)
+  const [recentChats, setRecentChats] = useState<Array<{
+    offerId: string;
+    providerName: string;
+    lastText: string;
+    lastAt: number;
+    lastAuthor: 'user' | 'partner';
+    priceGEL?: number;
+    etaMin?: number;
+    distanceKm?: number | null;
+  }>>([]);
+
   console.log(popularServices, 'პოპულარული სერვისები');
   
   const handleScroll = (event: any) => {
@@ -55,6 +63,13 @@ export default function TabOneScreen() {
     const index = Math.round(scrollPosition / (width - 60));
     setCurrentBannerIndex(index);
   };
+
+  function formatShortTime(ts: number) {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
 
   // API-დან პოპულარული სერვისების მიღება
   React.useEffect(() => {
@@ -123,91 +138,67 @@ export default function TabOneScreen() {
   }, []);
 
   // API-დან ყველა ტიპის ახლოს მყოფი სერვისების მიღება
-  React.useEffect(() => {
-    const fetchNearbyServices = async () => {
-      try {
-        setNearbyLoading(true);
-        
-        // რეალური ლოკაციის მიღება (თუ ხელმისაწვდომია)
-        let userLat = 41.7151; // თბილისის ცენტრალური კოორდინატები (fallback)
-        let userLon = 44.8271;
-        
-        try {
-          // Expo Location API-ს გამოყენება
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === 'granted') {
-            const location = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            });
-            userLat = location.coords.latitude;
-            userLon = location.coords.longitude;
-            console.log('მომხმარებლის ლოკაცია:', userLat, userLon);
-            
-            // თუ მომხმარებელი სან ფრანცისკოშია (Expo Go სიმულატორი), ვიყენებთ თბილისის კოორდინატებს
-            if (userLat > 37 && userLat < 38 && userLon > -123 && userLon < -122) {
-              console.log('მომხმარებელი სან ფრანცისკოშია, ვიყენებთ თბილისის კოორდინატებს');
-              userLat = 41.7151;
-              userLon = 44.8271;
-            }
-          }
-        } catch (locationError) {
-          console.log('ლოკაციის მიღება ვერ მოხერხდა, გამოიყენება default კოორდინატები');
-        }
-        
-        console.log('გამოყენებული კოორდინატები:', userLat, userLon);
-        
-        // ახალი endpoint - ყველა ტიპის სერვისი
-        const response = await fetch(`http://192.168.1.73:4000/carwash/locations/all-nearby?lat=${userLat}&lng=${userLon}&radius=10`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const text = await response.text();
-        if (!text) {
-          throw new Error('Empty response from server');
-        }
-        
-        const data = JSON.parse(text);
-        console.log('API-დან მიღებული მონაცემები:', data.length, 'სერვისი');
-        
-        const formattedNearbyServices = data.map((service: any) => ({
-          id: service.id,
-          name: service.displayName || service.name || service.title,
-          location: service.displayAddress || service.address || service.location,
-          rating: service.displayRating || service.rating || 0,
-          price: service.displayPrice || `${service.price}₾`,
-          image: service.images?.[0] || require('../../assets/images/car-bg.png'),
-          category: service.category || service.type,
-          address: service.displayAddress || service.address,
-          phone: service.phone,
-          services: service.detailedServices || service.services || [],
-          isOpen: service.isOpen,
-          waitTime: service.waitTime || 0,
-          socialMedia: service.socialMedia || {},
-          reviews: service.displayReviews || service.reviews || 0,
-          type: service.type, // 'carwash' ან 'store'
-          distance: service.distance, // კილომეტრებში
-          coordinates: service.coordinates,
-        }));
-        
-        console.log('ფორმატირებული სერვისები:', formattedNearbyServices.length);
-        setNearbyServices(formattedNearbyServices);
-      } catch (error) {
-        console.error('ახლოს მყოფი სერვისების ჩატვირთვის შეცდომა:', error);
-        // fallback - პოპულარული სერვისების გამოყენება
-        console.log('Fallback: Using popular services as nearby services');
-        console.log('Popular services count:', popularServices.length);
-        console.log('Popular services data:', popularServices);
-        console.log('Setting nearby services to popular services');
-        setNearbyServices(popularServices);
-      } finally {
-        setNearbyLoading(false);
-      }
-    };
 
-    fetchNearbyServices();
-  }, [popularServices]);
+
+  // Load recent chats based on user's offers and last message
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        if (!user?.id) return;
+        const offersRes = await fetch(`${API_BASE_URL}/offers?userId=${encodeURIComponent(String(user.id))}`);
+        const offers = await offersRes.json();
+        if (!Array.isArray(offers)) return;
+        // Sort by createdAt desc and take top 5 to probe messages
+        const top = offers
+          .map((o: any) => ({
+            id: String(o.id),
+            providerName: String(o.providerName || 'Partner'),
+            priceGEL: typeof o.priceGEL === 'number' ? o.priceGEL : undefined,
+            etaMin: typeof o.etaMin === 'number' ? o.etaMin : undefined,
+            distanceKm: typeof o.distanceKm === 'number' ? o.distanceKm : null,
+            createdAt: o.createdAt ? Number(o.createdAt) : 0,
+          }))
+          .sort((a, b) => (b.createdAt - a.createdAt))
+          .slice(0, 5);
+        const results: Array<{ offerId: string; providerName: string; lastText: string; lastAt: number; lastAuthor: 'user'|'partner'; priceGEL?: number; etaMin?: number; distanceKm?: number|null; }> = [];
+        for (const off of top) {
+          try {
+            const mres = await fetch(`${API_BASE_URL}/messages?offerId=${encodeURIComponent(off.id)}`);
+            const msgs = await mres.json();
+            if (Array.isArray(msgs) && msgs.length > 0) {
+              const last = msgs[msgs.length - 1];
+              results.push({
+                offerId: off.id,
+                providerName: off.providerName,
+                lastText: String(last.text || ''),
+                lastAt: Number(last.createdAt || Date.now()),
+                lastAuthor: last.author === 'partner' ? 'partner' : 'user',
+                priceGEL: off.priceGEL,
+                etaMin: off.etaMin,
+                distanceKm: off.distanceKm,
+              });
+            }
+          } catch {}
+        }
+        results.sort((a, b) => b.lastAt - a.lastAt);
+        let sliced = results.slice(0, 3);
+        // Fallback simulation when no chats yet
+        if (sliced.length === 0) {
+          const now = Date.now();
+          sliced = [
+            { offerId: 'sim-1', providerName: 'Gio Parts', lastText: 'გამოგიგზავნეთ ფასიც ✅', lastAt: now - 60 * 1000, lastAuthor: 'partner' as const, priceGEL: 120, etaMin: 30, distanceKm: 2.1 },
+            { offerId: 'sim-2', providerName: 'Tow+ Leo', lastText: 'მოვალ 20-25 წუთში', lastAt: now - 5 * 60 * 1000, lastAuthor: 'partner' as const, priceGEL: 85, etaMin: 22, distanceKm: 3.4 },
+            { offerId: 'sim-3', providerName: 'AutoFix Pro', lastText: 'ორშაბათს 11:00 თავისუფალია', lastAt: now - 12 * 60 * 1000, lastAuthor: 'partner' as const, priceGEL: 0, etaMin: 0, distanceKm: 1.2 },
+          ];
+        }
+        if (!cancelled) setRecentChats(sliced);
+      } catch {}
+    };
+    load();
+    const iv = setInterval(load, 4000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [user?.id]);
 
   type Category = { id: string; title: string; image: string };
   const CATEGORIES: Category[] = [
@@ -683,6 +674,33 @@ export default function TabOneScreen() {
       paddingHorizontal: 20,
       paddingBottom: 24,
     },
+    chatsContainer: {
+      paddingTop: 8,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      gap: 12,
+    },
+    chatCard: {
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(229, 231, 235, 0.35)',
+      backgroundColor: 'rgba(17, 24, 39, 0.35)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 6,
+    },
+    chatRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 12 },
+    chatLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, flex: 1 },
+    chatAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: 'rgba(229,231,235,0.25)' },
+    chatInitials: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 },
+    chatTitle: { color: '#F3F4F6', fontFamily: 'Inter', fontSize: 14, fontWeight: '700' as const },
+    chatMeta: { color: '#D1D5DB', fontFamily: 'Inter', fontSize: 11, opacity: 0.8 },
+    chatSnippet: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12, marginTop: 4, opacity: 0.9 },
+    unreadBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: '#EF4444', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+    unreadText: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' as const },
     chipsRow: {
       flexDirection: 'row' as const,
       gap: 8,
@@ -800,6 +818,33 @@ export default function TabOneScreen() {
       fontFamily: 'Inter',
       color: '#FFFFFF',
     },
+    chatsContainer: {
+      paddingTop: 8,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      gap: 12,
+    },
+    chatCard: {
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(229, 231, 235, 0.35)',
+      backgroundColor: 'rgba(17, 24, 39, 0.35)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 6,
+    },
+    chatRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 12 },
+    chatLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, flex: 1 },
+    chatAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: 'rgba(229,231,235,0.25)' },
+    chatInitials: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 },
+    chatTitle: { color: '#F3F4F6', fontFamily: 'Inter', fontSize: 14, fontWeight: '700' as const },
+    chatMeta: { color: '#D1D5DB', fontFamily: 'Inter', fontSize: 11, opacity: 0.8 },
+    chatSnippet: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12, marginTop: 4, opacity: 0.9 },
+    unreadBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: '#EF4444', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+    unreadText: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' as const },
   });
 
   return (
@@ -1000,6 +1045,47 @@ export default function TabOneScreen() {
 
         <ReminderSection />
 
+        {/* Recent Chats - Glassmorphism (gray) */}
+        <View style={styles.chatsContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>ბოლო ჩატები</Text>
+            <TouchableOpacity onPress={() => router.push('/chat')}>
+              <Text style={styles.sectionAction}>ყველა</Text>
+            </TouchableOpacity>
+          </View>
+          {recentChats.length === 0 ? (
+            <View style={[styles.chatCard, { alignItems: 'center' }]}> 
+              <Text style={{ color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 }}>ჯერ არაფერია</Text>
+            </View>
+          ) : (
+            recentChats.map((c) => (
+              <TouchableOpacity
+                key={c.offerId}
+                style={styles.chatCard}
+                activeOpacity={0.8}
+                onPress={() => {
+                  const offer = { id: c.offerId, providerName: c.providerName, priceGEL: c.priceGEL, etaMin: c.etaMin, distanceKm: c.distanceKm ?? null };
+                  router.push({ pathname: `/chat/${c.offerId}`, params: { role: 'user', offer: JSON.stringify(offer), summary: '' } });
+                }}
+              >
+                <View style={styles.chatRow}>
+                  <View style={styles.chatLeft}>
+                    <View style={styles.chatAvatar}><Text style={styles.chatInitials}>{(c.providerName || 'P').slice(0,2).toUpperCase()}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text numberOfLines={1} style={styles.chatTitle}>{c.providerName}</Text>
+                        <Text style={styles.chatMeta}>{formatShortTime(c.lastAt)}</Text>
+                      </View>
+                      <Text numberOfLines={1} style={styles.chatSnippet}>{c.lastAuthor === 'partner' ? 'პარტნიორი: ' : 'მე: '}{c.lastText}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.unreadBadge}><Text style={styles.unreadText}>1</Text></View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
       {/* Community Section */}
      
 
@@ -1071,65 +1157,7 @@ export default function TabOneScreen() {
 
 
       {/* Nearby quick list */}
-      <View style={{ paddingTop: 24, paddingHorizontal: 20, paddingBottom: 24 }}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>ახლოს შენთან</Text>
-          <TouchableOpacity>
-            <Text style={styles.sectionAction}>ყველა</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-          {nearbyLoading ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>ახლოს შენთან...</Text>
-            </View>
-          ) : (
-            nearbyServices.map(s => (
-              <NearbyCard 
-                key={s.id} 
-                image={s.image} 
-                title={s.name} 
-                subtitle={s.location} 
-                rating={s.rating} 
-                distance={s.distance ? `${s.distance.toFixed(1)} კმ` : `${s.waitTime || 5} წთ`} 
-                price={s.price} 
-                onPress={() => {
-                  const detailsParams = { 
-                    title: s.name,
-                    type: s.type,
-                    id: s.id,
-                    rating: s.rating?.toString() || '4.9',
-                    reviews: s.reviews?.toString() || '0',
-                    address: s.address || s.location,
-                    price: s.price,
-                    image: s.image,
-                    category: s.category,
-                    isOpen: s.isOpen?.toString() || 'true',
-                    waitTime: s.waitTime?.toString() || '10',
-                    distance: s.distance ? `${s.distance.toFixed(1)} კმ` : '1.2 კმ',
-                    description: s.description || 'პრემიუმ ხარისხის მომსახურება',
-                    features: JSON.stringify(s.features || ['WiFi', 'პარკინგი', 'ღამის სერვისი']),
-                    services: JSON.stringify(s.services || ['შიდა რეცხვა', 'გარე რეცხვა', 'ვაკუუმი']),
-                    detailedServices: JSON.stringify(s.detailedServices || []),
-                    workingHours: s.workingHours || '09:00 - 18:00',
-                    phone: s.phone || '+995 32 123 4567',
-                    lat: s.coordinates?.latitude?.toString() || '41.7151',
-                    lng: s.coordinates?.longitude?.toString() || '44.8271',
-                  };
-                  
-                  console.log('🔍 [NEARBY] Navigating to details with params:', detailsParams);
-                  console.log('🔍 [NEARBY] Service data:', s);
-                  
-                  router.push({ 
-                    pathname: '/details', 
-                    params: detailsParams
-                  });
-                }} 
-              />
-            ))
-          )}
-        </ScrollView>
-      </View>
+
 
       <CommunitySection />
 

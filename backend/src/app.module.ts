@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FirebaseModule } from './firebase/firebase.module';
+import { MongoDBModule } from './mongodb/mongodb.module';
 import { RequestsModule } from './requests/requests.module';
 import { OffersModule } from './offers/offers.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
@@ -27,6 +28,7 @@ import { LocationModule } from './location/location.module';
       logging: true,
     }),
     FirebaseModule,
+    MongoDBModule,
     RequestsModule,
     OffersModule,
     RecommendationsModule,

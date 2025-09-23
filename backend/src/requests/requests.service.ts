@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { FirebaseService } from '../firebase/firebase.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { UpdateRequestDto } from './dto/update-request.dto';
 import { OffersService } from '../offers/offers.service';
+import { Request, RequestDocument } from '../schemas/request.schema';
 
 type RequestEntity = CreateRequestDto & {
   id: string;
@@ -16,11 +19,9 @@ export class RequestsService {
   constructor(
     private readonly firebase: FirebaseService,
     private readonly offersService: OffersService,
+    @InjectModel(Request.name)
+    private requestModel: Model<RequestDocument>,
   ) {}
-
-  private col() {
-    return this.firebase.db.collection('requests');
-  }
 
   async create(createRequestDto: CreateRequestDto) {
     const id = `req_${Date.now()}`;
@@ -30,20 +31,25 @@ export class RequestsService {
       status: 'open',
       ...createRequestDto,
     };
-    await this.col().doc(id).set(entity);
-    return entity;
+    
+    // MongoDB-ში შექმნა
+    const createdRequest = new this.requestModel(entity);
+    await createdRequest.save();
+    return createdRequest.toObject();
   }
 
   async findAll() {
-    const snap = await this.col().orderBy('createdAt', 'desc').get();
-    const requests = snap.docs.map((d) => d.data() as RequestEntity);
+    const requests = await this.requestModel
+      .find()
+      .sort({ createdAt: -1 })
+      .exec();
 
     // Add offers count for each request
     const requestsWithOffersCount = await Promise.all(
       requests.map(async (request) => {
         const offers = await this.offersService.findAll(request.id);
         return {
-          ...request,
+          ...request.toObject(),
           offersCount: offers.length,
         };
       }),
@@ -53,27 +59,22 @@ export class RequestsService {
   }
 
   async findOne(id: string) {
-    const doc = await this.col().doc(id).get();
-    return doc.exists ? (doc.data() as RequestEntity) : null;
+    return await this.requestModel.findOne({ id }).exec();
   }
 
   async update(id: string, updateRequestDto: UpdateRequestDto) {
-    const docRef = this.col().doc(id);
-    const doc = await docRef.get();
-    if (!doc.exists) return null as any;
-    await docRef.update(updateRequestDto as Partial<RequestEntity>);
-    const merged = {
-      ...(doc.data() as RequestEntity),
+    const updateData = {
       ...updateRequestDto,
-    } as RequestEntity;
-    return merged;
+      updatedAt: Date.now(),
+    };
+
+    return await this.requestModel
+      .findOneAndUpdate({ id }, updateData, { new: true })
+      .exec();
   }
 
   async remove(id: string) {
-    const docRef = this.col().doc(id);
-    const doc = await docRef.get();
-    if (!doc.exists) return false;
-    await docRef.delete();
-    return true;
+    const result = await this.requestModel.deleteOne({ id }).exec();
+    return result.deletedCount > 0;
   }
 }

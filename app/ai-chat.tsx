@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View as RNView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCars } from '@/contexts/CarContext';
+import { useUser } from '@/contexts/UserContext';
 import { useMarketplace } from '@/contexts/MarketplaceContext';
 
 type Mode = 'parts' | 'tow' | 'mechanic' | null;
@@ -31,6 +32,12 @@ type Offer = {
 
 import API_BASE_URL from '../config/api';
 const API_URL = API_BASE_URL;
+// socket.io-client will be used for realtime offers
+let ioRef: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  ioRef = require('socket.io-client').io as typeof import('socket.io-client').io;
+} catch {}
 
 export default function AIChatScreen() {
   const router = useRouter();
@@ -44,6 +51,7 @@ export default function AIChatScreen() {
   const [step, setStep] = useState<number>(0);
   const insets = useSafeAreaInsets();
   const { selectedCar } = useCars();
+  const { user } = useUser();
   const params = useLocalSearchParams();
   const [showOffers, setShowOffers] = useState<boolean>(false);
   const { offers: ctxOffers, postMessage, acceptOffer } = useMarketplace();
@@ -57,6 +65,12 @@ export default function AIChatScreen() {
   const [myOfferPrice, setMyOfferPrice] = useState<string>('');
   const [counterFor, setCounterFor] = useState<Offer | null>(null);
   const [counterPrice, setCounterPrice] = useState<string>('');
+  const socketRef = useRef<ReturnType<typeof ioRef> | null>(null);
+
+  // Debug: log user from context once available
+  useEffect(() => {
+    console.log('[AI] UserContext user:', user ? { id: (user as any).id, phone: (user as any).phone, email: (user as any).email } : null);
+  }, [user]);
 
   // Dropdown pickers (modal-based) for parts flow
   const [pickerModal, setPickerModal] = useState<null | 'make' | 'model' | 'year' | 'yearFrom' | 'yearTo' | 'brand'>(null);
@@ -181,18 +195,30 @@ export default function AIChatScreen() {
     });
   }, [ctxOffers]);
 
-  // Poll backend offers when request is created
+  // Realtime offers via socket.io when request is created
   useEffect(() => {
-    if (!showOffers || !requestId) return;
-    console.log('[API] start polling offers for requestId=', requestId);
-    let cancelled = false;
-    const interval = setInterval(async () => {
+    if (!showOffers || !requestId || !ioRef) return;
+    // disconnect previous if any
+    try { socketRef.current?.disconnect(); } catch {}
+    const url = `${API_URL}/offers`;
+    console.log('[SOCKET] connecting to', url, 'for requestId=', requestId, 'userId=', (user?.id as string) || 'demo-user');
+    const socket = ioRef(url, {
+      transports: ['websocket'],
+      extraHeaders: {
+        'X-User-ID': (user?.id as string) || 'demo-user',
+      },
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', async () => {
+      console.log('[SOCKET] connected', socket.id);
+      socket.emit('join_request', { requestId });
+      // One-shot seed: pull existing offers once after joining
       try {
         const url = `${API_URL}/offers?requestId=${encodeURIComponent(requestId)}`;
-        console.log('[API] GET', url);
+        console.log('[API] one-shot GET', url);
         const res = await fetch(url);
         const data = await res.json();
-        if (cancelled) return;
         const mapped: Offer[] = (Array.isArray(data) ? data : []).map((o: any) => ({
           id: String(o.id),
           providerName: String(o.providerName || 'Partner'),
@@ -203,16 +229,55 @@ export default function AIChatScreen() {
           source: 'partner',
           createdAt: o.createdAt ? Number(o.createdAt) : Date.now(),
         }));
-        console.log('[API] offers received:', mapped.length);
         setOffers(mapped);
       } catch (e) {
-        console.log('[API] GET /offers error', e);
+        console.log('[API] one-shot GET /offers error', e);
       }
-    }, 2500);
+    });
+
+    socket.on('offer:new', (payload: any) => {
+      console.log('[SOCKET] offer:new', payload);
+      setOffers((prev) => {
+        const exists = prev.find((o) => o.id === String(payload?.id));
+        const next: Offer = {
+          id: String(payload?.id),
+          providerName: String(payload?.providerName || 'Partner'),
+          rating: Number(payload?.rating || 5),
+          priceGEL: Number(payload?.priceGEL || 0),
+          etaMin: Number(payload?.etaMin || 0),
+          distanceKm: typeof payload?.distanceKm === 'number' ? payload.distanceKm : undefined,
+          source: 'partner',
+          createdAt: payload?.createdAt ? Number(payload.createdAt) : Date.now(),
+        };
+        return exists ? prev : [next, ...prev];
+      });
+    });
+
+    socket.on('offer:update', (payload: any) => {
+      console.log('[SOCKET] offer:update', payload);
+      setOffers((prev) => prev.map((o) => (o.id === String(payload?.id)
+        ? {
+            id: String(payload?.id),
+            providerName: String(payload?.providerName || o.providerName),
+            rating: Number(payload?.rating ?? o.rating),
+            priceGEL: Number(payload?.priceGEL ?? o.priceGEL),
+            etaMin: Number(payload?.etaMin ?? o.etaMin),
+            distanceKm: typeof payload?.distanceKm === 'number' ? payload.distanceKm : o.distanceKm,
+            source: 'partner',
+            createdAt: o.createdAt,
+          }
+        : o)));
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[SOCKET] disconnected');
+    });
+
     return () => {
-      cancelled = true;
-      clearInterval(interval);
-      console.log('[API] stop polling offers for requestId=', requestId);
+      try {
+        console.log('[SOCKET] cleanup disconnect');
+        socket.disconnect();
+      } catch {}
     };
   }, [showOffers, requestId]);
 
@@ -570,7 +635,7 @@ export default function AIChatScreen() {
               </Pressable>
             )}
             <Pressable 
-              onPress={() => onAdvance(mode, step, setStep, form, setForm, setShowOffers, setOffers, setRequestId)} 
+              onPress={() => onAdvance(mode, step, setStep, form, setForm, setShowOffers, setOffers, setRequestId, (user?.id as string) || 'demo-user')} 
               style={[styles.nextButton, !canProceed(mode, step, form) && styles.nextButtonDisabled]}
               disabled={!canProceed(mode, step, form)}
             >
@@ -936,6 +1001,7 @@ async function onAdvance(
   setShowOffers: (v: boolean) => void,
   setOffers: (v: Offer[]) => void,
   setRequestId: (id: string | null) => void,
+  userId: string,
 ) {
   // Check if we can proceed using our new validation function
   if (!canProceed(mode, step, form)) {
@@ -965,10 +1031,10 @@ async function onAdvance(
         urgency: 'სასწრაფო', // ყოველთვის უმაღლესი პრიორიტეტი
         vehicle: form.vehicle || undefined,
       };
-    console.log('[API] POST /requests payload', payload);
+    console.log('[API] POST /requests payload', payload, 'userId=', userId);
     const res = await fetch(`${API_URL}/requests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-User-ID': userId },
       body: JSON.stringify(payload),
     });
     console.log('[API] /requests status', res.status);
