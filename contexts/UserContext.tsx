@@ -43,10 +43,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const userData = await AsyncStorage.getItem('user');
       if (userData) {
         const parsedUser = JSON.parse(userData);
+        // Ensure ownedCarwashes is always an array
+        if (!parsedUser.ownedCarwashes) {
+          parsedUser.ownedCarwashes = [];
+        }
         console.log('✅ [USERCONTEXT] User loaded from storage:', parsedUser);
         console.log('🔍 [USERCONTEXT] User role:', parsedUser.role);
         console.log('🔍 [USERCONTEXT] User ownedCarwashes:', parsedUser.ownedCarwashes);
-        console.log('🔍 [USERCONTEXT] User ownedCarwashes length:', parsedUser.ownedCarwashes?.length);
+        console.log('🔍 [USERCONTEXT] User ownedCarwashes length:', parsedUser.ownedCarwashes.length);
         setUser(parsedUser);
       } else {
         // No user found, wait for login
@@ -245,7 +249,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.log('✅ [ADD_CARWASH] Backend response:', result);
       
       // Update local state
-      const updatedOwnedCarwashes = [...user.ownedCarwashes, carwashId];
+      const currentOwnedCarwashes = user.ownedCarwashes || [];
+      const updatedOwnedCarwashes = [...currentOwnedCarwashes, carwashId];
       console.log('🔍 [ADD_CARWASH] Updated ownedCarwashes:', updatedOwnedCarwashes);
       const updatedUser = { ...user, ownedCarwashes: updatedOwnedCarwashes };
       setUser(updatedUser);
@@ -263,7 +268,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     
     try {
-      const updatedOwnedCarwashes = user.ownedCarwashes.filter(id => id !== carwashId);
+      const currentOwnedCarwashes = user.ownedCarwashes || [];
+      const updatedOwnedCarwashes = currentOwnedCarwashes.filter(id => id !== carwashId);
       const updatedUser = { ...user, ownedCarwashes: updatedOwnedCarwashes };
       setUser(updatedUser);
       await saveUserToStorage(updatedUser);

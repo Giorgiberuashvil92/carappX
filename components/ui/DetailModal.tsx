@@ -21,7 +21,7 @@ export type DetailItem = {
   description?: string;
   price?: string;
   image: string;
-  type: 'part' | 'store' | 'dismantler';
+  type: 'part' | 'store' | 'dismantler' | 'mechanic';
   // Part specific
   seller?: string;
   location?: string;
@@ -84,6 +84,14 @@ export default function DetailModal({
           backgroundColor: '#F9FAFB',
           title: 'დაშლილების დეტალები',
           actionText: 'მოძებნა',
+        };
+      case 'mechanic':
+        return {
+          icon: 'construct' as const,
+          color: '#10B981',
+          backgroundColor: '#F0FDF4',
+          title: 'ხელოსნის დეტალები',
+          actionText: 'დაკავშირება',
         };
     }
   };

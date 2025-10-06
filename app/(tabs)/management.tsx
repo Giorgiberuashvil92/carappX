@@ -34,7 +34,7 @@ export default function ManagementScreen() {
   // Load my carwashes
   useEffect(() => {
     const loadMyCarwashes = async () => {
-      if (user?.role === 'owner' && user.ownedCarwashes.length > 0) {
+      if (user?.role === 'owner' && user.ownedCarwashes?.length > 0) {
         try {
           const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);
           setMyCarwashes(ownedCarwashes);
@@ -52,7 +52,7 @@ export default function ManagementScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (user?.role === 'owner' && user.ownedCarwashes.length > 0) {
+    if (user?.role === 'owner' && user.ownedCarwashes?.length > 0) {
       try {
         const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);
         setMyCarwashes(ownedCarwashes);

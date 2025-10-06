@@ -17,6 +17,7 @@ import { subscribeToLocation } from '../../utils/LocationBus';
 import { Ionicons } from '@expo/vector-icons';
 import carData from '../../data/carData.json';
 import { addItemApi, DismantlerData, PartData, StoreData } from '../../services/addItemApi';
+import { mechanicsApi } from '../../services/mechanicsApi';
 import PhotoPicker from './PhotoPicker';
 import { useUser } from '../../contexts/UserContext';
 import { carwashLocationApi } from '../../services/carwashLocationApi';
@@ -27,7 +28,7 @@ import RealTimeStatusConfig, { RealTimeStatus } from './RealTimeStatusConfig';
 
 const { width } = Dimensions.get('window');
 
-export type AddModalType = 'dismantler' | 'part' | 'store' | 'carwash';
+export type AddModalType = 'dismantler' | 'part' | 'store' | 'carwash' | 'mechanic';
 
 export interface AddModalProps {
   visible: boolean;
@@ -42,6 +43,7 @@ interface AddModalStep {
 }
 
 const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultType }) => {
+  const { user } = useUser();
   const [currentStep, setCurrentStep] = useState<AddModalStep>({ 
     step: defaultType ? 'form' : 'type-selection',
     selectedType: defaultType
@@ -52,7 +54,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
   const [hideModal, setHideModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
-  const { user, updateUserRole, addToOwnedCarwashes } = useUser();
+  const { updateUserRole, addToOwnedCarwashes } = useUser();
   React.useEffect(() => {
     const unsub = subscribeToLocation((e) => {
       if (e?.type === 'LOCATION_PICKED') {
@@ -207,6 +209,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             address: formData.address,
             phone: storeNormalizedPhone,
             name: formData.name,
+            ownerId: user?.id || 'demo-user', // Add ownerId from user context
             workingHours: formData.workingHours,
             // optional geo, if later added from map
             latitude: formData.latitude,
@@ -275,6 +278,41 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             success: true, 
             message: 'სამრეცხაო წარმატებით დაემატა!',
             data: createdCarwash
+          };
+          break;
+          
+        case 'mechanic':
+          // Normalize phone number format
+          let mechanicNormalizedPhone = formData.phone;
+          if (mechanicNormalizedPhone && !mechanicNormalizedPhone.startsWith('+995') && !mechanicNormalizedPhone.startsWith('995')) {
+            mechanicNormalizedPhone = '+995' + mechanicNormalizedPhone;
+          }
+          
+          // Split name into firstName and lastName for backend compatibility
+          const nameParts = formData.name.split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || 'მექანიკოსი'; // Default lastName if empty
+          
+          const mechanicData = {
+            firstName: firstName,
+            lastName: lastName,
+            specialty: formData.specialty,
+            location: formData.location,
+            phone: mechanicNormalizedPhone,
+            address: formData.address,
+            experience: formData.experience,
+            services: formData.services ? formData.services.split(',').map((s: string) => s.trim()) : [],
+            avatar: uploadedPhotos.length > 0 ? uploadedPhotos[0] : '',
+            description: formData.description,
+            isAvailable: true,
+          };
+          console.log('Sending mechanic data:', mechanicData);
+          const mechanicResponse = await mechanicsApi.createMechanic(mechanicData);
+          console.log('Mechanic response:', mechanicResponse);
+          response = { 
+            success: true, 
+            message: 'ხელოსანი წარმატებით დაემატა!',
+            data: mechanicResponse
           };
           break;
           
@@ -389,6 +427,21 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             </View>
             <Ionicons name="chevron-forward" size={20} color="#6B7280" />
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.typeCard} 
+            onPress={() => handleTypeSelect('mechanic')}
+            activeOpacity={0.95}
+          >
+            <View style={styles.typeIconContainer}>
+              <Ionicons name="construct" size={32} color="#10B981" />
+            </View>
+            <View style={styles.typeContent}>
+              <Text style={styles.typeTitle}>ხელოსანი</Text>
+              <Text style={styles.typeDescription}>მექანიკოსის ან ხელოსნის რეგისტრაცია</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </>
@@ -480,6 +533,22 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'workingHours', label: 'სამუშაო საათები', type: 'text', required: true, placeholder: 'მაგ. 08:00 - 20:00' },
             { key: 'images', label: 'ფოტოები', type: 'photo', required: false },
             { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'სამრეცხაოს დეტალური აღწერა, სპეციალიზაცია, უპირატესობები...' },
+          ]
+        };
+      case 'mechanic':
+        return {
+          title: 'ხელოსნის რეგისტრაცია',
+          icon: 'construct',
+          fields: [
+            { key: 'name', label: 'ხელოსნის სახელი', type: 'text', required: true, placeholder: 'მაგ. ნიკა მელაძე' },
+            { key: 'phone', label: 'ტელეფონის ნომერი', type: 'phone', required: true, placeholder: '+995 XXX XXX XXX' },
+            { key: 'specialty', label: 'სპეციალობა', type: 'select', required: true, options: ['ძრავი', 'შემუშავება', 'ელექტრო', 'გადაცემა', 'დიაგნოსტიკა', 'ზოგადი'] },
+            { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
+            { key: 'address', label: 'ზუსტი მისამართი', type: 'location', required: true, placeholder: 'ქუჩა, ნომერი, რაიონი' },
+            { key: 'experience', label: 'გამოცდილება', type: 'text', required: true, placeholder: 'მაგ. 5 წელი' },
+            { key: 'services', label: 'სერვისები', type: 'textarea', required: true, placeholder: 'ძრავის შეკეთება, დიაგნოსტიკა, ელექტრო სისტემა...' },
+            { key: 'avatar', label: 'ფოტო', type: 'photo', required: false },
+            { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'ხელოსნის დეტალური აღწერა, სპეციალიზაცია, უპირატესობები...' },
           ]
         };
       default:

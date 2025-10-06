@@ -225,7 +225,7 @@ export default function CommunityScreen() {
   };
 
   const renderPost = (post: CommunityPost) => (
-    <View key={post.id} style={styles.post}>
+    <View style={styles.post}>
       <View style={styles.postHeader}>
         <View style={styles.userInfo}>
           <View style={styles.avatar}>
@@ -376,7 +376,11 @@ export default function CommunityScreen() {
               <Text style={styles.emptySubtitle}>იყავი პირველი, ვინც გამოაქვეყნებს პოსტს!</Text>
             </View>
           ) : (
-            posts.map(renderPost)
+            posts.map((post) => (
+              <View key={post.id}>
+                {renderPost(post)}
+              </View>
+            ))
           )}
         </View>
 

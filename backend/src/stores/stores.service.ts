@@ -180,4 +180,62 @@ export class StoresService {
       console.error('Error loading stores from Firebase:', error);
     }
   }
+
+  async update(id: string, updateStoreDto: Partial<Store>): Promise<Store> {
+    try {
+      if (this.stores.length === 0) {
+        await this.loadFromFirebase();
+      }
+
+      const storeIndex = this.stores.findIndex((store) => store.id === id);
+      if (storeIndex === -1) {
+        throw new Error(`მაღაზია ID: ${id} ვერ მოიძებნა`);
+      }
+
+      const updatedStore: Store = {
+        ...this.stores[storeIndex],
+        ...updateStoreDto,
+        updatedAt: new Date(),
+      };
+
+      // Update in Firebase
+      await this.firebaseService.db
+        .collection(this.collectionName)
+        .doc(id)
+        .set(updatedStore);
+
+      // Update in memory
+      this.stores[storeIndex] = updatedStore;
+
+      return updatedStore;
+    } catch (error) {
+      console.error('Error updating store:', error);
+      throw error;
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      if (this.stores.length === 0) {
+        await this.loadFromFirebase();
+      }
+
+      const storeIndex = this.stores.findIndex((store) => store.id === id);
+      if (storeIndex === -1) {
+        throw new Error(`მაღაზია ID: ${id} ვერ მოიძებნა`);
+      }
+
+      // Delete from Firebase
+      await this.firebaseService.db
+        .collection(this.collectionName)
+        .doc(id)
+        .delete();
+
+      // Remove from memory
+      this.stores.splice(storeIndex, 1);
+    } catch (error) {
+      console.error('Error removing store:', error);
+      throw error;
+    }
+  }
 }

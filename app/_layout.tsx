@@ -20,6 +20,8 @@ import { MarketplaceProvider } from '../contexts/MarketplaceContext';
 import { UserProvider } from '../contexts/UserContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ModalProvider } from '../contexts/ModalContext';
+import { registerPushToken } from '../utils/notifications';
+import API_BASE_URL from '../config/api';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -57,6 +59,18 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, interLoaded]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const maybeUserId = (global as any)?.currentUserId || 'anonymous';
+        await registerPushToken({ backendUrl: API_BASE_URL, userId: maybeUserId });
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   if (!fontsLoaded || !interLoaded) {
     return null;
@@ -159,12 +173,18 @@ function RootLayoutNav() {
               <Stack.Screen name="chat/[offerId]" options={{ headerShown: false }} />
               <Stack.Screen name="offers" options={{ headerShown: false }} />
               <Stack.Screen name="all-requests" options={{ headerShown: false }} />
-              <Stack.Screen name="partner" options={{ headerShown: false, presentation: 'card' }} />
+              <Stack.Screen name="partner-dashboard" options={{ headerShown: false, presentation: 'card' }} />
+              <Stack.Screen name="partner" options={{ headerShown: false }} />
               <Stack.Screen name="parts-order" options={{ headerShown: false }} />
               <Stack.Screen name="parts" options={{ headerShown: false }} />
+              <Stack.Screen name="service-form" options={{ headerShown: false }} />
               <Stack.Screen name="fuel-stations" options={{ headerShown: false }} />
               <Stack.Screen name="mechanics" options={{ headerShown: false }} />
               <Stack.Screen name="comments" options={{ headerShown: false }} />
+              <Stack.Screen name="notifications" options={{ headerShown: false }} />
+              <Stack.Screen name="notifications/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="financing-request" options={{ headerShown: false }} />
+              <Stack.Screen name="financing-info" options={{ headerShown: false }} />
               </Stack>
             </ThemeProvider>
             </ModalProvider>

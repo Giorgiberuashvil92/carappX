@@ -10,7 +10,7 @@ interface CarContextType {
   fuelEntries: FuelEntry[];
   loading: boolean;
   error: string | null;
-  addCar: (car: Omit<Car, 'id' | 'imageUri' | 'lastService' | 'nextService'>) => Promise<void>;
+  addCar: (car: Omit<Car, 'id' | 'lastService' | 'nextService'>) => Promise<void>;
   selectCar: (car: Car) => void;
   removeCar: (carId: string) => Promise<void>;
   updateCar: (carId: string, updates: Partial<Car>) => Promise<void>;

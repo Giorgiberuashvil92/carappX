@@ -9,6 +9,7 @@ import {
   StatusBar,
   Dimensions,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -110,7 +111,13 @@ export default function MarketplaceScreen() {
     ]).start();
   }, []);
 
+  const COMING_SOON = new Set(['mechanics', 'services', 'towing']);
+
   const handleCategoryPress = (categoryId: string) => {
+    if (COMING_SOON.has(categoryId)) {
+      Alert.alert('მალე იქნება ხელმისაწვდომი', 'ეს სექცია მუშაობის პროცესშია \u2013 მალე დაემატება!');
+      return;
+    }
     switch (categoryId) {
       case 'mechanics':
         router.push('/mechanics');
@@ -119,31 +126,56 @@ export default function MarketplaceScreen() {
         router.push('/parts');
         break;
       case 'services':
+        router.push('/carwash');
         break;
       case 'towing':
+        router.push('/offers');
         break;
       default:
         break;
     }
   };
 
-  const renderCategoryCard = (category: any, index: number) => (
-    <TouchableOpacity
-      key={category.id}
-      style={styles.compactCard}
-      onPress={() => handleCategoryPress(category.id)}
-      activeOpacity={0.9}
-    >
-      <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
-        <Ionicons name={category.icon as any} size={20} color="#FFFFFF" />
-      </View>
-      <Text style={styles.compactTitle}>{category.title}</Text>
-      <Text style={styles.compactSubtitle}>{category.subtitle}</Text>
-    </TouchableOpacity>
-  );
+  const renderCategoryCard = (category: any, index: number) => {
+    const isComingSoon = COMING_SOON.has(category.id);
+    return (
+      <TouchableOpacity
+        key={category.id}
+        style={[styles.compactCard, isComingSoon && styles.cardDisabled]}
+        onPress={() => handleCategoryPress(category.id)}
+        activeOpacity={0.8}
+      >
+        {isComingSoon && (
+          <View style={styles.comingSoonPill}>
+            <Ionicons name="time-outline" size={12} color="#6B7280" />
+            <Text style={styles.comingSoonText}>მალე</Text>
+          </View>
+        )}
+        <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
+          <Ionicons name={category.icon as any} size={20} color="#FFFFFF" />
+        </View>
+        <Text style={styles.compactTitle}>{category.title}</Text>
+        <Text style={styles.compactSubtitle}>{category.subtitle}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderFeaturedCard = (item: any, index: number) => (
-    <TouchableOpacity key={item.id} style={styles.featureCard} activeOpacity={0.95}>
+    <TouchableOpacity 
+      key={item.id} 
+      style={styles.featureCard} 
+      activeOpacity={0.95}
+      onPress={() => {
+        // Featured services navigation based on title
+        if (item.title.includes('ნაწილები')) {
+          router.push('/parts');
+        } else if (item.title.includes('დეტეილინგი')) {
+          router.push('/carwash');
+        } else {
+          router.push('/details');
+        }
+      }}
+    >
       <Image source={{ uri: item.image }} style={styles.featureImage} />
       <LinearGradient
         colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.65)"]}
@@ -183,6 +215,55 @@ export default function MarketplaceScreen() {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {/* Hero Promo Banner */}
+      <View style={styles.heroPromoContainer}>
+        <TouchableOpacity
+          activeOpacity={0.92}
+          style={styles.heroPromo}
+          onPress={() => router.push('/details')}
+        >
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1518459031867-a89b944bffe0?q=80&w=1600&auto=format&fit=crop' }}
+            style={styles.heroPromoBackground}
+          />
+          <LinearGradient
+            colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.65)"]}
+            style={styles.heroPromoOverlay}
+          />
+
+          {/* Floating top-right pill */}
+          <View style={styles.heroPromoTopRow}>
+            <View style={styles.heroPromoPillLight}>
+              <Ionicons name="sparkles" size={14} color="#10B981" />
+              <Text style={styles.heroPromoPillLightText}>პრივილეგირებული შეთავაზება</Text>
+            </View>
+            <View style={styles.heroPromoDiscount}>
+              <Text style={styles.heroPromoDiscountText}>-25%</Text>
+            </View>
+          </View>
+
+          {/* Content */}
+          <View style={styles.heroPromoContent}>
+            <View style={{ gap: 6 }}>
+              <Text style={styles.heroPromoTitle}>პრემიუმ მოვლა შენი ავტომობილისთვის</Text>
+              <Text style={styles.heroPromoSubtitle}>სუფთა, სწრაფი და ტექნოლოგიური სერვისი ახლოს შენთან</Text>
+            </View>
+
+            <View style={styles.heroPromoFooter}>
+              <View style={styles.heroPromoFeatures}>
+                <View style={styles.heroPromoFeature}><Ionicons name="checkmark-circle" size={16} color="#22C55E" /><Text style={styles.heroPromoFeatureText}>Quality</Text></View>
+                <View style={styles.heroPromoFeature}><Ionicons name="time" size={16} color="#22C55E" /><Text style={styles.heroPromoFeatureText}>Fast</Text></View>
+                <View style={styles.heroPromoFeature}><Ionicons name="shield-checkmark" size={16} color="#22C55E" /><Text style={styles.heroPromoFeatureText}>Safe</Text></View>
+              </View>
+              <View style={styles.heroPromoButton}>
+                <Text style={styles.heroPromoButtonText}>გაიგე მეტი</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       <Animated.ScrollView
         style={styles.content}
@@ -225,28 +306,7 @@ export default function MarketplaceScreen() {
           </ScrollView>
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickSection}>
-          <Text style={styles.sectionTitle}>სწრაფი მოქმედებები</Text>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="filter" size={20} color="#3B82F6" />
-              <Text style={[styles.quickText, { color: '#3B82F6' }]}>ფილტრები</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#FEF2F2' }]}>
-              <Ionicons name="heart" size={20} color="#EF4444" />
-              <Text style={[styles.quickText, { color: '#EF4444' }]}>ფავორიტები</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="location" size={20} color="#10B981" />
-              <Text style={[styles.quickText, { color: '#10B981' }]}>ახლოს</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#FFFBEB' }]}>
-              <Ionicons name="help-circle" size={20} color="#F59E0B" />
-              <Text style={[styles.quickText, { color: '#F59E0B' }]}>დახმარება</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Quick Actions removed per request */}
 
         <View style={{ height: 100 }} />
       </Animated.ScrollView>
@@ -340,6 +400,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 6,
+    position: 'relative',
+  },
+  cardDisabled: {
+    opacity: 0.6,
+  },
+  comingSoonPill: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  comingSoonText: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   iconContainer: {
     width: 40,
@@ -467,6 +551,38 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
+  // Hero promo banner styles
+  heroPromoContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  heroPromo: {
+    height: 180,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#0B0F1A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  heroPromoBackground: { width: '100%', height: '100%', position: 'absolute' },
+  heroPromoOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  heroPromoTopRow: { position: 'absolute', left: 12, right: 12, top: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroPromoPillLight: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  heroPromoPillLightText: { color: '#111827', fontSize: 12, fontWeight: '700' },
+  heroPromoDiscount: { backgroundColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  heroPromoDiscountText: { color: '#FFFFFF', fontWeight: '800' },
+  heroPromoContent: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 12 },
+  heroPromoTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.3, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
+  heroPromoSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 12 },
+  heroPromoFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroPromoFeatures: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  heroPromoFeature: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  heroPromoFeatureText: { color: '#E5E7EB', fontWeight: '700', fontSize: 11 },
+  heroPromoButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  heroPromoButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   featureImage: { width: '100%', height: '100%' },
   featureOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
   featureBadgesRow: { position: 'absolute', left: 12, right: 12, top: 12, flexDirection: 'row', gap: 8 },

@@ -274,6 +274,26 @@ export default function PartnerSimpleFeed() {
                   </Text>
                 )}
                 
+                {/* AI Recommendations Display */}
+                {r.aiRecommendations && r.aiRecommendations.length > 0 && (
+                  <RNView style={styles.aiRecommendations}>
+                    <Text style={styles.aiRecommendationsTitle}>🤖 AI რეკომენდაციები:</Text>
+                    {r.aiRecommendations.slice(0, 2).map((rec: any, idx: number) => (
+                      <RNView key={idx} style={styles.aiRecommendation}>
+                        <Text style={styles.aiRecommendationName}>• {rec.name}</Text>
+                        <Text style={styles.aiRecommendationConfidence}>
+                          {Math.round(rec.confidence * 100)}% ემთხვევა
+                        </Text>
+                      </RNView>
+                    ))}
+                    {r.aiRecommendations.length > 2 && (
+                      <Text style={styles.aiRecommendationMore}>
+                        და სხვა {r.aiRecommendations.length - 2} რეკომენდაცია
+                      </Text>
+                    )}
+                  </RNView>
+                )}
+                
 
                 
                 <View style={styles.actions}>
@@ -594,6 +614,41 @@ const styles = StyleSheet.create({
   urgencyText: { fontFamily: 'NotoSans_700Bold', fontSize: 10 },
   meta: { color: '#6B7280', fontFamily: 'NotoSans_500Medium', fontSize: 11 },
   description: { color: '#6B7280', fontFamily: 'NotoSans_400Regular', fontSize: 11, fontStyle: 'italic' },
+  aiRecommendations: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  aiRecommendationsTitle: {
+    fontSize: 11,
+    fontFamily: 'NotoSans_600SemiBold',
+    color: '#7C3AED',
+    marginBottom: 4,
+  },
+  aiRecommendation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  aiRecommendationName: {
+    fontSize: 10,
+    fontFamily: 'NotoSans_400Regular',
+    color: '#6B7280',
+    flex: 1,
+  },
+  aiRecommendationConfidence: {
+    fontSize: 9,
+    fontFamily: 'NotoSans_500Medium',
+    color: '#7C3AED',
+  },
+  aiRecommendationMore: {
+    fontSize: 9,
+    fontFamily: 'NotoSans_400Regular',
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   myOfferInfo: {

@@ -43,3 +43,4 @@ CategorySchema.index({ isActive: 1 });
 CategorySchema.index({ sortOrder: 1 });
 CategorySchema.index({ parentId: 1 });
 CategorySchema.index({ createdAt: -1 });
+

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "CarAppX",
-    "slug": "carappX",
+    "name": "Marte",
+    "slug": "marte",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -23,6 +23,9 @@
       },
       "bundleIdentifier": "com.gioberuashvili15.carappX",
       "infoPlist": {
+        "NSCameraUsageDescription": "აპს სჭირდება კამერაზე წვდომა პროფილის ფოტოს გადასაღებად და ასატვირთად.",
+        "NSPhotoLibraryUsageDescription": "აპს სჭირდება ფოტოების ბიბლიოთეკაზე წვდომა პროფილის ფოტოს ასატვირთად.",
+        "NSPhotoLibraryAddUsageDescription": "აპს სჭირდება ფოტოების ბიბლიოთეკაში შენახვის ნებართვა.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -43,7 +46,9 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ],
       "package": "com.gioberuashvili15.carappx"
     },
@@ -55,6 +60,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "აპს სჭირდება გალერეაზე წვდომა ფოტოს ასატვირთად.",
+          "cameraPermission": "აპს სჭირდება კამერაზე წვდომა ფოტოს გადასაღებად."
+        }
+      ],
       [
         "expo-location",
         {
@@ -70,8 +82,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "64bbcf0d-d01d-46b3-9b26-5d9ccbc684fc"
+        "projectId": "ab7ee1bb-5485-426f-8e49-bcc522356490"
       }
-    }
+    },
+    "owner": "martegeo"
   }
 }

@@ -12,10 +12,16 @@ export class DismantlersService {
   constructor(private readonly firebaseService: FirebaseService) {}
 
   async create(createDismantlerDto: CreateDismantlerDto): Promise<Dismantler> {
+    console.log('🔧 DismantlersService.create called');
+    console.log('📋 Input data:', JSON.stringify(createDismantlerDto, null, 2));
+    
     // Validate year range
     if (createDismantlerDto.yearFrom > createDismantlerDto.yearTo) {
+      console.error('❌ Year validation failed:', createDismantlerDto.yearFrom, '>', createDismantlerDto.yearTo);
       throw new Error('წლიდან არ შეიძლება იყოს უფრო დიდი ვიდრე წლამდე');
     }
+    
+    console.log('✅ Year validation passed');
 
     const newDismantler: Dismantler = {
       id: Math.random().toString(36).substr(2, 9),
@@ -40,17 +46,29 @@ export class DismantlersService {
     };
 
     try {
+      console.log('🔥 Saving to Firebase collection:', this.collectionName);
+      console.log('🆔 Document ID:', newDismantler.id);
+      
       // Save to Firebase
       await this.firebaseService.db
         .collection(this.collectionName)
         .doc(newDismantler.id)
         .set(newDismantler);
 
+      console.log('✅ Successfully saved to Firebase');
+
       // Also keep in memory for fast access
       this.dismantlers.push(newDismantler);
+      console.log('✅ Added to memory cache, total items:', this.dismantlers.length);
+      
       return newDismantler;
     } catch (error) {
-      console.error('Error creating dismantler:', error);
+      console.error('❌ Error creating dismantler:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       throw new Error('დაშლილების განცხადების შენახვისას მოხდა შეცდომა');
     }
   }

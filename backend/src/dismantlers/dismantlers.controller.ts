@@ -21,14 +21,27 @@ export class DismantlersController {
 
   @Post()
   async create(@Body() createDismantlerDto: CreateDismantlerDto) {
+    console.log('🚀 DismantlersController.create called');
+    console.log(
+      '📝 Request body:',
+      JSON.stringify(createDismantlerDto, null, 2),
+    );
+
     try {
+      console.log('✅ Validation passed, calling service...');
       const data = await this.dismantlersService.create(createDismantlerDto);
+      console.log('✅ Service returned:', JSON.stringify(data, null, 2));
+
       return {
         success: true,
         message: 'დაშლილების განცხადება წარმატებით შეიქმნა',
         data,
       };
     } catch (error) {
+      console.error('❌ Error in create:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+
       throw new BadRequestException({
         success: false,
         message: error.message as string,

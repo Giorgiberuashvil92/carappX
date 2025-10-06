@@ -22,8 +22,16 @@ import API_BASE_URL from '../../config/api';
 import ServiceCard from '../../components/ui/ServiceCard';
 import CommunitySection from '../../components/ui/CommunitySection';
 import ReminderSection from '../../components/ui/ReminderSection';
+import StoriesRow from '../../components/ui/StoriesRow';
+import StoryViewer from '../../components/ui/StoryViewer';
+import StoryOverlay from '../../components/ui/StoryOverlay';
+import NotificationsModal from '../../components/ui/NotificationsModal';
+import { mockStories } from '../../data/stories';
 
 const { width } = Dimensions.get('window');
+const H_MARGIN = 20;
+const H_GAP = 16;
+const POPULAR_CARD_WIDTH = width - (H_MARGIN * 2);
 
 
 // POPULAR_SERVICES ახლა API-დან მოვიღებთ
@@ -33,28 +41,20 @@ export default function TabOneScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { user } = useUser();
+  const displayFirstName = user?.name ? user.name.split(' ')[0] : '';
   
   // Promo banner state
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [openStoryIndex, setOpenStoryIndex] = useState<number | null>(null);
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
   
   // დინამიური სერვისები
   const [popularServices, setPopularServices] = useState<any[]>([]);
   const [nearbyServices, setNearbyServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [nearbyLoading, setNearbyLoading] = useState(true);
-
-  // Recent chats (last 3 offers with latest message)
-  const [recentChats, setRecentChats] = useState<Array<{
-    offerId: string;
-    providerName: string;
-    lastText: string;
-    lastAt: number;
-    lastAuthor: 'user' | 'partner';
-    priceGEL?: number;
-    etaMin?: number;
-    distanceKm?: number | null;
-  }>>([]);
 
   console.log(popularServices, 'პოპულარული სერვისები');
   
@@ -64,12 +64,7 @@ export default function TabOneScreen() {
     setCurrentBannerIndex(index);
   };
 
-  function formatShortTime(ts: number) {
-    const d = new Date(ts);
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
+  
 
   // API-დან პოპულარული სერვისების მიღება
   React.useEffect(() => {
@@ -89,15 +84,7 @@ export default function TabOneScreen() {
         }
         
         const data = JSON.parse(text);
-        
-        // მონაცემების ფორმატირება
-        // პოპულარობის ალგორითმი:
-        // 1. რეიტინგი (40%) - მაღალი რეიტინგი = პოპულარული
-        // 2. რევიუების რაოდენობა (25%) - მეტი რევიუ = უფრო პოპულარული
-        // 3. ღიაა თუ არა (15%) - ღია სერვისები პრიორიტეტულია
-        // 4. ფასის კონკურენტუნარიანობა (10%) - საშუალო ფასის მახლობლად
-        // 5. სერვისების რაოდენობა (10%) - მეტი სერვისი = უკეთესი
-        const formattedServices = data.map((location: any) => ({
+          const formattedServices = data.map((location: any) => ({
           id: location.id,
           name: location.name,
           location: location.location,
@@ -116,7 +103,6 @@ export default function TabOneScreen() {
         
         setPopularServices(formattedServices);
       } catch (error) {
-        console.error('სერვისების ჩატვირთვის შეცდომა:', error);
         // fallback სტატიკური მონაცემები
         setPopularServices([
           {
@@ -140,65 +126,7 @@ export default function TabOneScreen() {
   // API-დან ყველა ტიპის ახლოს მყოფი სერვისების მიღება
 
 
-  // Load recent chats based on user's offers and last message
-  React.useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        if (!user?.id) return;
-        const offersRes = await fetch(`${API_BASE_URL}/offers?userId=${encodeURIComponent(String(user.id))}`);
-        const offers = await offersRes.json();
-        if (!Array.isArray(offers)) return;
-        // Sort by createdAt desc and take top 5 to probe messages
-        const top = offers
-          .map((o: any) => ({
-            id: String(o.id),
-            providerName: String(o.providerName || 'Partner'),
-            priceGEL: typeof o.priceGEL === 'number' ? o.priceGEL : undefined,
-            etaMin: typeof o.etaMin === 'number' ? o.etaMin : undefined,
-            distanceKm: typeof o.distanceKm === 'number' ? o.distanceKm : null,
-            createdAt: o.createdAt ? Number(o.createdAt) : 0,
-          }))
-          .sort((a, b) => (b.createdAt - a.createdAt))
-          .slice(0, 5);
-        const results: Array<{ offerId: string; providerName: string; lastText: string; lastAt: number; lastAuthor: 'user'|'partner'; priceGEL?: number; etaMin?: number; distanceKm?: number|null; }> = [];
-        for (const off of top) {
-          try {
-            const mres = await fetch(`${API_BASE_URL}/messages?offerId=${encodeURIComponent(off.id)}`);
-            const msgs = await mres.json();
-            if (Array.isArray(msgs) && msgs.length > 0) {
-              const last = msgs[msgs.length - 1];
-              results.push({
-                offerId: off.id,
-                providerName: off.providerName,
-                lastText: String(last.text || ''),
-                lastAt: Number(last.createdAt || Date.now()),
-                lastAuthor: last.author === 'partner' ? 'partner' : 'user',
-                priceGEL: off.priceGEL,
-                etaMin: off.etaMin,
-                distanceKm: off.distanceKm,
-              });
-            }
-          } catch {}
-        }
-        results.sort((a, b) => b.lastAt - a.lastAt);
-        let sliced = results.slice(0, 3);
-        // Fallback simulation when no chats yet
-        if (sliced.length === 0) {
-          const now = Date.now();
-          sliced = [
-            { offerId: 'sim-1', providerName: 'Gio Parts', lastText: 'გამოგიგზავნეთ ფასიც ✅', lastAt: now - 60 * 1000, lastAuthor: 'partner' as const, priceGEL: 120, etaMin: 30, distanceKm: 2.1 },
-            { offerId: 'sim-2', providerName: 'Tow+ Leo', lastText: 'მოვალ 20-25 წუთში', lastAt: now - 5 * 60 * 1000, lastAuthor: 'partner' as const, priceGEL: 85, etaMin: 22, distanceKm: 3.4 },
-            { offerId: 'sim-3', providerName: 'AutoFix Pro', lastText: 'ორშაბათს 11:00 თავისუფალია', lastAt: now - 12 * 60 * 1000, lastAuthor: 'partner' as const, priceGEL: 0, etaMin: 0, distanceKm: 1.2 },
-          ];
-        }
-        if (!cancelled) setRecentChats(sliced);
-      } catch {}
-    };
-    load();
-    const iv = setInterval(load, 4000);
-    return () => { cancelled = true; clearInterval(iv); };
-  }, [user?.id]);
+  
 
   type Category = { id: string; title: string; image: string };
   const CATEGORIES: Category[] = [
@@ -225,17 +153,17 @@ export default function TabOneScreen() {
       marginBottom: 24,
     },
     avatarSmall: { 
-      width: 48, 
-      height: 48, 
-      borderRadius: 24,
+      width: 52, 
+      height: 52, 
+      borderRadius: 26,
       backgroundColor: '#6366F1',
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
       shadowColor: '#6366F1',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
+      elevation: 6,
     },
     userName: { 
       fontSize: 18, 
@@ -251,80 +179,19 @@ export default function TabOneScreen() {
       opacity: 0.8,
     },
     roundIcon: {
-      width: 44, 
-      height: 44, 
-      borderRadius: 22, 
+      width: 48, 
+      height: 48, 
+      borderRadius: 24, 
       backgroundColor: '#FFFFFF', 
       borderWidth: 1, 
       borderColor: '#E5E7EB',
       alignItems: 'center' as const, 
       justifyContent: 'center' as const,
       shadowColor: '#000', 
-      shadowOffset: { width: 0, height: 2 }, 
-      shadowOpacity: 0.08, 
-      shadowRadius: 4, 
-      elevation: 3,
-    },
-    promoScrollContainer: {
-      paddingHorizontal: 20,
-      gap: 16,
-    },
-    promoCard: {
-      width: width - 60,
-      backgroundColor: '#111827',
-      borderRadius: 20,
-      overflow: 'hidden' as const,
-      height: 160,
-      position: 'relative' as const,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 6,
-    },
-    promoImage: { position: 'absolute' as const, width: '100%', height: '100%' },
-    promoOverlay: { ...StyleSheet.absoluteFillObject },
-    promoContent: { position: 'absolute' as const, left: 16, top: 16, right: 16, bottom: 16, justifyContent: 'space-between' as const },
-    promoBadge: {
-      alignSelf: 'flex-start',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
-      backgroundColor: '#EF4444',
-      marginBottom: 8,
-    },
-    promoBadgeText: {
-      color: '#FFFFFF',
-      fontFamily: 'Inter',
-      fontSize: 11,
-    },
-    promoTitle: { 
-      fontSize: 16, 
-      lineHeight: 20, 
-      color: '#FFFFFF', 
-      fontFamily: 'Inter',
-      marginBottom: 4,
-    },
-    promoSubtitle: { 
-      color: '#E5E7EB', 
-      fontFamily: 'Inter', 
-      fontSize: 12,
-      marginBottom: 8,
-    },
-    promoButton: { 
-      alignSelf: 'flex-start', 
-      backgroundColor: '#6366F1', 
-      paddingHorizontal: 16, 
-      paddingVertical: 8, 
-      borderRadius: 12,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 6,
-    },
-    promoButtonText: { 
-      color: '#FFFFFF', 
-      fontFamily: 'Inter', 
-      fontSize: 12,
+      shadowOffset: { width: 0, height: 4 }, 
+      shadowOpacity: 0.12, 
+      shadowRadius: 8, 
+      elevation: 5,
     },
     paginationContainer: {
       flexDirection: 'row' as const,
@@ -360,15 +227,17 @@ export default function TabOneScreen() {
     },
     recommendationTitle: {
       fontSize: 16,
-      fontWeight: '700' as const,
+      fontWeight: '600' as const,
       color: '#1E293B',
       marginLeft: 8,
+      fontFamily: 'Inter',
     },
     recommendationText: {
       fontSize: 14,
       color: '#64748B',
       lineHeight: 20,
       marginBottom: 16,
+      fontFamily: 'Inter',
     },
     recommendationButton: {
       backgroundColor: '#6366F1',
@@ -383,7 +252,8 @@ export default function TabOneScreen() {
     recommendationButtonText: {
       color: '#FFFFFF',
       fontSize: 14,
-      fontWeight: '600' as const,
+      fontWeight: '500' as const,
+      fontFamily: 'Inter',
     },
     headerTop: {
       flexDirection: 'row' as const,
@@ -436,9 +306,10 @@ export default function TabOneScreen() {
     },
     username: {
       fontSize: 26,
-      fontWeight: '700' as const,
+      fontWeight: '600' as const,
       color: colors.text,
       letterSpacing: -0.5,
+      fontFamily: 'Inter',
     },
     themeButton: {
       width: 44,
@@ -535,41 +406,44 @@ export default function TabOneScreen() {
       gap: 8,
     },
     quickActionIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 56,
+      height: 56,
+      borderRadius: 20,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 6,
     },
     quickActionText: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: '500' as const,
-      color: colors.secondary,
+      color: '#374151',
       textAlign: 'center' as const,
+      fontFamily: 'Inter',
     },
     categoriesContainer: {
       paddingTop: 24,
       paddingHorizontal: 20,
     },
     sectionTitle: {
-      fontSize: 20,
-      color: colors.text,
+      fontSize: 22,
+      color: '#1F2937',
       fontFamily: 'Inter',
-      marginBottom: 16,
-      fontWeight: '600' as const,
+      marginBottom: 18,
+      fontWeight: '700' as const,
+      letterSpacing: -0.5,
     },
     categoriesList: {
-      marginHorizontal: -20,
-      paddingHorizontal: 20,
+      marginHorizontal: 0,
+      paddingLeft: H_MARGIN,
+      paddingRight: H_MARGIN,
     },
     categoryCard: {
       alignItems: 'center' as const,
-      marginRight: 16,
+      marginRight: H_GAP,
       padding: 16,
       borderRadius: 24,
       width: 110,
@@ -585,7 +459,8 @@ export default function TabOneScreen() {
     },
     categoryName: {
       fontSize: 13,
-      fontFamily: 'Poppins_600SemiBold',
+      fontFamily: 'Inter',
+      fontWeight: '500' as const,
       textAlign: 'center' as const,
       lineHeight: 18,
     },
@@ -624,11 +499,12 @@ export default function TabOneScreen() {
     },
     serviceName: {
       fontSize: 22,
-      fontWeight: '700' as const,
+      fontWeight: '600' as const,
       color: '#FFFFFF',
       textShadowColor: 'rgba(0, 0, 0, 0.3)',
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 4,
+      fontFamily: 'Inter',
     },
     serviceDetails: {
       flexDirection: 'row' as const,
@@ -674,33 +550,7 @@ export default function TabOneScreen() {
       paddingHorizontal: 20,
       paddingBottom: 24,
     },
-    chatsContainer: {
-      paddingTop: 8,
-      paddingHorizontal: 20,
-      paddingBottom: 24,
-      gap: 12,
-    },
-    chatCard: {
-      borderRadius: 18,
-      padding: 14,
-      borderWidth: 1,
-      borderColor: 'rgba(229, 231, 235, 0.35)',
-      backgroundColor: 'rgba(17, 24, 39, 0.35)',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.18,
-      shadowRadius: 16,
-      elevation: 6,
-    },
-    chatRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 12 },
-    chatLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, flex: 1 },
-    chatAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: 'rgba(229,231,235,0.25)' },
-    chatInitials: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 },
-    chatTitle: { color: '#F3F4F6', fontFamily: 'Inter', fontSize: 14, fontWeight: '700' as const },
-    chatMeta: { color: '#D1D5DB', fontFamily: 'Inter', fontSize: 11, opacity: 0.8 },
-    chatSnippet: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12, marginTop: 4, opacity: 0.9 },
-    unreadBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: '#EF4444', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    unreadText: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' as const },
+    
     chipsRow: {
       flexDirection: 'row' as const,
       gap: 8,
@@ -735,19 +585,20 @@ export default function TabOneScreen() {
       color: colors.primary,
     },
     popularContent: {
-      paddingHorizontal: 20,
-      gap: 16,
+      paddingLeft: H_MARGIN,
+      paddingRight: H_MARGIN,
+      gap: H_GAP,
     },
     popularCard: {
-      width: 280,
-      height: 200,
-      borderRadius: 20,
+      width: POPULAR_CARD_WIDTH,
+      height: 220,
+      borderRadius: 24,
       overflow: 'hidden' as const,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 12,
-      elevation: 5,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 8,
     },
     popularImage: {
       width: '100%',
@@ -755,8 +606,8 @@ export default function TabOneScreen() {
     },
     popularOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      padding: 16,
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      padding: 20,
       justifyContent: 'space-between' as const,
     },
     popularHeader: {
@@ -845,12 +696,140 @@ export default function TabOneScreen() {
     chatSnippet: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12, marginTop: 4, opacity: 0.9 },
     unreadBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: '#EF4444', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
     unreadText: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' as const },
+    bannerContainer: {
+      paddingHorizontal: 20,
+      marginTop: 20,
+      marginBottom: 8,
+    },
+    promoBanner: {
+      height: 160,
+      borderRadius: 20,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+    bannerBackground: {
+      flex: 1,
+    },
+    bannerImageStyle: {
+      borderRadius: 20,
+    },
+    bannerOverlay: {
+      flex: 1,
+      padding: 20,
+      justifyContent: 'space-between',
+    },
+    bannerContent: {
+      flex: 1,
+      justifyContent: 'space-between',
+    },
+    bannerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    bannerBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      gap: 6,
+    },
+    bannerBadgeText: {
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    bannerDiscount: {
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    discountText: {
+      fontSize: 14,
+      fontFamily: 'Inter',
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    bannerMain: {
+      flex: 1,
+      justifyContent: 'center',
+      marginVertical: 8,
+    },
+    bannerTitle: {
+      fontSize: 24,
+      fontFamily: 'Inter',
+      fontWeight: '700',
+      color: '#FFFFFF',
+      marginBottom: 6,
+      textShadowColor: 'rgba(0, 0, 0, 0.3)',
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
+    },
+    bannerSubtitle: {
+      fontSize: 14,
+      fontFamily: 'Inter',
+      color: 'rgba(255, 255, 255, 0.9)',
+      lineHeight: 20,
+    },
+    bannerFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    bannerFeatures: {
+      flexDirection: 'row',
+      gap: 16,
+    },
+    featureItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    featureText: {
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '500',
+      color: 'rgba(255, 255, 255, 0.9)',
+    },
+    bannerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#10B981',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 16,
+      gap: 6,
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    bannerButtonText: {
+      fontSize: 14,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
   });
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-      {/* Header (new) */}
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#F8FAFC', '#F1F5F9', '#E2E8F0']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        {/* Header (new) */}
+        <View style={styles.header}>
         <View style={styles.profileRow}>
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center' }}
@@ -867,8 +846,8 @@ export default function TabOneScreen() {
               )}
             </View>
             <View style={{ marginLeft: 10 }}>
-              <Text style={styles.userName}>
-                გამარჯობა{user?.name ? `, ${user.name}` : ''}!
+              <Text style={styles.userName} numberOfLines={1}>
+                გამარჯობა{displayFirstName ? `, ${displayFirstName}` : ''}!
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="location-outline" size={14} color={colors.secondary} />
@@ -886,7 +865,7 @@ export default function TabOneScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.roundIcon}
-              onPress={() => router.push('/comments')}
+              onPress={() => setNotificationsModalVisible(true)}
               activeOpacity={0.7}
             >
               <Ionicons name="notifications-outline" size={18} color={'#111827'} />
@@ -894,104 +873,32 @@ export default function TabOneScreen() {
           </View>
         </View>
 
-        {/* Promo Banners - Scrollable */}
-        <ScrollView 
-          ref={scrollViewRef}
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.promoScrollContainer}
-          pagingEnabled={true}
-          snapToInterval={361}
-          decelerationRate="fast"
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-        >
-          {/* Banner 1 - Car Wash */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>🔥 ფასდაკლება</Text>
-              </View>
-              <Text style={styles.promoTitle}>35% ფასდაკლება{'\n'}პირველ სერვისზე</Text>
-              <Text style={styles.promoSubtitle}>სამრეცხაო სერვისები</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/map')}>
-                <Text style={styles.promoButtonText}>დაჯავშნა</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+          <StoriesRow stories={mockStories} onOpen={(idx) => { setOpenStoryIndex(idx); setOverlayVisible(true); }} />
+        </View>
 
-          {/* Banner 2 - Auto Service */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>⭐ პრემიუმი</Text>
+        {/* Credo Bank Financing Banner */}
+        <View style={{ paddingHorizontal: 5, marginBottom: 16, marginTop: 16 }}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => router.push('/financing-info')}
+            style={{ borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 }}
+          >
+            <LinearGradient colors={["#1E293B", "#0F172A"]} style={{ paddingHorizontal: 16, paddingVertical: 24, minHeight: 160, justifyContent: 'center' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(59,130,246,0.15)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.35)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginBottom: 8 }}>
+                    <Text style={{ color: '#93C5FD', fontWeight: '700', fontSize: 11 }}>Credo Bank • 0%</Text>
+                  </View>
+                  <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.2, marginBottom: 8 }}>0%-იანი განვადება ყველაფერზე</Text>
+                  <Text style={{ color: '#CBD5E1', fontSize: 13 }}>შეავსე მოკლე ფორმა და ჩვენი ოპერატორი დაგიკავშირდება</Text>
+                </View>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', padding: 12, borderRadius: 12 }}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
               </View>
-              <Text style={styles.promoTitle}>პრემიუმ ავტო{'\n'}სერვისი</Text>
-              <Text style={styles.promoSubtitle}>პროფესიონალური მოვლა</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/garage')}>
-                <Text style={styles.promoButtonText}>შეუკვეთე</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Banner 3 - Technical Inspection */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>✅ ოფიციალური</Text>
-              </View>
-              <Text style={styles.promoTitle}>ტექდათვალიერება{'\n'}ოფიციალურად</Text>
-              <Text style={styles.promoSubtitle}>სწრაფი და ხარისხიანი</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/booking')}>
-                <Text style={styles.promoButtonText}>დაჯავშნა</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Banner 4 - Loyalty Program */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>🏆 ლოიალობა</Text>
-              </View>
-              <Text style={styles.promoTitle}>მოაგროვე ქულები{'\n'}და მიიღე ჯილდოები</Text>
-              <Text style={styles.promoSubtitle}>ყოველი სერვისი იძლევა ქულებს</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/loyalty')}>
-                <Text style={styles.promoButtonText}>ქულები</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-        
-        {/* Pagination Dots */}
-        <View style={styles.paginationContainer}>
-          {[0, 1, 2, 3].map((index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.paginationDot,
-                currentBannerIndex === index && styles.paginationDotActive
-              ]}
-              onPress={() => {
-                scrollViewRef.current?.scrollTo({
-                  x: index * (width - 60),
-                  animated: true,
-                });
-              }}
-            />
-          ))}
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         {/* სწრაფი მოქმედებები */}
@@ -1030,12 +937,12 @@ export default function TabOneScreen() {
             
             <TouchableOpacity 
               style={styles.quickActionButton}
-              onPress={() => router.push('/fuel-stations')}
+              onPress={() => { setOpenStoryIndex(0); setOverlayVisible(true); }}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: '#EF4444' }]}>
-                <Ionicons name="car" size={20} color="#FFFFFF" />
+                <Ionicons name="play" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText}>ბენზინი</Text>
+              <Text style={styles.quickActionText}>Stories</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1045,46 +952,14 @@ export default function TabOneScreen() {
 
         <ReminderSection />
 
-        {/* Recent Chats - Glassmorphism (gray) */}
-        <View style={styles.chatsContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>ბოლო ჩატები</Text>
-            <TouchableOpacity onPress={() => router.push('/chat')}>
-              <Text style={styles.sectionAction}>ყველა</Text>
-            </TouchableOpacity>
-          </View>
-          {recentChats.length === 0 ? (
-            <View style={[styles.chatCard, { alignItems: 'center' }]}> 
-              <Text style={{ color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 }}>ჯერ არაფერია</Text>
-            </View>
-          ) : (
-            recentChats.map((c) => (
-              <TouchableOpacity
-                key={c.offerId}
-                style={styles.chatCard}
-                activeOpacity={0.8}
-                onPress={() => {
-                  const offer = { id: c.offerId, providerName: c.providerName, priceGEL: c.priceGEL, etaMin: c.etaMin, distanceKm: c.distanceKm ?? null };
-                  router.push({ pathname: `/chat/${c.offerId}`, params: { role: 'user', offer: JSON.stringify(offer), summary: '' } });
-                }}
-              >
-                <View style={styles.chatRow}>
-                  <View style={styles.chatLeft}>
-                    <View style={styles.chatAvatar}><Text style={styles.chatInitials}>{(c.providerName || 'P').slice(0,2).toUpperCase()}</Text></View>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text numberOfLines={1} style={styles.chatTitle}>{c.providerName}</Text>
-                        <Text style={styles.chatMeta}>{formatShortTime(c.lastAt)}</Text>
-                      </View>
-                      <Text numberOfLines={1} style={styles.chatSnippet}>{c.lastAuthor === 'partner' ? 'პარტნიორი: ' : 'მე: '}{c.lastText}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.unreadBadge}><Text style={styles.unreadText}>1</Text></View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
+        <StoryOverlay
+          visible={overlayVisible && openStoryIndex !== null}
+          stories={mockStories}
+          initialIndex={openStoryIndex ?? 0}
+          onClose={() => { setOverlayVisible(false); setOpenStoryIndex(null); }}
+        />
+
+        
 
       {/* Community Section */}
      
@@ -1101,7 +976,15 @@ export default function TabOneScreen() {
             <Text style={styles.sectionAction}>ყველა</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularContent}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToAlignment="start"
+          snapToInterval={POPULAR_CARD_WIDTH + H_GAP}
+          decelerationRate="fast"
+          contentOffset={{ x: 0, y: 0 }}
+          contentContainerStyle={styles.popularContent}
+        >
           {loading ? (
             <View style={{ padding: 20, alignItems: 'center' }}>
               <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>სერვისების ჩატვირთვა...</Text>
@@ -1162,8 +1045,15 @@ export default function TabOneScreen() {
       <CommunitySection />
 
 
-      {/* Bottom Spacing */}
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* Bottom Spacing */}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        visible={notificationsModalVisible}
+        onClose={() => setNotificationsModalVisible(false)}
+      />
+    </View>
   );
 }

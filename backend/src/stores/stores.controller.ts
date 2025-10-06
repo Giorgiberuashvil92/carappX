@@ -5,6 +5,8 @@ import {
   Body,
   Param,
   Query,
+  Patch,
+  Delete,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
@@ -71,6 +73,44 @@ export class StoresController {
         success: true,
         message: 'მაღაზიის დეტალები',
         data: this.storesService.findOne(id),
+      };
+    } catch (error) {
+      throw new NotFoundException({
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() updateStoreDto: any) {
+    try {
+      return {
+        success: true,
+        message: 'მაღაზია წარმატებით განახლდა',
+        data: await this.storesService.update(id, updateStoreDto),
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message?.includes('ვერ მოიძებნა')) {
+        throw new NotFoundException({
+          success: false,
+          message: error.message,
+        });
+      }
+      throw new BadRequestException({
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    try {
+      await this.storesService.remove(id);
+      return {
+        success: true,
+        message: 'მაღაზია წარმატებით წაიშალა',
       };
     } catch (error) {
       throw new NotFoundException({

@@ -4,10 +4,15 @@ import { AppModule } from './app.module';
 import 'dotenv/config';
 
 async function bootstrap() {
+  console.log('🚀 Starting CarAppX Backend Server...');
+  console.log('📅 Server start time:', new Date().toISOString());
+  
   const app = await NestFactory.create(AppModule);
+  console.log('✅ NestJS application created successfully');
 
   // ავტომატურად განვსაზღვრავთ environment-ს
   const isProduction = process.env.NODE_ENV === 'production';
+  console.log('🌍 Environment:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT');
 
   if (isProduction) {
     // Production კონფიგურაცია

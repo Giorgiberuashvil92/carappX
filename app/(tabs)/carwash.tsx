@@ -82,7 +82,7 @@ export default function CarWashScreen() {
   // Load my carwashes when user changes
   useEffect(() => {
     const loadMyCarwashes = async () => {
-      if (user?.role === 'owner' && user.ownedCarwashes.length > 0) {
+      if (user?.role === 'owner' && user.ownedCarwashes?.length > 0) {
         try {
           // Load carwashes from backend
           const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);

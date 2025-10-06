@@ -40,3 +40,4 @@ UserLocationSchema.index({ userId: 1 });
 UserLocationSchema.index({ latitude: 1, longitude: 1 });
 UserLocationSchema.index({ timestamp: -1 });
 UserLocationSchema.index({ createdAt: -1 });
+

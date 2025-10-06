@@ -47,3 +47,4 @@ CommentSchema.index({ userId: 1 });
 CommentSchema.index({ parentCommentId: 1 });
 CommentSchema.index({ isActive: 1 });
 CommentSchema.index({ createdAt: -1 });
+

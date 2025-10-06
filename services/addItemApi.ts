@@ -42,6 +42,7 @@ export interface StoreData {
   address: string;
   phone: string;
   name: string;
+  ownerId: string; // Required field for backend-v2
   // Optional fields
   email?: string;
   website?: string;
@@ -71,14 +72,22 @@ class AddItemApiService {
   private async makeRequest<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-    data?: any
+    data?: any,
+    userId?: string
   ): Promise<ApiResponse<T>> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add user ID header if provided
+      if (userId) {
+        headers['x-user-id'] = userId;
+      }
+      
       const config: RequestInit = {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       };
 
       if (data && (method === 'POST' || method === 'PUT')) {
@@ -112,8 +121,8 @@ class AddItemApiService {
   }
 
   // Dismantlers API
-  async createDismantler(data: DismantlerData): Promise<ApiResponse<any>> {
-    return this.makeRequest('/dismantlers', 'POST', data);
+  async createDismantler(data: DismantlerData, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest('/dismantlers', 'POST', data, userId);
   }
 
   async getDismantlers(filters?: {

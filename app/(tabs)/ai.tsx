@@ -1,486 +1,600 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View as RNView, Switch, Image, ActivityIndicator, ImageBackground } from 'react-native';
-import { useRouter } from 'expo-router';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  Pressable,
+  Image,
+  Modal,
+  Animated,
+  Dimensions,
+  StatusBar,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useCars } from '@/contexts/CarContext';
 
-import { Text, View } from '@/components/Themed';
-import Button from '@/components/ui/Button';
-import { LinearGradient } from 'expo-linear-gradient';
-import { registerPushToken } from '@/utils/notifications';
-import API_BASE_URL from '../../config/api';
+const { width } = Dimensions.get('window');
 
 export default function AILandingScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { selectedCar } = useCars();
-  const API_URL = API_BASE_URL;
-
-  const [rememberLocation, setRememberLocation] = useState<boolean>(false);
-  const [lastDraft, setLastDraft] = useState<null | { mode: 'parts' | 'tow' | 'mechanic'; step: number; summary: string }>(null);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { selectedCar, cars } = useCars();
+  const [showCarPicker, setShowCarPicker] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
 
   useEffect(() => {
-    fetchRecentRequests();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  const fetchRecentRequests = async () => {
-    try {
-      console.log('[API] GET /requests (recent)');
-      const response = await fetch(`${API_URL}/requests`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[API] recent requests received:', data.length);
-        
-        // Take only the first 4 requests for recent section
-        const recentRequests = data.slice(0, 4).map((req: any) => ({
-          id: String(req.id),
-          partName: req.partName || 'ნაწილის მოძიება',
-          vehicle: {
-            make: req.vehicle?.make || '',
-            model: req.vehicle?.model || '',
-            year: req.vehicle?.year || '',
-          },
-          status: req.status === 'completed' ? 'დასრულებული' : 'აქტიური',
-          createdAt: req.createdAt,
-          offers: req.offersCount || 0,
-        }));
-        
-        setRequests(recentRequests);
-      } else {
-        console.log('[API] GET /requests failed:', response.status);
-        // Fallback to mock data if API fails
-        setRequests(getMockRecentRequests());
-      }
-    } catch (error) {
-      console.log('[API] GET /requests error:', error);
-      // Fallback to mock data if API fails
-      setRequests(getMockRecentRequests());
-    } finally {
-      setLoading(false);
-    }
+  const handleServicePress = (service: string) => {
+    router.push(`/service-form?service=${service}`);
   };
 
-  const getMockRecentRequests = () => [
+  const services = [
     {
-      id: '1',
-      partName: 'ზეთის ფილტრი',
-      vehicle: { make: 'BMW', model: '320i', year: '2018' },
-      status: 'აქტიური',
-      createdAt: '2024-01-15T10:30:00Z',
-      offers: 3
+      id: 'parts',
+      title: 'ნაწილები',
+      subtitle: 'მოძიება',
+      icon: 'construct-outline',
+      gradient: ['#10B981', '#059669'],
     },
     {
-      id: '2', 
-      partName: 'ბრეკის ხუნდები',
-      vehicle: { make: 'Mercedes', model: 'C200', year: '2020' },
-      status: 'აქტიური',
-      createdAt: '2024-01-15T10:18:00Z',
-      offers: 2
+      id: 'mechanic',
+      title: 'ხელოსანი',
+      subtitle: 'სერვისი',
+      icon: 'build-outline',
+      gradient: ['#3B82F6', '#1D4ED8'],
     },
     {
-      id: '3',
-      partName: 'ფარები',
-      vehicle: { make: 'Toyota', model: 'Camry', year: '2019' },
-      status: 'აქტიური', 
-      createdAt: '2024-01-15T10:05:00Z',
-      offers: 4
+      id: 'tow',
+      title: 'ევაკუატორი',
+      subtitle: 'გამოძახება',
+      icon: 'car-outline',
+      gradient: ['#F59E0B', '#D97706'],
     },
     {
-      id: '4',
-      partName: 'ძრავის ზეთი',
-      vehicle: { make: 'Audi', model: 'A4', year: '2021' },
-      status: 'აქტიური',
-      createdAt: '2024-01-15T09:30:00Z',
-      offers: 1
-    }
+      id: 'rental',
+      title: 'ქირაობა',
+      subtitle: 'მანქანა',
+      icon: 'car-sport-outline',
+      gradient: ['#8B5CF6', '#7C3AED'],
+    },
   ];
 
-  const formatTimeAgo = (dateString: string): string => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-
-    if (diffInMinutes < 1) return 'ახლა';
-    if (diffInMinutes < 60) return `${diffInMinutes} წთ წინ`;
-    if (diffInHours < 24) return `${diffInHours} სთ წინ`;
-    return `${Math.floor(diffInHours / 24)} დღე წინ`;
-  };
-
-  const nearbyCounts = useMemo(() => ({ parts: 5, tow: 3, mechanic: 4 }), []);
-  const priceRanges = useMemo(() => ({ parts: '₾50–₾120', tow: '₾60–₾90', mechanic: '₾80–₾200' }), []);
-
-  const goToChat = () => {
-    router.push('/ai-chat');
-  };
-
-  const goToMyOffers = async () => {
-    // გახსნის AI ჩატს პირდაპირ შეთავაზებების ხედით ბოლო requestId-ზე
-    try {
-      const rid = await AsyncStorage.getItem('ai_last_request_id');
-      const fallback = requests?.[0]?.id as string | undefined;
-      const target = rid || fallback;
-      if (target) {
-        router.push({ pathname: '/ai-chat', params: { resumeOffers: '1', requestId: String(target) } } as any);
-      } else {
-        // თუ ვერ ვპოულობთ ბოლო მოთხოვნას, უბრალოდ გახსენი ჩატი საწყისი ფლოუთი
-        router.push('/ai-chat');
-      }
-    } catch {
-      router.push('/ai-chat');
-    }
-  };
-
-  const openOffersForRequest = (requestId: string) => {
-    router.push({ pathname: '/ai-chat', params: { resumeOffers: '1', requestId } } as any);
-  };
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top','bottom']}>
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 + insets.bottom }]} showsVerticalScrollIndicator={false}>
-          {selectedCar && (
-            <View style={styles.carBanner}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={styles.carThumbWrap}>
-                  <Image source={{ uri: selectedCar.imageUri }} style={styles.carThumb} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.carTitle}>{selectedCar.make} {selectedCar.model}</Text>
-                  <Text style={styles.carMeta}>{selectedCar.year} • {selectedCar.plateNumber}</Text>
-                </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      <ScrollView 
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View 
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <LinearGradient
+              colors={['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.1)']}
+              style={styles.heroGradient}
+            >
+              <View style={styles.heroContent}>
+                <Text style={styles.heroTitle}>მოგესალმებით</Text>
+                <Text style={styles.heroSubtitle}>
+                  აირჩიეთ საჭირო სერვისი
+                </Text>
               </View>
-              <Pressable onPress={() => router.push('/(tabs)/garage')} style={styles.carChangeBtn} android_ripple={{ color: '#00000010' }}>
-                <Text style={styles.carChangeText}>შეცვლა</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {lastDraft && (
-            <Pressable onPress={() => router.push({ pathname: '/ai-chat', params: { resume: '1' } } as any)} style={styles.resumeCard} android_ripple={{ color: '#00000010' }}>
-              <View style={styles.resumeBadge}>
-                <View style={[styles.resumeDot, { backgroundColor: '#10B981' }]} />
-                <Text style={styles.resumeBadgeText}>გაგრძელება • საფეხური {lastDraft.step + 1}/3</Text>
-              </View>
-              <Text style={styles.resumeTitle}>ბოლო მოთხოვნა ({titleBy(lastDraft.mode)})</Text>
-              <Text style={styles.resumeDesc} numberOfLines={2}>{lastDraft.summary}</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={styles.resumeCta}><Text style={styles.resumeCtaText}>გაგრძელება</Text><FontAwesome name="chevron-right" size={12} color="#9CA3AF" /></View>
-                <Pressable onPress={goToMyOffers} style={[styles.cardCta, { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#111827' }]}> 
-                  <Text style={{ color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 12 }}>ჩემი შეთავაზებები</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          )}
-        <View style={styles.heroCard}>
-          <ImageBackground source={require('@/assets/images/car-bg.png')} style={styles.heroBg} imageStyle={styles.heroBgImage}>
-            <LinearGradient colors={["rgba(0,0,0,0.6)", "rgba(0,0,0,0.25)"]} style={styles.heroGradient}>
-              <Text style={styles.heroTitle}>AI ასისტენტი</Text>
-              <Text style={styles.heroSubtitle}>მოთხოვნის შექმნა • შეთავაზებები • ჩატი</Text>
-              <RNView style={{ flexDirection: 'row', gap: 8 }}>
-                <Button title="ახალი მოთხოვნა" rightIcon="chevron-right" onPress={goToChat} variant="outline" size="sm" style={styles.heroButtonSm} />
-                <Button title="ჩემი შეთავაზებები" rightIcon="chevron-right" onPress={goToMyOffers} variant="black" size="sm" style={styles.heroButtonSm} />
-              </RNView>
             </LinearGradient>
-          </ImageBackground>
-        </View>
-
-        <View style={styles.grid}>
-          <ActionCard
-            icon="cogs"
-            title="ნაწილების ძებნა"
-            desc="იპოვე ნაწილი ახლოს/ონლაინ"
-            badge={`ახლოს: ${nearbyCounts.parts}`}
-            price={priceRanges.parts}
-            onPress={goToChat}
-          />
-          <ActionCard
-            icon="truck"
-            title="ევაკუატორი"
-            desc="უახლოესი მძღოლი ETA-ით"
-            badge={`ონლაინ: ${nearbyCounts.tow}`}
-            price={priceRanges.tow}
-            onPress={goToChat}
-          />
-          <ActionCard
-            icon="wrench"
-            title="ხელოსანი"
-            desc="სანდო სპეციალისტები"
-            badge={`ახლოს: ${nearbyCounts.mechanic}`}
-            price={priceRanges.mechanic}
-            onPress={goToChat}
-          />
-        </View>
-
-        {/* Recent Requests from backend */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>ჩემი მოთხოვნილი ნაწილები</Text>
-          <Pressable onPress={() => router.push('/all-requests')} style={styles.viewAllBtn}>
-            <Text style={styles.viewAllText}>ყველა</Text>
-            <FontAwesome name="chevron-right" size={12} color="#6B7280" />
-          </Pressable>
-        </View>
-        
-        {/* Mock data for recent requests */}
-        <RNView style={{ gap: 12 }}>
-          {loading ? (
-            <ActivityIndicator size="small" color="#10B981" />
-          ) : requests.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <FontAwesome name="search" size={24} color="#6B7280" />
-              <Text style={styles.emptyTitle}>მოთხოვნები არ მოიძებნა</Text>
-              <Text style={styles.emptyDesc}>გახსენით ახალი მოთხოვნა ან გამოიყენეთ ნაწილების ძებნა</Text>
-            </View>
-          ) : (
-            requests.map((r) => (
-              <RNView key={r.id} style={styles.reqCard}>
-                <RNView style={styles.reqCardHeader}>
-                  <RNView style={styles.reqCardIcon}>
-                    <FontAwesome name="search" size={14} color="#6B7280" />
-                  </RNView>
-                  <RNView style={{ flex: 1, gap: 4 }}>
-                    <Text style={styles.reqTitle} numberOfLines={1}>
-                      {r.partName}
-                    </Text>
-                    <Text style={styles.reqMeta} numberOfLines={1}>
-                      {r.vehicle.make} {r.vehicle.model} • {r.vehicle.year}
-                    </Text>
-                  </RNView>
-                  <RNView style={styles.reqStatusBadge}>
-                    <FontAwesome name="clock-o" size={10} color="#6B7280" />
-                    <Text style={styles.reqStatusText}>{r.status}</Text>
-                  </RNView>
-                </RNView>
-                <RNView style={styles.reqCardFooter}>
-                  <RNView style={styles.reqCardStats}>
-                    <RNView style={styles.reqStatItem}>
-                      <FontAwesome name="tag" size={10} color="#6B7280" />
-                      <Text style={styles.reqStatText}>{r.offers} შეთავაზება</Text>
-                    </RNView>
-                    <RNView style={styles.reqStatItem}>
-                      <FontAwesome name="clock-o" size={10} color="#6B7280" />
-                      <Text style={styles.reqStatText}>{formatTimeAgo(r.createdAt)}</Text>
-                    </RNView>
-                  </RNView>
-                  <Pressable onPress={() => openOffersForRequest(r.id)} style={styles.reqBtn} android_ripple={{ color: '#00000010' }}>
-                    <Text style={styles.reqBtnText}>მოძიებული ნაწილები</Text>
-                    <FontAwesome name="chevron-right" size={10} color="#FFFFFF" />
-                  </Pressable>
-                </RNView>
-              </RNView>
-            ))
-          )}
-        </RNView>
-
-        <View style={styles.toggleCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-            <View style={styles.toggleIcon}><FontAwesome name="map-marker" size={14} color="#6B7280" /></View>
-            <Text style={styles.toggleTitle}>ლოკაციის დამახსოვრება</Text>
           </View>
-          <Switch
-            value={rememberLocation}
-            onValueChange={async (val) => {
-              setRememberLocation(val);
-              try { await AsyncStorage.setItem('remember_location', val ? '1' : '0'); } catch {}
-            }}
-            trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-            thumbColor={'#FFFFFF'}
-          />
+
+          {/* Finance Banner */}
+          <Animated.View style={styles.financeBannerSection}>
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.financeBannerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.financeBannerContent}>
+                <View style={styles.financeBannerIcon}>
+                  <Ionicons name="card" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.financeBannerText}>
+                  <Text style={styles.financeBannerTitle}>განვადება 0% პროცენტით</Text>
+                  <Text style={styles.financeBannerSubtitle}>
+                    ყველა სერვისზე ხელმისაწვდომია
+                  </Text>
+                </View>
+                <View style={styles.financeBannerBadge}>
+                  <Text style={styles.financeBannerBadgeText}>0%</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </Animated.View>
+
+          {/* Car Selection */}
+          <Animated.View style={styles.carSection}>
+            <Pressable 
+              style={styles.carCard}
+              onPress={() => setShowCarPicker(true)}
+            >
+              <LinearGradient
+                colors={['rgba(55, 65, 81, 0.3)', 'rgba(75, 85, 99, 0.3)']}
+                style={styles.carGradient}
+              >
+                <View style={styles.carContent}>
+                  <View style={styles.carInfo}>
+                    <View style={styles.carImageContainer}>
+                      {selectedCar?.imageUri ? (
+                        <Image source={{ uri: selectedCar.imageUri }} style={styles.carImage} />
+                      ) : (
+                        <View style={styles.carPlaceholder}>
+                          <Ionicons name="car" size={24} color="#9CA3AF" />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.carDetails}>
+                      <Text style={styles.carTitle}>
+                        {selectedCar ? `${selectedCar.make} ${selectedCar.model}` : 'აირჩიეთ მანქანა'}
+                      </Text>
+                      <Text style={styles.carMeta}>
+                        {selectedCar ? `${selectedCar.year} • ${selectedCar.plateNumber}` : 'დააჭირეთ არჩევისთვის'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.changeButton}>
+                    <Ionicons name="swap-horizontal" size={20} color="#6366F1" />
+                  </View>
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+
+          {/* Quick Links */}
+          <View style={styles.quickLinksContainer}>
+            <Pressable
+              style={styles.quickLink}
+              onPress={() => router.push('/all-requests')}
+            >
+              <LinearGradient
+                colors={['rgba(99, 102, 241, 0.2)', 'rgba(79, 70, 229, 0.2)']}
+                style={styles.quickLinkGradient}
+              >
+                <Ionicons name="list" size={18} color="#FFFFFF" />
+                <Text style={styles.quickLinkText}>ჩემი მოთხოვნები</Text>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable
+              style={styles.quickLink}
+              onPress={() => router.push('/partner-dashboard?partnerType=store')}
+            >
+              <LinearGradient
+                colors={['rgba(16, 185, 129, 0.2)', 'rgba(5, 150, 105, 0.2)']}
+                style={styles.quickLinkGradient}
+              >
+                <Ionicons name="business" size={18} color="#FFFFFF" />
+                <Text style={styles.quickLinkText}>მაღაზიის პანელი</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
+
+          {/* Services Grid */}
+          <View style={styles.servicesSection}>
+            <Text style={styles.sectionTitle}>რა გჭირდებათ?</Text>
+            <View style={styles.servicesGrid}>
+              {services.map((service) => (
+                <View
+                  key={service.id}
+                  style={styles.serviceCard}
+                >
+                  <Pressable
+                    style={styles.servicePressable}
+                    onPress={() => handleServicePress(service.id)}
+                  >
+                    <LinearGradient
+                      colors={service.gradient as [string, string]}
+                      style={styles.serviceGradient}
+                    >
+                      <View style={styles.serviceContent}>
+                        <View style={styles.serviceIconContainer}>
+                          <Ionicons name={service.icon as any} size={32} color="#FFFFFF" />
+                        </View>
+                        <Text style={styles.serviceTitle}>{service.title}</Text>
+                        <Text style={styles.serviceSubtitle}>{service.subtitle}</Text>
+                      </View>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+        </Animated.View>
+      </ScrollView>
+
+      {/* Car Picker Modal */}
+      <Modal
+        visible={showCarPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCarPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>აირჩიეთ მანქანა</Text>
+            <ScrollView style={styles.carsList}>
+              {cars.map((car) => (
+                <Pressable
+                  key={car.id}
+                  style={[
+                    styles.carRow,
+                    selectedCar?.id === car.id && styles.carRowActive
+                  ]}
+                  onPress={() => {
+                    setShowCarPicker(false);
+                  }}
+                >
+                  <View style={styles.carRowImage}>
+                    {car.imageUri ? (
+                      <Image source={{ uri: car.imageUri }} style={styles.carRowThumb} />
+                    ) : (
+                      <View style={styles.carRowPlaceholder}>
+                        <Ionicons name="car" size={20} color="#9CA3AF" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.carRowInfo}>
+                    <Text style={styles.carRowTitle}>{car.make} {car.model}</Text>
+                    <Text style={styles.carRowMeta}>{car.year} • {car.plateNumber}</Text>
+                  </View>
+                  {selectedCar?.id === car.id && (
+                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => setShowCarPicker(false)}
+            >
+              <Text style={styles.closeButtonText}>დახურვა</Text>
+            </Pressable>
+          </View>
         </View>
-        </ScrollView>
-      </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function titleBy(mode: 'parts' | 'tow' | 'mechanic'): string {
-  switch (mode) {
-    case 'parts':
-      return 'ნაწილების AI მოძიება';
-    case 'tow':
-      return 'ევაკუატორის გამოძახება';
-    case 'mechanic':
-      return 'ხელოსნის სერვისი';
-  }
-}
-
-function ActionCard({ icon, title, desc, badge, price, onPress }: { icon: React.ComponentProps<typeof FontAwesome>['name']; title: string; desc: string; badge?: string; price?: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.96 }]} android_ripple={{ color: '#00000010' }}>
-      <View style={styles.cardIcon}><FontAwesome name={icon} size={18} color="#111827" /></View>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Text style={styles.cardDesc}>{desc}</Text>
-      {(badge || price) && (
-        <RNView style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          {badge ? <Text style={styles.cardBadge}>{badge}</Text> : <View />}
-          {price ? <Text style={styles.cardPrice}>{price}</Text> : null}
-        </RNView>
-      )}
-      <View style={styles.cardCta}><Text style={styles.cardCtaText}>გადასვლა</Text><FontAwesome name="chevron-right" size={12} color="#9CA3AF" /></View>
-    </Pressable>
-  );
-}
-
-function SmallCard({ icon, label, onPress }: { icon: React.ComponentProps<typeof FontAwesome>['name']; label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={styles.smallCard} android_ripple={{ color: '#00000010' }}>
-      <FontAwesome name={icon} size={13} color="#6B7280" />
-      <Text style={styles.smallText}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: 16, paddingBottom: 32, gap: 18 },
-  heroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0A0A0A',
   },
-  heroBg: { width: '100%' },
-  heroBgImage: { width: '100%', height: 160, resizeMode: 'cover' },
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0A0A',
+  },
+  content: {
+    padding: 20,
+    gap: 24,
+  },
+
+  // Hero Section
+  heroSection: {
+    marginTop: 10,
+  },
   heroGradient: {
-    padding: 18,
-    gap: 10,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
   },
-  heroBadge: { display: 'none' },
-  heroTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 20, color: '#FFFFFF' },
-  heroSubtitle: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#E5E7EB' },
-  heroButton: { alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 12 },
-  heroButtonSm: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6 },
+  heroContent: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  heroTitle: {
+    fontFamily: 'NotoSans_800ExtraBold',
+    fontSize: 24,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  card: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    padding: 14,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+  // Finance Banner
+  financeBannerSection: {
+    marginTop: 8,
   },
-  cardIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  cardDesc: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  cardBadge: { fontFamily: 'NotoSans_600SemiBold', fontSize: 11, color: '#10B981', backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  cardPrice: { fontFamily: 'NotoSans_700Bold', fontSize: 12, color: '#111827' },
-  cardCta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardCtaText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#6B7280' },
-
-  subGrid: { flexDirection: 'row', gap: 10 },
-  sectionHeader: { marginTop: 6, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  reqCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    padding: 14,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+  financeBannerGradient: {
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
-  reqCardHeader: {
+  financeBannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
-  reqCardIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  financeBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reqTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  reqMeta: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  reqStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
-    borderRadius: 8,
-    paddingHorizontal: 8,
+  financeBannerText: {
+    flex: 1,
+  },
+  financeBannerTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  financeBannerSubtitle: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  financeBannerBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  reqStatusText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 11, color: '#10B981' },
-  reqCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  financeBannerBadgeText: {
+    fontFamily: 'NotoSans_800ExtraBold',
+    fontSize: 14,
+    color: '#FFFFFF',
   },
-  reqCardStats: {
+
+  // Car Section
+  carSection: {
+    marginTop: 4,
+  },
+  carCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  carGradient: {
+    padding: 16,
+  },
+  carContent: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  carInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  carImageContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  carImage: {
+    width: '100%',
+    height: '100%',
+  },
+  carPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carDetails: {
+    flex: 1,
+  },
+  carTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 18,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  carMeta: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  changeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Services Section
+  servicesSection: {
+    gap: 12,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 20,
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  servicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
-  reqStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  serviceCard: {
+    width: (width - 52) / 2,
+    borderRadius: 14,
+    overflow: 'hidden',
   },
-  reqStatText: { fontFamily: 'NotoSans_500Medium', fontSize: 11, color: '#6B7280' },
-  reqBtn: {
+  servicePressable: {
+    flex: 1,
+  },
+  serviceGradient: {
+    padding: 16,
+    minHeight: 120,
+    justifyContent: 'center',
+  },
+  serviceContent: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  serviceIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  serviceSubtitle: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+  },
+
+  // Quick Links
+  quickLinksContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  quickLink: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  quickLinkGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    justifyContent: 'center',
+    padding: 12,
+    gap: 8,
+  },
+  quickLinkText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 14,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 24,
+    padding: 24,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 20,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  carsList: {
+    maxHeight: 400,
+  },
+  carRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: '#111827',
+    marginBottom: 8,
   },
-  reqBtnText: { color: '#FFFFFF', fontFamily: 'NotoSans_700Bold', fontSize: 12 },
-  emptyCard: { alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
-  emptyTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  emptyDesc: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  smallCard: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
-  smallText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#111827' },
-  carBanner: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#EEF2F7', padding: 14, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  carThumbWrap: { width: 48, height: 48, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
-  carThumb: { width: '100%', height: '100%' },
-  carTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  carMeta: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  carChangeBtn: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF2F7' },
-  carChangeText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#111827' },
-  resumeCard: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#EEF2F7', padding: 14, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  resumeBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  resumeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
-  resumeBadgeText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 11, color: '#6B7280' },
-  resumeTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 14, color: '#111827' },
-  resumeDesc: { fontFamily: 'NotoSans_500Medium', fontSize: 12, color: '#6B7280' },
-  resumeCta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  resumeCtaText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#6B7280' },
-  toggleCard: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#EEF2F7', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  toggleIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
-  toggleTitle: { fontFamily: 'NotoSans_700Bold', fontSize: 13, color: '#111827' },
-  viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  viewAllText: { fontFamily: 'NotoSans_600SemiBold', fontSize: 12, color: '#6B7280' },
+  carRowActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  carRowImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(55, 65, 81, 0.5)',
+  },
+  carRowThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  carRowPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carRowInfo: {
+    flex: 1,
+  },
+  carRowTitle: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  carRowMeta: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  closeButton: {
+    marginTop: 20,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 16,
+    color: '#6366F1',
+  },
 });
-
-

@@ -197,7 +197,7 @@ export default function CommentsScreen() {
   };
 
   const renderComment = (comment: CommunityComment & { likesCount: number; isLiked: boolean }) => (
-    <View key={comment.id} style={styles.comment}>
+    <View style={styles.comment}>
       <View style={styles.commentHeader}>
         <View style={styles.commentUserInfo}>
           <View style={styles.commentAvatar}>
@@ -309,7 +309,11 @@ export default function CommentsScreen() {
               <Text style={styles.emptySubtitle}>იყავი პირველი, ვინც დაწერს კომენტარს!</Text>
             </View>
           ) : (
-            comments.map(renderComment)
+            comments.map((comment) => (
+              <View key={comment.id}>
+                {renderComment(comment)}
+              </View>
+            ))
           )}
           
           {/* Bottom Spacing */}

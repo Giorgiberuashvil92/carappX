@@ -1,6 +1,7 @@
 import API_BASE_URL from '../config/api';
 
 const GARAGE_API_URL = `${API_BASE_URL}/garage`;
+const OFFERS_API_URL = `${API_BASE_URL}`;
 
 export type RecommendationItem = {
   providerName: string;
@@ -51,9 +52,24 @@ class OffersApiService {
   }
 
   async getReminderOffers(reminderId: string, userId?: string): Promise<RecommendationItem[]> {
-    return this.request<RecommendationItem[]>(`/reminders/${reminderId}/offers`, {
-      headers: userId ? { 'x-user-id': userId } : undefined,
-    });
+    // Use offers endpoint instead of non-existent reminders/offers endpoint
+    const url = `${OFFERS_API_URL}/offers?reqId=${reminderId}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(userId ? { 'x-user-id': userId } : {}),
+    };
+
+    console.log('[offersApi] →', { url, method: 'GET', headers });
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      console.log('[offersApi] ← ERROR', response.status, response.statusText);
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+
+    console.log('[offersApi] ← OK', response.status);
+    return response.json();
   }
 }
 

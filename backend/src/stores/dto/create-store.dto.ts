@@ -27,7 +27,7 @@ export class CreateStoreDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^(\+995|995)?[0-9]{9}$/, {
+  @Matches(/^(\+995|995)?[0-9]{9,13}$/, {
     message: 'ტელეფონის ნომერი უნდა იყოს ქართული ფორმატით (+995XXXXXXXXX)',
   })
   phone: string;

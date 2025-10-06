@@ -17,9 +17,10 @@ export async function getPushToken(): Promise<string | null> {
   }
 
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-    const token = tokenData?.data ?? null;
-    return token;
+    // Prefer native device token for production-grade FCM/APNs
+    const deviceToken = await Notifications.getDevicePushTokenAsync();
+    const token = (deviceToken as any)?.data || (deviceToken as any)?.token || null;
+    return typeof token === 'string' ? token : null;
   } catch {
     return null;
   }
@@ -27,21 +28,19 @@ export async function getPushToken(): Promise<string | null> {
 
 export async function registerPushToken(params: {
   backendUrl: string;
-  role: 'user' | 'partner';
-  userId?: string;
-  partnerId?: string;
+  userId: string;
+  platform?: string;
 }) {
   const token = await getPushToken();
   if (!token) return null;
   try {
-    const res = await fetch(`${params.backendUrl}/notifications/register`, {
+    const res = await fetch(`${params.backendUrl}/notifications/register-device`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        token,
-        role: params.role,
         userId: params.userId,
-        partnerId: params.partnerId,
+        token,
+        platform: params.platform || (Device.osName || 'unknown'),
       }),
     });
     if (!res.ok) return null;
