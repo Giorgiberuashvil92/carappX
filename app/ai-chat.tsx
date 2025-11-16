@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { useCars } from '@/contexts/CarContext';
 import { useUser } from '@/contexts/UserContext';
+import { useAIRecommendations } from '../hooks/useSubscriptionModal';
+import SubscriptionModal from '../components/ui/SubscriptionModal';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +37,7 @@ export default function AIChatScreen() {
   const { service, requestData, chatId } = useLocalSearchParams<{ service: ServiceType; requestData?: string; chatId?: string }>();
   const { selectedCar } = useCars();
   const { user } = useUser();
+  const { canAccessAI, checkAIRecommendationsAccess } = useAIRecommendations();
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -42,6 +45,7 @@ export default function AIChatScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
   const [typingAnim] = useState(new Animated.Value(0));
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -196,6 +200,12 @@ export default function AIChatScreen() {
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
+
+    // Check AI access first
+    if (!checkAIRecommendationsAccess()) {
+      setShowSubscriptionModal(true);
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -524,6 +534,16 @@ export default function AIChatScreen() {
           </Animated.View>
         </KeyboardAvoidingView>
       </LinearGradient>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          // After successful subscription, allow AI chat
+        }}
+      />
     </SafeAreaView>
     </>
   );

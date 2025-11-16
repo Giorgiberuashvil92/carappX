@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, FlatList, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { mockStories } from '../data/stories';
+import API_BASE_URL from '../config/api';
 import StoryViewer from '../components/ui/StoryViewer';
 import type { Story } from '../types/story';
 
@@ -9,7 +9,29 @@ export default function StoriesScreen() {
   const router = useRouter();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  const stories = useMemo(() => mockStories, []);
+  const [stories, setStories] = useState<Story[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/stories?highlight=true`);
+        const json = await res.json().catch(() => ({}));
+        const data = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+        if (!active) return;
+        const mapped: Story[] = data.map((s: any) => ({
+          id: String(s.id || s._id),
+          author: { id: String(s.authorId || 'svc'), name: s.authorName || 'Story', avatar: s.authorAvatar },
+          createdAt: Number(s.createdAt || Date.now()),
+          items: Array.isArray(s.items) ? s.items.map((it: any) => ({ id: String(it.id || Math.random()), type: it.type || 'image', uri: it.uri, durationMs: it.durationMs, caption: it.caption, poll: it.poll })) : [],
+          highlight: !!s.highlight,
+          category: s.category,
+        }));
+        setStories(mapped);
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   const onOpen = (idx: number) => setOpenIndex(idx);
   const onClose = () => setOpenIndex(null);
@@ -23,6 +45,21 @@ export default function StoriesScreen() {
     if (openIndex > 0) setOpenIndex(openIndex - 1);
     else setOpenIndex(null);
   };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (openIndex === null) return;
+        const s = stories[openIndex];
+        // This screen doesn't have user context; optionally pass a demo user or skip
+        await fetch(`${API_BASE_URL}/stories/${encodeURIComponent(String(s.id))}/seen`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: 'guest' }),
+        }).catch(() => {});
+      } catch {}
+    })();
+  }, [openIndex, stories]);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0B0B0E', paddingTop: 60 }}>

@@ -364,9 +364,19 @@ export default function ReminderSection() {
   const getActiveReminders = () => {
     if (!reminders || reminders.length === 0) return [];
     
-    const activeReminders = reminders.filter(reminder => 
-      !reminder.isCompleted && reminder.isActive
-    );
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day
+    
+    const activeReminders = reminders.filter(reminder => {
+      if (reminder.isCompleted || !reminder.isActive) return false;
+      
+      // Filter out reminders that are in the past (before today)
+      const reminderDate = new Date(reminder.reminderDate);
+      reminderDate.setHours(0, 0, 0, 0);
+      
+      // Keep only reminders from today onwards (>= today)
+      return reminderDate.getTime() >= today.getTime();
+    });
     
     return activeReminders.sort((a, b) => {
       if (a.isUrgent && !b.isUrgent) return -1;
@@ -388,15 +398,24 @@ export default function ReminderSection() {
     return activeReminders;
   }, [tab, activeReminders]);
 
-  const loadOffers = useCallback(async (reminderId: string) => {
-    if (!reminderId || offersByReminder[reminderId] || loadingOffers[reminderId]) return;
+  const loadOffers = useCallback(async (reminderId: string, force = false) => {
+    if (!reminderId || (!force && (offersByReminder[reminderId] || loadingOffers[reminderId]))) return;
+    
+    // Find reminder to get its type
+    const reminder = activeReminders.find((r) => r.id === reminderId);
+    if (!reminder || !reminder.type) {
+      console.log('[ReminderSection] reminder not found or no type', { reminderId });
+      return;
+    }
+
     setLoadingOffers((p) => ({ ...p, [reminderId]: true }));
     try {
       // eslint-disable-next-line no-console
-      console.log('[ReminderSection] loading offers', { reminderId, userId: user?.id });
-      const items = await offersApi.getReminderOffers(reminderId, user?.id);
+      console.log('[ReminderSection] loading offers by type', { reminderId, reminderType: reminder.type, userId: user?.id });
+      // Load offers by reminder type instead of reminder ID
+      const items = await offersApi.getOffersByReminderType(reminder.type, user?.id);
       // eslint-disable-next-line no-console
-      console.log('[ReminderSection] offers loaded', { reminderId, count: items?.length });
+      console.log('[ReminderSection] offers loaded', { reminderId, reminderType: reminder.type, count: items?.length });
       setOffersByReminder((p) => ({ ...p, [reminderId]: items }));
     } catch (e: any) {
       // eslint-disable-next-line no-console
@@ -405,7 +424,20 @@ export default function ReminderSection() {
     } finally {
       setLoadingOffers((p) => ({ ...p, [reminderId]: false }));
     }
-  }, [offersByReminder, loadingOffers, user?.id]);
+  }, [offersByReminder, loadingOffers, user?.id, activeReminders]);
+
+  // Auto-load offers for all active reminders on mount/user change
+  const reminderIds = useMemo(() => activeReminders.map((r) => r.id).join(','), [activeReminders]);
+  React.useEffect(() => {
+    if (!user?.id || activeReminders.length === 0) return;
+    activeReminders.forEach((r) => {
+      // Load offers for each reminder (only if not already loaded)
+      if (!offersByReminder[r.id] && !loadingOffers[r.id]) {
+        void loadOffers(r.id, false);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, reminderIds]);
 
   const openOffersModal = useCallback((reminderId: string) => {
     setSelectedReminderId(reminderId);

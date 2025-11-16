@@ -8,8 +8,8 @@ export interface AIRecommendation {
   location: string;
   phone: string;
   distance?: number;
-  confidence: number; // 0-1, how well this matches the request
-  matchReasons: string[]; // Why this was recommended
+  confidence: number;
+  matchReasons: string[];
   price?: string;
   images?: string[];
 }
@@ -24,7 +24,7 @@ export interface PartsRequest {
   partName: string;
   partDetails?: string;
   location?: string;
-  maxDistance?: number; // km
+  maxDistance?: number;
 }
 
 export interface AIRecommendationsResponse {
@@ -108,6 +108,62 @@ class AIApiService {
     };
   }> {
     return this.request('/ai/stats', {
+      method: 'GET',
+    });
+  }
+
+  async getSellerStatus(params: {
+    userId: string;
+    phone?: string;
+    make?: string;
+    model?: string;
+    year?: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      showSellerPanel: boolean;
+      counts: { stores: number; parts: number; dismantlers: number };
+      matchingRequests: any[];
+      ownedStores: Array<{
+        id: string;
+        title: string;
+        type: string;
+        phone: string;
+        location: string;
+        address: string;
+        images: string[];
+      }>;
+      ownedParts: Array<{
+        id: string;
+        title: string;
+        brand?: string;
+        model?: string;
+        year?: number;
+        price: string;
+        location: string;
+        phone: string;
+        images: string[];
+      }>;
+      ownedDismantlers: Array<{
+        id: string;
+        brand: string;
+        model: string;
+        yearFrom: number;
+        yearTo: number;
+        phone: string;
+        location: string;
+        photos: string[];
+      }>;
+    };
+  }> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('userId', params.userId);
+    if (params.phone) searchParams.append('phone', params.phone);
+    if (params.make) searchParams.append('make', params.make);
+    if (params.model) searchParams.append('model', params.model);
+    if (params.year) searchParams.append('year', params.year);
+
+    return this.request(`/ai/seller-status?${searchParams.toString()}`, {
       method: 'GET',
     });
   }

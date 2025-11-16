@@ -18,6 +18,7 @@ const getLanIpFromHost = (): string | undefined => {
 const getApiUrl = () => {
   if (__DEV__) {
     const ip = getLanIpFromHost();
+    console.log('🌐 IP:', ip);
     // backend-v2 default port
     if (ip) {
       console.log('🌐 Using IP:', ip);
@@ -31,4 +32,5 @@ const getApiUrl = () => {
 
 const API_BASE_URL = getApiUrl();
 
+export { API_BASE_URL };
 export default API_BASE_URL;

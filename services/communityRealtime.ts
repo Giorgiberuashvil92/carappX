@@ -1,5 +1,4 @@
-import { db } from '../config/firebase';
-import { collection, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
+// Firebase ამოღებულია ფრონტიდან — დროებითი no-op რეალტაიმის სერვისი
 
 export interface CommunityRealtimeData {
   postId: string;
@@ -11,85 +10,36 @@ export interface CommunityRealtimeData {
 class CommunityRealtimeService {
   private listeners: Map<string, () => void> = new Map();
 
-  // Listen to real-time updates for a specific post
+  // Listen no-op: backend-ზე გადავიტანთ რეალტაიმს მოგვიანებით (e.g. WebSocket)
   subscribeToPost(postId: string, callback: (data: CommunityRealtimeData) => void) {
-    const postRef = doc(db, 'community_posts', postId);
-    
-    const unsubscribe = onSnapshot(postRef, (doc) => {
-      if (doc.exists()) {
-        const data = doc.data() as CommunityRealtimeData;
-        callback(data);
-      }
-    });
-
-    // Store the unsubscribe function
+    const unsubscribe = () => {};
     this.listeners.set(postId, unsubscribe);
     return unsubscribe;
   }
 
   // Update post stats in real-time
   async updatePostStats(postId: string, updates: Partial<CommunityRealtimeData>) {
-    try {
-      const postRef = doc(db, 'community_posts', postId);
-      await updateDoc(postRef, {
-        ...updates,
-        lastUpdated: Date.now(),
-      });
-    } catch (error) {
-      console.error('Error updating post stats:', error);
-    }
+    // no-op დროებით
   }
 
   // Increment likes count
   async incrementLikes(postId: string) {
-    try {
-      const postRef = doc(db, 'community_posts', postId);
-      await updateDoc(postRef, {
-        likesCount: increment(1),
-        lastUpdated: Date.now(),
-      });
-    } catch (error) {
-      console.error('Error incrementing likes:', error);
-    }
+    // no-op დროებით
   }
 
   // Decrement likes count
   async decrementLikes(postId: string) {
-    try {
-      const postRef = doc(db, 'community_posts', postId);
-      await updateDoc(postRef, {
-        likesCount: increment(-1),
-        lastUpdated: Date.now(),
-      });
-    } catch (error) {
-      console.error('Error decrementing likes:', error);
-    }
+    // no-op დროებით
   }
 
   // Increment comments count
   async incrementComments(postId: string) {
-    try {
-      const postRef = doc(db, 'community_posts', postId);
-      await updateDoc(postRef, {
-        commentsCount: increment(1),
-        lastUpdated: Date.now(),
-      });
-    } catch (error) {
-      console.error('Error incrementing comments:', error);
-    }
+    // no-op დროებით
   }
 
   // Decrement comments count
   async decrementComments(postId: string) {
-    try {
-      const postRef = doc(db, 'community_posts', postId);
-      await updateDoc(postRef, {
-        commentsCount: increment(-1),
-        lastUpdated: Date.now(),
-      });
-    } catch (error) {
-      console.error('Error decrementing comments:', error);
-    }
+    // no-op დროებით
   }
 
   // Unsubscribe from a specific post

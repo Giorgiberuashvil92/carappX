@@ -65,6 +65,19 @@ export default function BookingsScreen() {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
 
+  const sortBookings = (list: CarwashBooking[]) => {
+    const isActive = (status: string) =>
+      status === 'pending' || status === 'confirmed' || status === 'in_progress';
+    return [...list].sort((a, b) => {
+      const aActive = isActive(a.status);
+      const bActive = isActive(b.status);
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      if (a.bookingDate !== b.bookingDate) return a.bookingDate - b.bookingDate;
+      if (a.bookingTime && b.bookingTime) return a.bookingTime.localeCompare(b.bookingTime);
+      return 0;
+    });
+  };
+
   // Load carwash and bookings data
   useEffect(() => {
     const loadData = async () => {
@@ -81,7 +94,7 @@ export default function BookingsScreen() {
         if (bookingsResponse.ok) {
           const bookingsData = await bookingsResponse.json();
           setBookings(bookingsData);
-          setFilteredBookings(bookingsData);
+          setFilteredBookings(sortBookings(bookingsData));
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -99,9 +112,11 @@ export default function BookingsScreen() {
   // Filter bookings based on selected filter
   useEffect(() => {
     if (selectedFilter === 'all') {
-      setFilteredBookings(bookings);
+      setFilteredBookings(sortBookings(bookings));
     } else {
-      setFilteredBookings(bookings.filter(booking => booking.status === selectedFilter));
+      setFilteredBookings(
+        sortBookings(bookings.filter(booking => booking.status === selectedFilter)),
+      );
     }
   }, [selectedFilter, bookings]);
 
@@ -113,7 +128,7 @@ export default function BookingsScreen() {
       if (bookingsResponse.ok) {
         const bookingsData = await bookingsResponse.json();
         setBookings(bookingsData);
-        setFilteredBookings(bookingsData);
+        setFilteredBookings(sortBookings(bookingsData));
       }
     } catch (error) {
       console.error('Error refreshing bookings:', error);

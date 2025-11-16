@@ -35,10 +35,11 @@ export function CarProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // API-დან მონაცემების ჩატვირთვა
   const loadData = async () => {
     if (!user) {
       console.log('No user found in loadData');
+      setCars([]);
+      setSelectedCar(null);
       return;
     }
     
@@ -62,8 +63,6 @@ export function CarProvider({ children }: { children: ReactNode }) {
         garageApi.getFuelEntries(),
       ]);
       
-      console.log('Cars data loaded:', carsData.length);
-      console.log('Reminders data loaded:', remindersData.length);
 
       // API Car-ს გადაყვანა Local Car-ში
       const convertedCars: Car[] = carsData.map((apiCar: ApiCar) => ({
@@ -84,6 +83,8 @@ export function CarProvider({ children }: { children: ReactNode }) {
       // თუ არჩეული მანქანა არ არის, პირველი აირჩიე
       if (!selectedCar && convertedCars.length > 0) {
         setSelectedCar(convertedCars[0]);
+      } else if (convertedCars.length === 0) {
+        setSelectedCar(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'მონაცემების ჩატვირთვის შეცდომა');
@@ -96,9 +97,14 @@ export function CarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) {
       console.log('User loaded, loading data for user:', user.id);
+      // Reset selection on user change to avoid stale car from previous user
+      setSelectedCar(null);
+      setCars([]);
       loadData();
     } else {
       console.log('No user found, waiting for user...');
+      setSelectedCar(null);
+      setCars([]);
     }
   }, [user]);
 

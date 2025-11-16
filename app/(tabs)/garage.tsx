@@ -261,6 +261,7 @@ export default function GarageScreen() {
   const [addReminderModalVisible, setAddReminderModalVisible] = useState(false);
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
   const [reminderModalVisible, setReminderModalVisible] = useState(false);
+  const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [achievementsModalVisible, setAchievementsModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'stats' | 'achievements'>('overview');
   const [editMode, setEditMode] = useState(false);
@@ -468,7 +469,6 @@ export default function GarageScreen() {
     }
   };
 
-  // შეხსენების დამატება
   const addReminder = async (reminderData: any) => {
     try {
       await apiAddReminder(reminderData);
@@ -635,6 +635,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 24,
       backgroundColor: '#0F0F0F',
+      position: 'relative',
     },
     headerRow: {
       flexDirection: 'row',
@@ -659,6 +660,14 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
     gap: 12,
   },
+    headerGradient: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 140,
+      zIndex: 0,
+    },
     iconButton: {
     width: 44,
     height: 44,
@@ -701,6 +710,89 @@ const styles = StyleSheet.create({
     },
     activeTabText: {
       color: '#6366F1',
+    },
+    
+    emptyIconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(55,65,81,0.35)',
+      borderWidth: 1,
+      borderColor: 'rgba(156,163,175,0.35)',
+      marginBottom: 12,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: '#FFFFFF',
+      marginTop: 4,
+    },
+    emptySubtitle: {
+      fontSize: 12,
+      color: '#9CA3AF',
+      textAlign: 'center',
+      marginTop: 4,
+    },
+    emptyButton: {
+      marginTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: '#6366F1',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 12,
+    },
+    emptyButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    // Quick Actions (row variant for overview)
+    quickActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    quickActionButton: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    quickActionIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+    },
+    quickActionText: {
+      fontSize: 12,
+      color: '#E5E7EB',
+      fontWeight: '600',
+      marginTop: 4,
+    },
+    fab: {
+      position: 'absolute',
+      right: 20,
+      bottom: 28,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    fabBg: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     // Car Selector
     carSelector: {
@@ -1595,9 +1687,76 @@ const styles = StyleSheet.create({
       color: '#FFFFFF',
       fontWeight: '600',
     },
+    // Reminder Details Modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    closeButton: {
+      padding: 8,
+      borderRadius: 20,
+      backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    },
+    detailSection: {
+      paddingVertical: 8,
+    },
+    detailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(156, 163, 175, 0.1)',
+    },
+    detailLabel: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: '#9CA3AF',
+      flex: 1,
+    },
+    detailValue: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#FFFFFF',
+      flex: 2,
+      textAlign: 'right',
+    },
+    typeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flex: 2,
+      justifyContent: 'flex-end',
+    },
+    priorityBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    priorityText: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    modalButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      borderRadius: 12,
+      marginTop: 20,
+    },
+    primaryButton: {
+      backgroundColor: '#6366F1',
+    },
+    primaryButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
   });
 
-  // დღეების გამოთვლა შეხსენებისთვის
   const getDaysUntil = (date: Date) => {
     const today = new Date();
     const diffTime = Math.abs(date.getTime() - today.getTime());
@@ -1605,7 +1764,6 @@ const styles = StyleSheet.create({
     return diffDays;
   };
 
-  // პრიორიტეტის ფერი
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
       case 'high': return '#EF4444';
@@ -1628,37 +1786,21 @@ const styles = StyleSheet.create({
             },
           ]}
         >
+          <LinearGradient
+            colors={["rgba(99, 102, 241, 0.25)", "rgba(17, 24, 39, 0)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.headerGradient}
+          />
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.headerTitle}>ჩემი გარაჟი</Text>
               <Text style={styles.headerSubtitle}>GARAGE MANAGEMENT</Text>
             </View>
             <View style={styles.headerButtons}>
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => setAddReminderModalVisible(true)}
-              >
-                <Ionicons name="alarm-outline" size={20} color="#10B981" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={() => setEditMode(!editMode)}>
-                <Ionicons name={editMode ? "checkmark" : "create-outline"} size={20} color="#E5E7EB" />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => setAchievementsModalVisible(true)}
-              >
-                <Ionicons name="trophy-outline" size={20} color="#F59E0B" />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => handleShare('stats')}
-              >
-                <Ionicons name="share-social-outline" size={20} color="#E5E7EB" />
-              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Tabs */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1698,6 +1840,21 @@ const styles = StyleSheet.create({
             </TouchableOpacity>
           </ScrollView>
         </Animated.View>
+
+        {/* Empty State */}
+        {cars.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="car-sport-outline" size={42} color="#9CA3AF" />
+            </View>
+            <Text style={styles.emptyTitle}>ჯერ მანქანა არ გაქვს დამატებული</Text>
+            <Text style={styles.emptySubtitle}>დაამატე პირველი მანქანა და მართე ყველაფერი ერთი ეკრანიდან</Text>
+            <TouchableOpacity style={styles.emptyButton} onPress={() => setAddCarModalVisible(true)}>
+              <Ionicons name="add" size={18} color="#FFFFFF" />
+              <Text style={styles.emptyButtonText}>მანქანის დამატება</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Car Selector */}
         <View style={styles.carSelector}>
@@ -1781,7 +1938,27 @@ const styles = StyleSheet.create({
 
         {activeTab === 'overview' && selectedCar && (
           <>
-            {/* Quick actions trimmed as requested */}
+            {/* Quick Actions */}
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity style={styles.quickActionButton} onPress={() => setAddReminderModalVisible(true)}>
+                <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.35)' }]}>
+                  <Ionicons name="alarm-outline" size={18} color="#6366F1" />
+                </View>
+                <Text style={styles.quickActionText}>შეხსენება</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionButton} onPress={() => setServiceModalVisible(true)}>
+                <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.35)' }]}>
+                  <Ionicons name="build-outline" size={18} color="#10B981" />
+                </View>
+                <Text style={styles.quickActionText}>სერვისი</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionButton} onPress={() => handleShare('car')}>
+                <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.35)' }]}>
+                  <Ionicons name="share-social-outline" size={18} color="#F59E0B" />
+                </View>
+                <Text style={styles.quickActionText}>გაზიარება</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Reminders */}
             <View style={styles.remindersSection}>
@@ -1825,7 +2002,13 @@ const styles = StyleSheet.create({
                             {getDaysUntil(reminder.date)} დღეში
                           </Text>
                         </View>
-                        <TouchableOpacity style={styles.reminderAction}>
+                        <TouchableOpacity 
+                          style={styles.reminderAction}
+                          onPress={() => {
+                            setSelectedReminder(reminder);
+                            setReminderModalVisible(true);
+                          }}
+                        >
                           <Text style={styles.reminderActionText}>დეტალები</Text>
                         </TouchableOpacity>
                       </Animated.View>
@@ -2057,6 +2240,17 @@ const styles = StyleSheet.create({
         {/* Bottom Spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.9}
+        onPress={() => setAddCarModalVisible(true)}
+      >
+        <LinearGradient colors={["#6366F1", "#8B5CF6"]} style={styles.fabBg}>
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </LinearGradient>
+      </TouchableOpacity>
 
       {/* Add Car Modal */}
       <Modal
@@ -2566,6 +2760,118 @@ const styles = StyleSheet.create({
           plateNumber: car.licensePlate
         }))}
       />
+
+      {/* Reminder Details Modal */}
+      <Modal
+        visible={reminderModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setReminderModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>შეხსენების დეტალები</Text>
+              <TouchableOpacity 
+                onPress={() => setReminderModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedReminder && (
+              <ScrollView style={styles.modalBody}>
+                <View style={styles.detailSection}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>სახელი:</Text>
+                    <Text style={styles.detailValue}>{selectedReminder.title}</Text>
+                  </View>
+                  
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>ტიპი:</Text>
+                    <View style={styles.typeBadge}>
+                      <Ionicons 
+                        name={
+                          selectedReminder.type === 'service' ? 'build-outline' : 
+                          selectedReminder.type === 'insurance' ? 'shield-checkmark-outline' : 
+                          selectedReminder.type === 'oil' ? 'water-outline' :
+                          'calendar-outline'
+                        } 
+                        size={16} 
+                        color={getPriorityColor(selectedReminder.priority)} 
+                      />
+                      <Text style={styles.detailValue}>
+                        {selectedReminder.type === 'service' ? 'სერვისი' : 
+                         selectedReminder.type === 'insurance' ? 'დაზღვევა' : 
+                         selectedReminder.type === 'oil' ? 'ზეთის შეცვლა' :
+                         'შეხსენება'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>თარიღი:</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedReminder.date.toLocaleDateString('ka-GE', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>დარჩენილი დრო:</Text>
+                    <Text style={[styles.detailValue, { color: getPriorityColor(selectedReminder.priority) }]}>
+                      {getDaysUntil(selectedReminder.date)} დღეში
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>პრიორიტეტი:</Text>
+                    <View style={[
+                      styles.priorityBadge,
+                      { backgroundColor: getPriorityColor(selectedReminder.priority) + '20' }
+                    ]}>
+                      <Text style={[
+                        styles.priorityText,
+                        { color: getPriorityColor(selectedReminder.priority) }
+                      ]}>
+                        {selectedReminder.priority === 'high' ? 'მაღალი' :
+                         selectedReminder.priority === 'medium' ? 'საშუალო' : 'დაბალი'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {selectedCar && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>მანქანა:</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedCar.brand} {selectedCar.model} ({selectedCar.licensePlate})
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={() => {
+                      setReminderModalVisible(false);
+                      // TODO: Navigate to offers or booking
+                    }}
+                  >
+                    <Ionicons name="build-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.primaryButtonText}>შეთავაზებების ნახვა</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

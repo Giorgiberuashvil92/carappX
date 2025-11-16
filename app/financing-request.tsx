@@ -1,25 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { financingApi } from '@/services/financingApi';
+import { useUser } from '@/contexts/UserContext';
 
 export default function FinancingRequestScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ requestId?: string; amount?: string }>();
+  const { user } = useUser();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
+  const [amount, setAmount] = useState('');
+  const [merchantPhone, setMerchantPhone] = useState('');
+  const [personalId, setPersonalId] = useState('');
+  const [downPayment, setDownPayment] = useState('');
+  const [termMonths, setTermMonths] = useState('12');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (params?.amount && !amount) setAmount(String(params.amount));
+  }, [params?.amount]);
+
   const submit = async () => {
-    if (!fullName || !phone) {
-      Alert.alert('შევსება აუცილებელია', 'სახელი და ტელეფონი აუცილებელია.');
+    if (!phone || !amount) {
+      Alert.alert('შევსება აუცილებელია', 'თანხა და ტელეფონი აუცილებელია.');
       return;
     }
     try {
       setLoading(true);
-      // TODO: call financingApi.createRequest
-      // await financingApi.createRequest({ fullName, phone, note });
+      const requestId = typeof params?.requestId === 'string' ? params.requestId : '';
+      if (user?.id && requestId) {
+        await financingApi.createLead({
+          userId: user.id,
+          requestId,
+          amount: parseFloat(amount) || 0,
+          phone,
+          merchantPhone: merchantPhone || undefined,
+          downPayment: parseFloat(downPayment) || undefined,
+          termMonths: parseInt(termMonths || '12', 10) || 12,
+          personalId: personalId || undefined,
+          note: note || undefined,
+        });
+      } else {
+        // fallback: general request
+        // await financingApi.createRequest({ fullName, phone, note });
+      }
       setLoading(false);
       Alert.alert('გაგზავნილია', 'ჩვენი ოპერატორი მალევე დაგიკავშირდებათ.');
       router.back();
@@ -42,11 +70,31 @@ export default function FinancingRequestScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
+          <Text style={styles.label}>თანხა (₾)</Text>
+          <TextInput style={styles.input} placeholder="მაგ. 1200" keyboardType="numeric" value={amount} onChangeText={(t)=>setAmount(t.replace(/[^0-9.]/g,''))} />
+
           <Text style={styles.label}>სახელი და გვარი</Text>
           <TextInput style={styles.input} placeholder="მაგ. გიორგი ბერუაშვილი" value={fullName} onChangeText={setFullName} />
 
           <Text style={styles.label}>ტელეფონის ნომერი</Text>
           <TextInput style={styles.input} placeholder="მაგ. +9955XXXXX" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+
+          <Text style={styles.label}>მაღაზიის ნომერი</Text>
+          <TextInput style={styles.input} placeholder="მაგ. +9955XXXXX" keyboardType="phone-pad" value={merchantPhone} onChangeText={setMerchantPhone} />
+
+          <Text style={styles.label}>პირადი ნომერი (არასავალდებულო)</Text>
+          <TextInput style={styles.input} placeholder="12345678901" keyboardType="number-pad" value={personalId} onChangeText={setPersonalId} />
+
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>ავანსი (არასავალდებულო)</Text>
+              <TextInput style={styles.input} placeholder="მაგ. 200" keyboardType="numeric" value={downPayment} onChangeText={(t)=>setDownPayment(t.replace(/[^0-9.]/g,''))} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>ვადა (თვე)</Text>
+              <TextInput style={styles.input} placeholder="12" keyboardType="number-pad" value={termMonths} onChangeText={setTermMonths} />
+            </View>
+          </View>
 
           <Text style={styles.label}>შენიშვნა (არასავალდებულო)</Text>
           <TextInput style={[styles.input, { height: 100, textAlignVertical: 'top' }]} placeholder="დამატებითი ინფორმაცია" multiline value={note} onChangeText={setNote} />

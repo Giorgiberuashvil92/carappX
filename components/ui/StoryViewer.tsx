@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Image, Text, TouchableWithoutFeedback, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Story, StoryItem } from '../../types/story';
+import API_BASE_URL from '../../config/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,6 +17,9 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
   const [index, setIndex] = useState(0);
   const item = story.items[index];
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [viewsCount, setViewsCount] = useState<number>(0);
+  const [recentViewers, setRecentViewers] = useState<Array<{ userId: string; viewedAt: number }>>([]);
+  const [showViewers, setShowViewers] = useState(false);
 
   const duration = item?.durationMs ?? 5000;
 
@@ -53,6 +57,22 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
 
   const total = story.items.length;
 
+  // fetch views meta when story changes
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/stories/${encodeURIComponent(String(story.id))}/views?limit=10`);
+        const json = await res.json().catch(() => ({}));
+        if (!active) return;
+        setViewsCount(Number(json?.viewsCount || 0));
+        const list = Array.isArray(json?.data) ? json.data : [];
+        setRecentViewers(list as Array<{ userId: string; viewedAt: number }>);
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, [story.id]);
+
   return (
     <View style={styles.container}>
       <TouchableWithoutFeedback onPress={(e) => onTap(e.nativeEvent.locationX)}>
@@ -88,6 +108,32 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
               <Text style={styles.caption}>{item.caption}</Text>
             </View>
           ) : null}
+
+          {/* views badge */}
+          <TouchableWithoutFeedback onPress={() => setShowViewers(!showViewers)}>
+            <View style={styles.viewsBadge}>
+              <Ionicons name="eye-outline" size={14} color="#fff" />
+              <Text style={styles.viewsText}>{viewsCount}</Text>
+            </View>
+          </TouchableWithoutFeedback>
+
+          {/* viewers panel */}
+          {showViewers && (
+            <View style={styles.viewersPanel}>
+              <Text style={styles.viewersTitle}>Viewed by</Text>
+              {recentViewers.length === 0 ? (
+                <Text style={styles.viewerRowText}>No views yet</Text>
+              ) : (
+                recentViewers.map((v) => (
+                  <View key={`${v.userId}-${v.viewedAt}`} style={styles.viewerRow}>
+                    <View style={styles.viewerAvatar} />
+                    <Text style={styles.viewerRowText}>{v.userId}</Text>
+                    <Text style={styles.viewerTime}>{new Date(v.viewedAt).toLocaleTimeString()}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
 
           {/* poll */}
           {item?.poll ? (
@@ -129,6 +175,14 @@ const styles = StyleSheet.create({
   pollOpt: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.1)', padding: 10, borderRadius: 10 },
   pollOptText: { color: '#fff' },
   pollOptVotes: { color: 'rgba(255,255,255,0.7)' },
+  viewsBadge: { position: 'absolute', right: 12, bottom: 20, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  viewsText: { color: '#fff', fontWeight: '600' },
+  viewersPanel: { position: 'absolute', right: 12, bottom: 60, width: 220, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, padding: 10, gap: 8 },
+  viewersTitle: { color: '#fff', fontWeight: '700', marginBottom: 4 },
+  viewerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  viewerAvatar: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.35)' },
+  viewerRowText: { color: '#fff', flex: 1, marginLeft: 8 },
+  viewerTime: { color: 'rgba(255,255,255,0.7)', fontSize: 11 },
 });
 
 

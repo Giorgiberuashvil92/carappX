@@ -31,68 +31,9 @@ type Props = {
 export function OffersModal({ visible, onClose, items, loading, error, onSortByPrice, onSortByDistance, onVisit }: Props) {
   const [tab, setTab] = useState<'best' | 'price' | 'near'>('best');
 
-  // Static data for testing
-  const staticItems: RecommendationItem[] = [
-    {
-      providerName: 'AutoClean Pro',
-      priceGEL: 25,
-      etaMin: 15,
-      distanceKm: 2.3,
-      tags: ['Premium', 'Express'],
-      partnerId: 'autoclean-pro',
-      imageUrl: undefined,
-      rating: 4.8,
-      verified: true,
-    },
-    {
-      providerName: 'QuickWash',
-      priceGEL: 18,
-      etaMin: 20,
-      distanceKm: 1.8,
-      tags: ['Fast', 'Economy'],
-      partnerId: 'quickwash',
-      imageUrl: undefined,
-      rating: 4.5,
-      verified: false,
-    },
-    {
-      providerName: 'Luxury Car Care',
-      priceGEL: 45,
-      etaMin: 30,
-      distanceKm: 4.1,
-      tags: ['Luxury', 'Premium'],
-      partnerId: 'luxury-care',
-      imageUrl: undefined,
-      rating: 4.9,
-      verified: true,
-    },
-    {
-      providerName: 'EcoWash',
-      priceGEL: 22,
-      etaMin: 25,
-      distanceKm: 3.2,
-      tags: ['Eco', 'Green'],
-      partnerId: 'ecowash',
-      imageUrl: undefined,
-      rating: 4.6,
-      verified: true,
-    },
-    {
-      providerName: 'SpeedWash',
-      priceGEL: 15,
-      etaMin: 12,
-      distanceKm: 1.5,
-      tags: ['Speed', 'Budget'],
-      partnerId: 'speedwash',
-      imageUrl: undefined,
-      rating: 4.2,
-      verified: false,
-    },
-  ];
-
   const sortedItems = useMemo(() => {
-    // Always use static data for testing
-    const dataToUse = staticItems;
+    // გამოვიყენოთ მხოლოდ API-დან მიღებული მონაცემები
+    const dataToUse = items || [];
     
     if (tab === 'price') return [...dataToUse].sort((a, b) => (a.priceGEL || 0) - (b.priceGEL || 0));
     if (tab === 'near') return [...dataToUse].sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
@@ -101,14 +42,13 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
       const bScore = (b.distanceKm ?? 5) * 0.4 + (b.priceGEL ?? 100) * 0.6;
       return aScore - bScore;
     });
-  }, [tab]);
+  }, [tab, items]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
         
-        {/* Glassmorphism Modal Card */}
         <View style={styles.modalCard}>
           <View style={styles.modalGradient}>
             {/* Header */}

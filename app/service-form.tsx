@@ -13,6 +13,7 @@ import {
   StatusBar,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -491,10 +492,17 @@ export default function ServiceFormScreen() {
               colors={getServiceColor() as [string, string]}
               style={styles.submitButtonGradient}
             >
-              <Text style={styles.submitButtonText}>
-                {isSubmitting ? 'მოთხოვნის გაგზავნა...' : 'მოთხოვნის გაგზავნა'}
-              </Text>
-              <Ionicons name="send" size={20} color="#FFFFFF" />
+              {isSubmitting ? (
+                <>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.submitButtonText}>იგზავნება...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.submitButtonText}>მოთხოვნის გაგზავნა</Text>
+                  <Ionicons name="send" size={20} color="#FFFFFF" />
+                </>
+              )}
             </LinearGradient>
           </Pressable>
         </Animated.View>
@@ -624,11 +632,11 @@ export default function ServiceFormScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#0F172A',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: 'transparent',
   },
 
   // Header
@@ -649,7 +657,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -663,7 +673,9 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -692,24 +704,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   textInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 12,
     padding: 16,
     fontFamily: 'NotoSans_500Medium',
     fontSize: 16,
     color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(148,163,184,0.30)',
   },
   multilineInput: {
     minHeight: 100,
   },
   carSelectionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(148,163,184,0.30)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -751,7 +763,7 @@ const styles = StyleSheet.create({
   // Modal
   modalContainer: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#0F172A',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -773,6 +785,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
+  modalCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.25)',
+    padding: 16,
+    marginBottom: 20,
+    gap: 8,
+  },
+  modalLabel: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 14,
+    color: '#E2E8F0',
+  },
+  modalInput: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    padding: 16,
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 16,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.30)',
+  },
   carOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -780,10 +816,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(148,163,184,0.25)',
   },
   carOptionSelected: {
     backgroundColor: 'rgba(99, 102, 241, 0.2)',

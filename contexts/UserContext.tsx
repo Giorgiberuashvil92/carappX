@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import API_BASE_URL from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
+// Notifee for foreground local notifications
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import notifee, { AndroidImportance, AndroidColor } from '@notifee/react-native';
+import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 interface User {
   id: string;
@@ -32,10 +39,221 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Device token registration function
+  const registerDeviceToken = async (userId: string) => {
+    try {
+      
+      const token = await messaging().getToken();
+      console.log('📱 [USERCONTEXT] Firebase token received:', token ? '✅ Token exists' : '❌ No token');
+      
+      if (token) {
+        console.log('📱 [USERCONTEXT] Registering device token for user:', userId);
+        console.log('📱 [USERCONTEXT] Token:', token.substring(0, 50) + '...');
+        console.log('📱 [USERCONTEXT] Platform:', Platform.OS);
+        console.log('📱 [USERCONTEXT] API URL:', API_BASE_URL);
+        console.log('📱 [USERCONTEXT] Sending to:', `${API_BASE_URL}/notifications/register-device`);
+        
+        const requestBody = {
+          userId,
+          token,
+          platform: Platform.OS,
+        };
+        console.log('📱 [USERCONTEXT] Request body:', {
+          userId: requestBody.userId,
+          tokenPreview: requestBody.token.substring(0, 50) + '...',
+          platform: requestBody.platform,
+        });
+        
+        const response = await fetch(`${API_BASE_URL}/notifications/register-device`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+        
+        console.log('📱 [USERCONTEXT] Response status:', response.status);
+        console.log('📱 [USERCONTEXT] Response ok:', response.ok);
+        
+        const result = await response.json();
+        console.log('📱 [USERCONTEXT] Response body:', result);
+        
+        if (response.ok && result.success) {
+          console.log('✅ [USERCONTEXT] Device token registered successfully in backend');
+          console.log('✅ [USERCONTEXT] Registered userId:', userId);
+          console.log('✅ [USERCONTEXT] Response:', result);
+        } else {
+          console.warn('⚠️ [USERCONTEXT] Device token registration returned:', result);
+          console.warn('⚠️ [USERCONTEXT] Request was not successful');
+        }
+      } else {
+        console.warn('⚠️ [USERCONTEXT] No Firebase token available to register');
+      }
+    } catch (error) {
+      console.error('❌ [USERCONTEXT] Failed to register device token:', error);
+      console.error('❌ [USERCONTEXT] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        userId: userId,
+      });
+      if (error instanceof Error) {
+        console.error('❌ [USERCONTEXT] Error message:', error.message);
+        console.error('❌ [USERCONTEXT] Error stack:', error.stack);
+      }
+    }
+  };
+
   // მონაცემების ჩატვირთვა AsyncStorage-დან
   useEffect(() => {
     loadUserFromStorage();
   }, []);
+
+  useEffect(() => {
+    let unsubscribeOnMessage: (() => void) | undefined;
+    let unsubscribeOnNotificationOpened: (() => void) | undefined;
+    const handleNavigateFromData = (data?: Record<string, any>) => {
+      if (!data) return;
+      // Prefer explicit screen param
+      const screen = data.screen as string | undefined;
+      if (screen) {
+        // Map known screens to routes if necessary
+        if (screen === 'AIRecommendations' && data.requestId) {
+          router.push('/offers');
+          return;
+        }
+        if (screen === 'PartDetails' && data.partId) {
+          router.push('/offers');
+          return;
+        }
+        if (screen === 'RequestDetails' && data.requestId) {
+          router.push(`/offers/${data.requestId}`);
+          return;
+        }
+      }
+      const type = data.type as string | undefined;
+      if (type === 'chat_message' && data.offerId) {
+        router.push(`/chat/${data.offerId}`);
+        return;
+      }
+      if (type === 'carwash_booking') {
+        const cwId = (data as any).carwashId;
+        if (cwId) {
+          router.push(`/bookings/${cwId}`);
+        } else {
+          router.push('/bookings');
+        }
+        return;
+      }
+      if (type === 'new_request') {
+        router.push('/offers');
+        return;
+      }
+      if (type === 'new_offer') {
+        router.push('/offers');
+        return;
+      }
+      if (type?.startsWith('ai_')) {
+        router.push('/offers');
+        return;
+      }
+      router.push('/notifications');
+    };
+    (async () => {
+      try {
+        // iOS permissions
+        if (Platform.OS === 'ios') {
+          await notifee.requestPermission();
+        }
+
+        // Android channel
+        let channelId: string | undefined;
+        if (Platform.OS === 'android') {
+          channelId = await notifee.createChannel({
+            id: 'default',
+            name: 'Default',
+            lights: true,
+            vibration: true,
+            importance: AndroidImportance.HIGH,
+            badge: true,
+            sound: 'default',
+            lightColor: AndroidColor.RED,
+          });
+        }
+
+        // Foreground messages → show local notification via Notifee
+        unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
+          try {
+            const title = remoteMessage.notification?.title || 'შეტყობინება';
+            const body = remoteMessage.notification?.body || '';
+            await notifee.displayNotification({
+              title,
+              body,
+              data: remoteMessage.data || {},
+              android: {
+                channelId: channelId || 'default',
+                smallIcon: 'ic_notification',
+                pressAction: { id: 'default' },
+              },
+              ios: {
+                sound: 'default',
+                foregroundPresentationOptions: {
+                  banner: true,
+                  sound: true,
+                  badge: true,
+                },
+              },
+            });
+          } catch (e) {
+            console.log('[NOTIFEE] displayNotification error', e);
+          }
+        });
+
+        // Handle tap when app is in background (system notification)
+        unsubscribeOnNotificationOpened = messaging().onNotificationOpenedApp(
+          remoteMessage => {
+            try {
+              handleNavigateFromData(remoteMessage?.data as any);
+            } catch {}
+          },
+        );
+
+        // Handle cold start (user tapped notification to open the app)
+        const initial = await messaging().getInitialNotification();
+        if (initial?.data) {
+          handleNavigateFromData(initial.data as any);
+        }
+
+        // Handle Notifee foreground press events
+        notifee.onForegroundEvent(({ type, detail }) => {
+          if (type === 1 /* EventType.PRESS */) {
+            handleNavigateFromData(detail.notification?.data as any);
+          }
+        });
+      } catch (e) {
+        console.log('[NOTIFEE] setup error', e);
+      }
+    })();
+
+    return () => {
+      try {
+        if (unsubscribeOnMessage) unsubscribeOnMessage();
+        if (unsubscribeOnNotificationOpened) unsubscribeOnNotificationOpened();
+      } catch (e) {}
+    };
+  }, []);
+
+  // Auto-register device token when user is loaded
+  useEffect(() => {
+    if (user?.id) {
+      console.log('🔄 [USERCONTEXT] useEffect triggered, user.id:', user.id);
+      console.log('🔄 [USERCONTEXT] User object:', {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+      });
+      registerDeviceToken(user.id);
+    } else {
+      console.log('⚠️ [USERCONTEXT] useEffect triggered but user.id is missing');
+    }
+  }, [user?.id]);
 
   const loadUserFromStorage = async () => {
     try {
@@ -103,6 +321,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setUser(frontendUser);
       await saveUserToStorage(frontendUser);
       
+      // Register device token after login
+      await registerDeviceToken(frontendUser.id);
+      
       console.log('Login: User saved to storage and state updated');
     } catch (error) {
       console.error('Login error:', error);
@@ -142,6 +363,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       setUser(frontendUser);
       await saveUserToStorage(frontendUser);
+      
+      await registerDeviceToken(frontendUser.id);
       
       console.log('Register: User saved to storage and state updated');
     } catch (error) {
@@ -227,6 +450,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 [ADD_CARWASH] Adding carwash to owned list:', carwashId);
       console.log('🔍 [ADD_CARWASH] Current ownedCarwashes:', user.ownedCarwashes);
+      console.log('🔍 [ADD_CARWASH] User ID being sent:', user.id);
+      console.log('🔍 [ADD_CARWASH] Full user object:', user);
       
       // Update ownedCarwashes in backend
       const response = await fetch(`${API_BASE_URL}/auth/update-owned-carwashes`, {
@@ -241,7 +466,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }),
       });
       
+      console.log('🔍 [ADD_CARWASH] Response status:', response.status);
+      console.log('🔍 [ADD_CARWASH] Response ok:', response.ok);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.log('❌ [ADD_CARWASH] Error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       

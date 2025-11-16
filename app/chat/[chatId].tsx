@@ -57,20 +57,15 @@ export default function SpecificChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [showFinanceBanner, setShowFinanceBanner] = useState(false);
-  const [showFinanceModal, setShowFinanceModal] = useState(false);
-  const [finAmount, setFinAmount] = useState('');
-  const [finDown, setFinDown] = useState('');
-  const [finTerm, setFinTerm] = useState('12');
-  const [finPersonalId, setFinPersonalId] = useState('');
-  const [finPhone, setFinPhone] = useState('');
-  const [finLoading, setFinLoading] = useState(false);
-  const [finStep, setFinStep] = useState<1 | 2>(1);
+  
   const [latestOfferPrice, setLatestOfferPrice] = useState<number | null>(null);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
   const [typingAnim] = useState(new Animated.Value(0));
   
   const scrollViewRef = useRef<ScrollView>(null);
+
+  
 
   useEffect(() => {
     fetchChatData();
@@ -203,7 +198,6 @@ export default function SpecificChatScreen() {
         // Financing banner logic (mock: enable for users with flag later; now show if price exists)
         if (latestOffer?.priceGEL && latestOffer.priceGEL > 0) {
           setLatestOfferPrice(latestOffer.priceGEL);
-          setFinAmount(String(latestOffer.priceGEL));
         }
         try {
           // Load real history
@@ -363,58 +357,9 @@ export default function SpecificChatScreen() {
     return serviceResponses[Math.floor(Math.random() * serviceResponses.length)];
   };
 
-  const submitFinancing = async () => {
-    if (!user?.id || !chatId) return;
-    const requestId = chatId.replace('chat-', '');
-    const amount = parseFloat(finAmount) || 0;
-    const down = parseFloat(finDown) || 0;
-    const term = parseInt(finTerm || '12', 10);
-    if (!amount || term <= 0) return;
-    setFinLoading(true);
-    try {
-      const res = await financingApi.apply({
-        userId: user.id,
-        requestId,
-        amount,
-        downPayment: down,
-        termMonths: term,
-        personalId: finPersonalId,
-        phone: finPhone,
-      });
-      // Show system message
-      const sysText = res?.status === 'pre_approved'
-        ? `განვადება წინასწურად დამტკიცებულია. სავარაუდო თვიური: ${res.monthlyEstimate}₾`
-        : 'განვადება მიღებულია. მიმდინარეობს განხილვა.';
-      const sysMsg: Message = {
-        id: `sys_${Date.now()}`,
-        role: 'assistant',
-        text: sysText,
-        timestamp: Date.now(),
-      };
-      setMessages(prev => [...prev, sysMsg]);
-      setShowFinanceModal(false);
-      setShowFinanceBanner(false);
-    } catch (e) {
-      const sysMsg: Message = {
-        id: `sys_${Date.now()}`,
-        role: 'assistant',
-        text: 'განვადების მოთხოვნა ვერ გაიგზავნა. სცადეთ თავიდან.',
-        timestamp: Date.now(),
-      };
-      setMessages(prev => [...prev, sysMsg]);
-    } finally {
-      setFinLoading(false);
-    }
-  };
+  
 
-  const calcMonthly = () => {
-    const amount = Math.max(0, parseFloat(finAmount || '0') || 0);
-    const down = Math.max(0, parseFloat(finDown || '0') || 0);
-    const term = Math.max(1, parseInt(finTerm || '12', 10) || 12);
-    const principal = Math.max(0, amount - down);
-    if (!principal) return 0;
-    return Math.round(principal / term);
-  };
+  
 
   const scrollToBottom = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -514,12 +459,9 @@ export default function SpecificChatScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="dark-content" />
         
-        <LinearGradient
-          colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)', 'rgba(255, 255, 255, 0.05)']}
-          style={styles.backgroundGradient}
-        >
+        <View style={styles.backgroundGradient}>
           <KeyboardAvoidingView 
             style={styles.container} 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -534,38 +476,26 @@ export default function SpecificChatScreen() {
                 }
               ]}
             >
-              <LinearGradient
-                colors={['#1E40AF', '#3B82F6', '#60A5FA']}
-                style={styles.headerGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
+              <View style={styles.headerGradient} />
               <Pressable
                 style={styles.backButton}
                 onPress={() => router.back()}
               >
-                <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={22} color="#111827" />
               </Pressable>
               
               <View style={styles.headerContent}>
-                <View style={[styles.headerAvatar, { backgroundColor: `${getServiceColor(currentChatData.service)}20` }]}>
-                  <Ionicons 
-                    name={getServiceIcon(currentChatData.service) as any} 
-                    size={24} 
-                    color={getServiceColor(currentChatData.service)} 
-                  />
+                <View style={[styles.headerAvatar, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
+                  <Ionicons name={getServiceIcon(currentChatData.service) as any} size={20} color="#4F46E5" />
                   <View style={styles.statusDot} />
                 </View>
                 <View style={styles.headerText}>
                   <Text style={styles.headerTitle}>{currentChatData.name}</Text>
-                  <Text style={styles.headerSubtitle}>
-                    {currentChatData.isOnline ? 'ონლაინ' : currentChatData.lastSeen ? `ბოლოს ${formatLastSeen(currentChatData.lastSeen)}` : 'ოფლაინ'}
-                  </Text>
+                  <Text style={styles.headerSubtitle}>{currentChatData.isOnline ? 'ონლაინ' : currentChatData.lastSeen ? `ბოლოს ${formatLastSeen(currentChatData.lastSeen)}` : 'ოფლაინ'}</Text>
                 </View>
               </View>
-
               <Pressable style={styles.moreButton}>
-                <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
+                <Ionicons name="ellipsis-vertical" size={20} color="#111827" />
               </Pressable>
             </Animated.View>
 
@@ -604,7 +534,7 @@ export default function SpecificChatScreen() {
                     <Text style={styles.financeBannerTitle}>განვადება</Text>
                     <Text style={styles.financeBannerSub}>30 წამში წინასწარი პასუხი</Text>
                   </View>
-                  <Pressable style={styles.financeBannerCta} onPress={() => setShowFinanceModal(true)}>
+                    <Pressable style={styles.financeBannerCta} onPress={() => router.push('/financing-request')}>
                     <Text style={styles.financeBannerCtaText}>გაგრძელება</Text>
                   </Pressable>
                 </LinearGradient>
@@ -641,8 +571,8 @@ export default function SpecificChatScreen() {
                   )}
                   <View style={styles.messageContainer}>
                     {message.role === 'assistant' && (
-                      <View style={[styles.assistantAvatar, { backgroundColor: `${getServiceColor(currentChatData.service)}20` }]}>
-                        <Ionicons name={getServiceIcon(currentChatData.service) as any} size={18} color={getServiceColor(currentChatData.service)} />
+                      <View style={[styles.assistantAvatar, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
+                        <Ionicons name={getServiceIcon(currentChatData.service) as any} size={16} color="#4F46E5" />
                       </View>
                     )}
                     
@@ -650,8 +580,8 @@ export default function SpecificChatScreen() {
                       styles.messageBubble,
                       message.role === 'user' ? styles.userBubble : styles.assistantBubble
                     ]}>
-                      <Text style={styles.messageText}>{message.text}</Text>
-                      <Text style={styles.messageTime}>
+                      <Text style={[styles.messageText, message.role === 'user' ? { color: '#FFFFFF' } : { color: '#111827' }]}>{message.text}</Text>
+                      <Text style={[styles.messageTime, message.role === 'user' ? { color: 'rgba(255, 255, 255, 0.8)' } : { color: '#9CA3AF' }]}>
                         {new Date(message.timestamp).toLocaleTimeString('ka-GE', {
                           hour: '2-digit',
                           minute: '2-digit'
@@ -659,7 +589,10 @@ export default function SpecificChatScreen() {
                       </Text>
                       {message.role === 'assistant' && latestOfferPrice && (
                         <View style={styles.inlineChipsRow}>
-                          <Pressable style={styles.financeInlineChip} onPress={() => { setFinStep(1); setShowFinanceModal(true); }}>
+                          <Pressable style={styles.financeInlineChip} onPress={() => {
+                            const requestId = chatId?.replace('chat-', '') || '';
+                            router.push(`/financing-request?requestId=${encodeURIComponent(requestId)}&amount=${encodeURIComponent(String(latestOfferPrice))}`);
+                          }}>
                             <Ionicons name="card" size={14} color="#10B981" />
                             <Text style={styles.financeInlineChipText}>განვადება</Text>
                           </Pressable>
@@ -685,19 +618,11 @@ export default function SpecificChatScreen() {
                         <Pressable
                           style={styles.financeSuggestionButton}
                           onPress={() => {
-                            // Find the latest price from previous assistant messages
-                            const previousMessages = messages.slice(0, index);
-                            const priceMessage = previousMessages.reverse().find(m => 
-                              m.role === 'assistant' && /\d+\s*(₾|ლარი|GEL|gel)/gi.test(m.text)
-                            );
-                            const price = priceMessage ? 
-                              parseInt(priceMessage.text.match(/(\d+)/)?.[1] || '0') : 0;
-                            setLatestOfferPrice(price);
-                            setFinStep(1);
-                            setShowFinanceModal(true);
+                            const requestId = chatId?.replace('chat-', '') || '';
+                            router.push(`/financing-request?requestId=${encodeURIComponent(requestId)}&amount=${encodeURIComponent(String(latestOfferPrice || 0))}`);
                           }}
                         >
-                          <Text style={styles.financeSuggestionButtonText}>ნახოთ</Text>
+                          <Text style={styles.financeSuggestionButtonText}>განვადება</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -735,9 +660,10 @@ export default function SpecificChatScreen() {
                     }
                   }}
                   placeholder="დაწერეთ შეტყობინება..."
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  placeholderTextColor="#9CA3AF"
                   multiline
                   maxLength={500}
+                  selectionColor="#3B82F6"
                 />
                 
                 <Pressable
@@ -753,77 +679,11 @@ export default function SpecificChatScreen() {
               </View>
             </Animated.View>
           </KeyboardAvoidingView>
-        </LinearGradient>
+        </View>
       </SafeAreaView>
 
       {/* Financing Bottom Sheet (modal) */}
-      <Modal
-        visible={showFinanceModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowFinanceModal(false)}
-      >
-        <View style={styles.bottomSheetOverlay}>
-          <View style={styles.bottomSheet}>
-            <View style={styles.bottomHandle} />
-            <Text style={styles.modalTitle}>განვადება</Text>
-
-            {finStep === 1 ? (
-              <>
-                <View style={styles.modalField}> 
-                  <Text style={styles.modalLabel}>თანხა (₾)</Text>
-                  <TextInput style={styles.modalInput} value={finAmount} onChangeText={setFinAmount} keyboardType="numeric" />
-                </View>
-                <View style={styles.modalFieldRow}>
-                  <View style={[styles.modalField, { flex: 1 }]}>
-                    <Text style={styles.modalLabel}>ავანსი (₾)</Text>
-                    <TextInput style={styles.modalInput} value={finDown} onChangeText={setFinDown} keyboardType="numeric" />
-                  </View>
-                  <View style={{ width: 12 }} />
-                  <View style={[styles.modalField, { flex: 1 }]}>
-                    <Text style={styles.modalLabel}>ვადა</Text>
-                    <View style={styles.termChipsRow}>
-                      {['3','6','12'].map(t => (
-                        <Pressable key={t} style={[styles.termChip, finTerm===t && styles.termChipActive]} onPress={() => setFinTerm(t)}>
-                          <Text style={[styles.termChipText, finTerm===t && styles.termChipTextActive]}>{t} თვე</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-                <Text style={styles.modalHint}>დაახლ. თვიური ≈ ₾{calcMonthly()}</Text>
-                <View style={styles.modalButtons}>
-                  <Pressable style={[styles.modalBtn, { backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={() => setShowFinanceModal(false)}>
-                    <Text style={styles.modalBtnText}>დახურვა</Text>
-                  </Pressable>
-                  <Pressable style={[styles.modalBtn, { backgroundColor: '#10B981' }]} onPress={() => setFinStep(2)}>
-                    <Text style={styles.modalBtnText}>გაგრძელება</Text>
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.modalField}> 
-                  <Text style={styles.modalLabel}>პირადი ნომერი</Text>
-                  <TextInput style={styles.modalInput} value={finPersonalId} onChangeText={setFinPersonalId} keyboardType="number-pad" placeholder="12345678901" placeholderTextColor="#9CA3AF" />
-                </View>
-                <View style={styles.modalField}> 
-                  <Text style={styles.modalLabel}>ტელეფონი</Text>
-                  <TextInput style={styles.modalInput} value={finPhone} onChangeText={setFinPhone} keyboardType="phone-pad" placeholder="5XXXXXXXX" placeholderTextColor="#9CA3AF" />
-                </View>
-                <View style={styles.modalButtons}>
-                  <Pressable style={[styles.modalBtn, { backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={() => setFinStep(1)}>
-                    <Text style={styles.modalBtnText}>უკან</Text>
-                  </Pressable>
-                  <Pressable style={[styles.modalBtn, { backgroundColor: '#10B981' }]} onPress={submitFinancing} disabled={finLoading}>
-                    <Text style={styles.modalBtnText}>{finLoading ? 'იგზავნება...' : 'გაგზავნა'}</Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+      
     </>
   );
 }
@@ -831,14 +691,15 @@ export default function SpecificChatScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#FFFFFF',
   },
   backgroundGradient: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
 
   // Header
@@ -859,9 +720,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 120,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    height: 0,
   },
   backButton: {
     width: 44,
@@ -909,19 +768,8 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    marginBottom: 4,
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-    letterSpacing: 0.2,
-  },
+  headerTitle: { fontSize: 18, color: '#111827', fontWeight: '700', marginBottom: 4, letterSpacing: 0.3 },
+  headerSubtitle: { fontSize: 12, color: '#6B7280', fontWeight: '500', letterSpacing: 0.2 },
   moreButton: {
     width: 44,
     height: 44,
@@ -962,13 +810,10 @@ const styles = StyleSheet.create({
   },
 
   // Messages
-  messagesContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
+  messagesContainer: { flex: 1, paddingHorizontal: 16 },
   messagesContent: {
-    paddingVertical: 20,
-    gap: 16,
+    paddingVertical: 16,
+    gap: 12,
   },
   financeBanner: {
     flexDirection: 'row',
@@ -989,14 +834,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  financeBannerTitle: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  financeBannerSub: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-  },
+  financeBannerTitle: { color: '#065F46', fontWeight: '700' },
+  financeBannerSub: { color: '#047857', fontSize: 12 },
   financeBannerCta: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -1025,14 +864,8 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
     backgroundColor: 'rgba(16,185,129,0.2)',
   },
-  termChipText: {
-    color: '#A7F3D0',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  termChipTextActive: {
-    color: '#FFFFFF',
-  },
+  termChipText: { color: '#065F46', fontSize: 12, fontWeight: '700' },
+  termChipTextActive: { color: '#FFFFFF' },
   // Modal
   modalOverlay: {
     flex: 1,
@@ -1047,12 +880,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
-  modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
+  modalTitle: { color: '#111827', fontSize: 18, fontWeight: '700', marginBottom: 12 },
   modalField: {
     marginBottom: 12,
   },
@@ -1061,24 +889,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  modalLabel: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  modalInput: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
+  modalLabel: { color: '#6B7280', fontSize: 12, marginBottom: 6 },
+  modalInput: { backgroundColor: '#F9FAFB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#111827', borderWidth: 1, borderColor: '#E5E7EB' },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
   modalBtn: {
     flex: 1,
@@ -1086,10 +906,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
   },
-  modalBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
+  modalBtnText: { color: '#111827', fontWeight: '700' },
   // Bottom sheet styles
   bottomSheetOverlay: {
     flex: 1,
@@ -1097,24 +914,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
+    maxHeight: '85%',
   },
   bottomHandle: {
     width: 44,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: '#E5E7EB',
     alignSelf: 'center',
     marginBottom: 12,
   },
-  modalHint: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    marginTop: 6,
-  },
+  modalHint: { color: '#6B7280', fontSize: 12, marginTop: 6 },
   inlineChipsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1180,14 +994,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 4,
   },
-  aiSuggestionText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '500',
-    lineHeight: 20,
-    marginBottom: 10,
-    letterSpacing: 0.2,
-  },
+  aiSuggestionText: { fontSize: 14, color: '#111827', fontWeight: '500', lineHeight: 20, marginBottom: 10, letterSpacing: 0.2 },
   financeSuggestionButton: {
     backgroundColor: 'rgba(59, 130, 246, 0.8)',
     borderRadius: 12,
@@ -1221,41 +1028,28 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     maxWidth: '100%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    backdropFilter: 'blur(10px)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
   userBubble: {
-    backgroundColor: 'rgba(59, 130, 246, 0.9)',
+    backgroundColor: '#3B82F6',
     borderBottomRightRadius: 8,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 20,
   },
   assistantBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#F3F4F6',
     borderBottomLeftRadius: 8,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomRightRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: '#D1D5DB',
   },
-  messageText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    lineHeight: 22,
-    fontWeight: '400',
-    marginBottom: 6,
-    letterSpacing: 0.2,
-  },
-  messageTime: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
+  messageText: { fontSize: 16, color: '#111827', lineHeight: 22, fontWeight: '400', marginBottom: 6, letterSpacing: 0.2 },
+  messageTime: { fontSize: 11, color: '#9CA3AF', fontWeight: '500', letterSpacing: 0.3 },
   assistantAvatar: {
     width: 32,
     height: 32,
@@ -1263,14 +1057,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   userAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1296,13 +1090,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   typingBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 20,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: '#E5E7EB',
   },
   typingDots: {
     flexDirection: 'row',
@@ -1313,39 +1107,34 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#9CA3AF',
   },
 
   // Input
   inputContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(59, 130, 246, 0.2)',
+    borderTopColor: '#E5E7EB',
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#F9FAFB',
     borderRadius: 28,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    gap: 12,
+    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    backdropFilter: 'blur(20px)',
-    marginHorizontal: 20,
-    marginBottom: 20,
+    borderColor: '#E5E7EB',
+    marginHorizontal: 12,
+    marginBottom: 12,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: '#111827',
     maxHeight: 100,
     minHeight: 40,
     fontWeight: '400',
@@ -1360,15 +1149,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
   },
-  sendButtonDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    shadowOpacity: 0,
-  },
+  sendButtonDisabled: { backgroundColor: '#E5E7EB', shadowOpacity: 0 },
 
   // Loading State
   loadingContainer: {

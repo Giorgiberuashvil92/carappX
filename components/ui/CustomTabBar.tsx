@@ -31,7 +31,6 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
     return allowedRoutes.includes(route.name);
   });
   
-  console.log('🔍 [TABBAR] Visible routes:', visibleRoutes.map(r => r.name));
 
   const tabItems = visibleRoutes.map((route, index) => {
     const { options } = descriptors[route.key];

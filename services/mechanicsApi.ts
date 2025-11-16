@@ -54,6 +54,19 @@ class MechanicsApiService {
     }
   }
 
+  async getMechanicById(id: string): Promise<MechanicDTO | null> {
+    try {
+      const url = `${this.baseUrl}/${id}`;
+      const response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+      if (!response.ok) throw new Error(`Failed to fetch mechanic: ${response.status}`);
+      const data = await response.json();
+      return (data as MechanicDTO) ?? null;
+    } catch (error) {
+      console.error('🔧 [MECHANICS_API] Error fetching mechanic by id:', error);
+      return null;
+    }
+  }
+
   async createMechanic(payload: any): Promise<MechanicDTO | null> {
     try {
       const response = await fetch(this.baseUrl, {

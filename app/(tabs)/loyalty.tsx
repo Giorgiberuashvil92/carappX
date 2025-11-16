@@ -14,8 +14,10 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '../../contexts/UserContext';
+import { loyaltyApi, type LoyaltySummary, type LoyaltyTransaction, type LoyaltyReward, type LoyaltyLeaderboardUser, type LoyaltyFriend, type LoyaltyAchievement, type LoyaltyMission } from '../../services/loyaltyApi';
 import QRCode from 'react-native-qrcode-svg';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
@@ -111,6 +113,52 @@ const POINTS_TRANSACTIONS: PointsTransaction[] = [
     icon: 'checkmark-circle',
   },
 ];
+
+// Missions (mock) for loyalty engagement
+const MISSIONS: Array<{ id: string; title: string; icon: any; progress: number; target: number; reward: number }>= [
+  { id: 'm1', title: 'ყოველდღიური ჩექინი', icon: 'calendar', progress: 1, target: 1, reward: 20 },
+  { id: 'm2', title: 'სერვისის დაჯავშნა', icon: 'construct', progress: 0, target: 1, reward: 50 },
+  { id: 'm3', title: 'შეფასება დაწერე', icon: 'chatbox-ellipses', progress: 0, target: 1, reward: 30 },
+  { id: 'm4', title: 'მეგობრის მოწვევა', icon: 'people', progress: 0, target: 1, reward: 100 },
+];
+
+const renderMissionItem = (
+  m: { id: string; title: string; icon: any; progress: number; target: number; reward: number },
+  onClaim?: (missionId: string) => void,
+) => {
+  const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
+  const canClaim = pct >= 100;
+  return (
+    <View key={m.id} style={{ width: 220, marginRight: 12 }}>
+      <View style={{ position: 'relative', borderRadius: 16, overflow: 'hidden' }}>
+        <BlurView intensity={30} tint="default" style={{ padding: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(59,130,246,0.15)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.35)' }}>
+              <Ionicons name={m.icon as any} size={16} color="#60A5FA" />
+            </View>
+            <Text style={{ color: '#E5E7EB', fontWeight: '800' }}>{m.title}</Text>
+            <View style={{ marginLeft: 'auto', backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.35)', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+              <Text style={{ color: '#F59E0B', fontWeight: '800', fontSize: 11 }}>+{m.reward}</Text>
+            </View>
+          </View>
+          <View style={{ height: 8, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 10, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+            <View style={{ width: `${pct}%`, height: '100%', backgroundColor: '#3B82F6' }} />
+          </View>
+          <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#9CA3AF', fontSize: 11 }}>{m.progress}/{m.target}</Text>
+            <TouchableOpacity
+              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: canClaim ? '#22C55E' : 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: canClaim ? '#16A34A' : 'rgba(255,255,255,0.12)' }}
+              disabled={!canClaim}
+              onPress={() => canClaim && onClaim && onClaim(m.id)}
+            >
+              <Text style={{ color: canClaim ? '#0B1F12' : '#E5E7EB', fontWeight: '700', fontSize: 12 }}>{canClaim ? 'მიღება' : 'შესრულე'}</Text>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </View>
+    </View>
+  );
+};
 
 const LEADERBOARD_DATA: LeaderboardUser[] = [
   { id: '1', name: 'გიორგი ბერიძე', points: 2450, rank: 1, isCurrentUser: false },
@@ -242,6 +290,8 @@ export default function LoyaltyScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'rewards' | 'history' | 'leaderboard' | 'friends' | 'achievements'>('rewards');
+  const [redeemVisible, setRedeemVisible] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -260,9 +310,39 @@ export default function LoyaltyScreen() {
     );
   }
   
-  // Mock data
-  const currentPoints = 750;
-  const vipLevel = 'Gold';
+  // Dynamic state
+  const [summary, setSummary] = useState<LoyaltySummary | null>(null);
+  const [transactions, setTransactions] = useState<LoyaltyTransaction[] | null>(null);
+  const [rewards, setRewards] = useState<LoyaltyReward[] | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[] | null>(null);
+  const [friends, setFriends] = useState<Friend[] | null>(null);
+  const [achievements, setAchievements] = useState<Achievement[] | null>(null);
+  const [missions, setMissions] = useState<LoyaltyMission[] | null>(null);
+
+  const currentPoints = summary?.points ?? 0;
+  const vipLevel = summary?.tier ?? 'Bronze';
+  const nextTierPoints = summary?.nextTierPoints ?? 500;
+  const tierProgress = Math.min(100, Math.round((currentPoints / (nextTierPoints || 1)) * 100));
+
+  const handleCloseRedeem = () => {
+    setRedeemVisible(false);
+    setSelectedReward(null);
+  };
+
+  const handleConfirmRedeem = async () => {
+    if (!selectedReward || !user?.id) return;
+    try {
+      const res = await loyaltyApi.redeem(user.id, selectedReward.id);
+      if (res?.summary) setSummary(res.summary);
+      const rw = await loyaltyApi.getRewards(user.id);
+      setRewards(rw);
+      Alert.alert('გადაცვლა', `${selectedReward.title} წარმატებით გამოიყენე!`);
+    } catch (e) {
+      Alert.alert('შეცდომა', 'ჯილდოს გადაცვლა ვერ მოხერხდა');
+    } finally {
+      handleCloseRedeem();
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -284,11 +364,53 @@ export default function LoyaltyScreen() {
     ]).start();
   }, []);
 
-  const onRefresh = () => {
+  const loadData = async () => {
+    if (!user?.id) return;
+    try {
+      const [s, tx, rw, lb, fr, ac, ms] = await Promise.all([
+        loyaltyApi.getSummary(user.id),
+        loyaltyApi.getTransactions(user.id, 20),
+        loyaltyApi.getRewards(user.id),
+        loyaltyApi.getLeaderboard(user.id),
+        loyaltyApi.getFriends(user.id),
+        loyaltyApi.getAchievements(user.id),
+        loyaltyApi.getMissions(user.id),
+      ]);
+      setSummary(s);
+      setTransactions(tx);
+      setRewards(rw);
+      setLeaderboard(lb as unknown as LeaderboardUser[]);
+      setFriends(fr as unknown as Friend[]);
+      setAchievements(ac as unknown as Achievement[]);
+      setMissions(ms as unknown as LoyaltyMission[]);
+    } catch {}
+  };
+
+  const handleClaimMission = async (missionId: string) => {
+    if (!user?.id) return;
+    try {
+      const res = await loyaltyApi.claimMission(user.id, missionId);
+      // Refresh summary and missions after claim
+      const [s, ms] = await Promise.all([
+        loyaltyApi.getSummary(user.id),
+        loyaltyApi.getMissions(user.id),
+      ]);
+      setSummary(s);
+      setMissions(ms);
+      Alert.alert('მისია', 'ჯილდო მიღებულია!');
+    } catch (e) {
+      Alert.alert('შეცდომა', 'მისიის მიღება ვერ მოხერხდა');
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.id]);
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await loadData();
+    setRefreshing(false);
   };
 
   const generateQRData = () => {
@@ -570,6 +692,11 @@ export default function LoyaltyScreen() {
     );
   };
 
+  const openRedeem = (reward: Reward) => {
+    setSelectedReward(reward);
+    setRedeemVisible(true);
+  };
+
   const renderRewardCard = (reward: Reward, index: number) => {
     const canAfford = currentPoints >= reward.pointsRequired;
     const categoryColors = {
@@ -639,11 +766,8 @@ export default function LoyaltyScreen() {
                 }
               ]}
               onPress={() => {
-                if (canAfford && reward.isAvailable) {
-                  Alert.alert('ჯილდო', `${reward.title} წარმატებით გამოიყენე!`);
-                } else {
-                  Alert.alert('ჯილდო', 'ამ ჯილდოსთვის საკმარისი ქულა არ გაქვს');
-                }
+                if (canAfford && reward.isAvailable) openRedeem(reward);
+                else Alert.alert('ჯილდო', 'ამ ჯილდოსთვის საკმარისი ქულა არ გაქვს');
               }}
               disabled={!canAfford || !reward.isAvailable}
             >
@@ -688,8 +812,8 @@ export default function LoyaltyScreen() {
             <View style={styles.headerContent}>
               <View style={styles.headerTop}>
                 <View>
-                  <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Total Points</Text>
-                  <Text style={[styles.headerSubtitle, { color: '#9CA3AF' }]}>LOYALTY PROGRAM</Text>
+                  <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>სულ ქულები</Text>
+                  <Text style={[styles.headerSubtitle, { color: '#9CA3AF' }]}>ლოიალობის პროგრამა</Text>
                 </View>
                 <TouchableOpacity 
                   style={[styles.addButton, { 
@@ -701,7 +825,7 @@ export default function LoyaltyScreen() {
                   onPress={() => setShowQRModal(true)}
                 >
                   <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={[styles.addButtonText, { color: '#FFFFFF' }]}>ADD POINTS</Text>
+                  <Text style={[styles.addButtonText, { color: '#FFFFFF' }]}>ქულების დამატება</Text>
                 </TouchableOpacity>
               </View>
 
@@ -715,9 +839,9 @@ export default function LoyaltyScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.balanceLabel, { color: '#9CA3AF' }]}>Available Points</Text>
+                <Text style={[styles.balanceLabel, { color: '#9CA3AF' }]}>ხელმისაწვდომი ქულები</Text>
                 <Text style={[styles.balanceAmount, { color: '#FFFFFF' }]}>{currentPoints.toLocaleString()}</Text>
-                <Text style={[styles.balanceSubtext, { color: '#9CA3AF' }]}>Ready to redeem</Text>
+                <Text style={[styles.balanceSubtext, { color: '#9CA3AF' }]}>გადაცვლას მზად</Text>
               </Animated.View>
 
               {/* Virtual Card */}
@@ -746,7 +870,7 @@ export default function LoyaltyScreen() {
                 
                 <View style={styles.cardContent}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.cardType}>LOYALTY</Text>
+                    <Text style={styles.cardType}>ლოიალობა</Text>
                     <View style={styles.cardLogo}>
                       <Text style={styles.cardLogoText}>CA</Text>
                     </View>
@@ -758,11 +882,11 @@ export default function LoyaltyScreen() {
                   
                   <View style={styles.cardFooter}>
                     <View style={styles.cardHolder}>
-                      <Text style={styles.cardHolderLabel}>CARD HOLDER</Text>
+                      <Text style={styles.cardHolderLabel}>მფლობელი</Text>
                       <Text style={styles.cardHolderName}>{user?.name || 'მომხმარებელი'}</Text>
                     </View>
                     <View style={styles.cardExpiry}>
-                      <Text style={styles.cardExpiryLabel}>EXPIRES</Text>
+                      <Text style={styles.cardExpiryLabel}>ვადა</Text>
                       <Text style={styles.cardExpiryDate}>12/27</Text>
                     </View>
                   </View>
@@ -771,6 +895,69 @@ export default function LoyaltyScreen() {
             </View>
           </SafeAreaView>
         </Animated.View>
+        {/* Tier Progress Glass Card */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+          <BlurView intensity={30} tint="default" style={{ borderRadius: 16, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, borderWidth: 3, borderColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                <Text style={{ color: '#3B82F6', fontWeight: '800' }}>{tierProgress}%</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#E5E7EB', fontWeight: '800' }}>სტატუსი: {vipLevel}</Text>
+                <Text style={{ color: '#9CA3AF', fontSize: 12 }}>შემდეგი თვალი: {nextTierPoints - currentPoints} ქულა</Text>
+                <View style={{ height: 6, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 8, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+                  <View style={{ width: `${tierProgress}%`, height: '100%', backgroundColor: '#3B82F6' }} />
+                </View>
+              </View>
+              <TouchableOpacity style={{ paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(59,130,246,0.15)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.35)' }}>
+                <Text style={{ color: '#60A5FA', fontWeight: '700', fontSize: 12 }}>დეტალები</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+        {/* Missions Carousel */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800' }}>მისიები</Text>
+            <TouchableOpacity>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, fontWeight: '700' }}>ყველა</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+            {missions && missions.length > 0 ? (
+              missions.map((m) => renderMissionItem(m as any, handleClaimMission))
+            ) : (
+              <View style={{ paddingVertical: 14 }}>
+                <Text style={{ color: '#9CA3AF' }}>მისიები არ არის</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+        {/* Streak & Quick Chips */}
+        <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <BlurView intensity={25} tint="default" style={{ borderRadius: 14, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Ionicons name="flame" size={14} color="#F59E0B" />
+                  <Text style={{ color: '#E5E7EB', fontWeight: '700', fontSize: 12 }}>სერია 3 დღე</Text>
+                </View>
+              </BlurView>
+              <BlurView intensity={25} tint="default" style={{ borderRadius: 14, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Ionicons name="gift" size={14} color="#22C55E" />
+                  <Text style={{ color: '#E5E7EB', fontWeight: '700', fontSize: 12 }}>დღევანდელი ბონუსი</Text>
+                </View>
+              </BlurView>
+              <BlurView intensity={25} tint="default" style={{ borderRadius: 14, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Ionicons name="people" size={14} color="#60A5FA" />
+                  <Text style={{ color: '#E5E7EB', fontWeight: '700', fontSize: 12 }}>მეგობრის მოწვევა</Text>
+                </View>
+              </BlurView>
+            </View>
+          </ScrollView>
+        </View>
         {/* Tab Navigation */}
         <ScrollView 
           horizontal 
@@ -927,18 +1114,26 @@ export default function LoyaltyScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.rewardsGrid}>
-              {REWARDS_DATA.map((reward, index) => renderRewardCard(reward, index))}
+              {rewards && rewards.length > 0 ? (
+                rewards.map((reward, index) => renderRewardCard(reward as any, index))
+              ) : (
+                <Text style={{ color: '#9CA3AF' }}>ჯილდოები არ არის</Text>
+              )}
             </View>
           </View>
         ) : activeTab === 'history' ? (
           <View style={styles.historyContainer}>
             <View style={styles.historyHeader}>
-              <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>Recent Transactions</Text>
+              <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>ბოლო ტრანზაქციები</Text>
               <TouchableOpacity>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {POINTS_TRANSACTIONS.map((transaction, index) => renderTransactionCard(transaction, index))}
+            {transactions && transactions.length > 0 ? (
+              transactions.map((transaction, index) => renderTransactionCard(transaction as any, index))
+            ) : (
+              <Text style={{ color: '#9CA3AF' }}>ტრანზაქციები ჯერ არ არის</Text>
+            )}
           </View>
         ) : activeTab === 'leaderboard' ? (
           <View style={styles.leaderboardContainer}>
@@ -951,20 +1146,28 @@ export default function LoyaltyScreen() {
                 <Ionicons name="share-outline" size={20} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {LEADERBOARD_DATA.map((user, index) => renderLeaderboardCard(user, index))}
+            {leaderboard && leaderboard.length > 0 ? (
+              leaderboard.map((user, index) => renderLeaderboardCard(user as any, index))
+            ) : (
+              <Text style={{ color: '#9CA3AF' }}>ლიდერბორდი ცარიელია</Text>
+            )}
           </View>
         ) : activeTab === 'friends' ? (
           <View style={styles.friendsContainer}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>მეგობრები</Text>
-              <TouchableOpacity 
+              <TouchableOpacity          
                 style={styles.referralButton}
                 onPress={handleReferral}
               >
                 <Ionicons name="person-add" size={20} color="#F59E0B" />
               </TouchableOpacity>
             </View>
-            {FRIENDS_DATA.map((friend, index) => renderFriendCard(friend, index))}
+            {friends && friends.length > 0 ? (
+              friends.map((friend, index) => renderFriendCard(friend as any, index))
+            ) : (
+              <Text style={{ color: '#9CA3AF' }}>მეგობრები არ არის</Text>
+            )}
           </View>
         ) : (
           <View style={styles.achievementsContainer}>
@@ -977,7 +1180,11 @@ export default function LoyaltyScreen() {
                 <Ionicons name="share-outline" size={20} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {ACHIEVEMENTS.map((achievement, index) => renderAchievementCard(achievement, index))}
+            {achievements && achievements.length > 0 ? (
+              achievements.map((achievement, index) => renderAchievementCard(achievement as any, index))
+            ) : (
+              <Text style={{ color: '#9CA3AF' }}>მიღწევები ჯერ არ არის</Text>
+            )}
           </View>
         )}
 
@@ -1081,12 +1288,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     opacity: 0.7,
   },
@@ -1099,7 +1306,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   addButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   balanceSection: {
@@ -1107,17 +1314,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
     marginBottom: 8,
   },
   balanceAmount: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
   },
   balanceSubtext: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   tabScrollContainer: {
@@ -1160,7 +1367,7 @@ const styles = StyleSheet.create({
     height: 44,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
@@ -1186,7 +1393,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
   },
   shareButton: {
@@ -1241,22 +1448,22 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   transactionDescription: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   transactionService: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   transactionDate: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '500',
   },
   transactionAmount: {
     alignItems: 'flex-end',
   },
   transactionAmountText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
   },
   modalOverlay: {
@@ -1291,7 +1498,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
   },
   closeButton: {
@@ -1318,7 +1525,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   qrActionText: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
   },
   // Virtual Card Styles
@@ -1375,7 +1582,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardType: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 1,
@@ -1390,7 +1597,7 @@ const styles = StyleSheet.create({
     backdropFilter: 'blur(10px)',
   },
   cardLogoText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -1399,7 +1606,7 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   cardNumberText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 2,
@@ -1413,13 +1620,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardHolderLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
     color: '#9CA3AF',
     marginBottom: 4,
   },
   cardHolderName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -1427,13 +1634,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   cardExpiryLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
     color: '#9CA3AF',
     marginBottom: 4,
   },
   cardExpiryDate: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -1461,7 +1668,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rankText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
   },
   userInfo: {
@@ -1479,7 +1686,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -1487,12 +1694,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginBottom: 2,
   },
   userPoints: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   trophyContainer: {
@@ -1528,12 +1735,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   achievementTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginBottom: 2,
   },
   achievementDescription: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     marginBottom: 8,
   },
@@ -1552,7 +1759,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   progressText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
   },
   achievementReward: {
@@ -1581,15 +1788,15 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   friendAvatarText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(75, 85, 99, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   onlineIndicator: {
     position: 'absolute',
@@ -1605,17 +1812,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   friendName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginBottom: 2,
   },
   friendPoints: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     marginBottom: 2,
   },
   friendStatus: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
   },
   challengeButton: {
@@ -1658,17 +1865,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
     marginBottom: 4,
   },
   rewardDescription: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     marginBottom: 4,
   },
   rewardExpiry: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
   },
   rewardActions: {
@@ -1676,7 +1883,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rewardPoints: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
   },
   redeemButton: {
@@ -1687,7 +1894,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   redeemButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },

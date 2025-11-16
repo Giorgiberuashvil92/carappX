@@ -27,18 +27,20 @@ export default function StoriesRow({ stories, onOpen, onCreate, title = 'ის�
         data={stories}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => onOpen(stories.findIndex((s) => s.id === item.id))} activeOpacity={0.85}>
-            {item.seen ? (
-              <View style={styles.storyBubbleSeen}>
-                <Image source={{ uri: item.author.avatar || 'https://i.pravatar.cc/100' }} style={styles.storyAvatar} />
-              </View>
-            ) : (
-              <LinearGradient colors={["#F59E0B", "#EF4444", "#8B5CF6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.storyBubble}>
-                <View style={styles.storyInner}> 
-                  <Image source={{ uri: item.author.avatar || 'https://i.pravatar.cc/100' }} style={styles.storyAvatar} />
-                </View>
-              </LinearGradient>
-            )}
+          <TouchableOpacity 
+            onPress={() => onOpen(stories.findIndex((s) => s.id === item.id))} 
+            activeOpacity={0.85}
+            style={styles.storyContainer}
+          >
+            <View style={[
+              styles.storyBubble,
+              item.seen ? styles.storyBubbleSeen : styles.storyBubbleNew
+            ]}>
+              <Image 
+                source={{ uri: item.author.avatar || 'https://i.pravatar.cc/100' }} 
+                style={styles.storyAvatar} 
+              />
+            </View>
             <Text numberOfLines={1} style={styles.storyName}>{item.author.name}</Text>
           </TouchableOpacity>
         )}
@@ -53,11 +55,46 @@ const styles = StyleSheet.create({
   title: { color: '#111827', fontWeight: '700', fontSize: 16 },
   addBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   addText: { color: '#fff', fontSize: 18, marginTop: -2 },
-  storyBubble: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
-  storyInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#0B0B0E', alignItems: 'center', justifyContent: 'center' },
-  storyBubbleSeen: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: 'rgba(17,24,39,0.2)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
-  storyAvatar: { width: 58, height: 58, borderRadius: 29 },
-  storyName: { color: '#6B7280', fontSize: 11, textAlign: 'center', marginTop: 6, width: 64 },
+  
+  // მარტივი სტილები
+  storyContainer: {
+    alignItems: 'center',
+  },
+  
+  storyBubble: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  
+  storyBubbleNew: {
+    borderWidth: 2,
+    borderColor: '#3B82F6', // ლურჯი ბორდერი ახალი stories-ისთვის
+  },
+  
+  storyBubbleSeen: {
+    borderWidth: 2,
+    borderColor: '#9CA3AF', // ნაცარი ბორდერი ნანახი stories-ისთვის
+  },
+  
+  storyAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  
+  storyName: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 8,
+    width: 64,
+    fontFamily: 'Inter',
+  },
 });
 
 

@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import API_BASE_URL from '../../config/api';
+import { useUser } from '../../contexts/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
-interface Notification {
+type AnyObject = { [key: string]: any };
+interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  timestamp: string;
+  type: string;
+  createdAt: number;
   isRead: boolean;
-  action?: {
-    label: string;
-    route: string;
-  };
+  data?: AnyObject;
 }
 
 type Props = {
@@ -25,85 +25,122 @@ type Props = {
 
 export function NotificationsModal({ visible, onClose }: Props) {
   const router = useRouter();
+  const { user } = useUser();
   
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'ჯავშნის შეხსენება',
-      message: 'თქვენი მანქანის სერვისი დაგეგმილია ხვალ 14:00-ზე',
-      type: 'info',
-      timestamp: '2 საათის წინ',
-      isRead: false,
-      action: {
-        label: 'დეტალურად',
-        route: '/booking/123'
-      }
-    },
-    {
-      id: '2',
-      title: 'ფასდაკლება',
-      message: 'AutoClean Pro-ში 20% ფასდაკლება ყველა სერვისზე',
-      type: 'success',
-      timestamp: '4 საათის წინ',
-      isRead: false,
-      action: {
-        label: 'გამოყენება',
-        route: '/carwash/autoclean-pro'
-      }
-    },
-    {
-      id: '3',
-      title: 'მიღწევა',
-      message: 'გილოცავთ! მიიღეთ "ლოიალური მომხმარებელი" ბეჯი',
-      type: 'success',
-      timestamp: '1 დღის წინ',
-      isRead: true,
-      action: {
-        label: 'ჯილდოები',
-        route: '/(tabs)/loyalty'
-      }
-    },
-    {
-      id: '4',
-      title: 'შეხსენება',
-      message: 'თქვენი მანქანის ზეთის შეცვლის დროა',
-      type: 'warning',
-      timestamp: '2 დღის წინ',
-      isRead: true,
-      action: {
-        label: 'ჯავშნა',
-        route: '/booking'
-      }
-    }
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === id ? { ...notif, isRead: true } : notif
-      )
-    );
+  const formatTimeAgo = (ts: number) => {
+    const now = Date.now();
+    const diff = Math.max(0, now - ts);
+    const m = Math.floor(diff / (1000 * 60));
+    const h = Math.floor(diff / (1000 * 60 * 60));
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (m < 1) return 'ახლა';
+    if (m < 60) return `${m} წთ წინ`;
+    if (h < 24) return `${h} სთ წინ`;
+    if (d < 7) return `${d} დღე წინ`;
+    if (d < 30) return `${Math.floor(d / 7)} კვირა წინ`;
+    if (d < 365) return `${Math.floor(d / 30)} თვე წინ`;
+    return `${Math.floor(d / 365)} წელი წინ`;
+  };
+
+  const load = async () => {
+    try {
+      if (!user?.id) return;
+      const res = await fetch(`${API_BASE_URL}/notifications/user/${user.id}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const list: AnyObject[] = Array.isArray(json?.data) ? json.data : [];
+      const mapped: NotificationItem[] = list.map((n: AnyObject) => {
+        const rawTs = n.createdAt || n.timestamp;
+        const ts = typeof rawTs === 'number' ? rawTs : rawTs ? new Date(rawTs).getTime() : Date.now();
+        const status = typeof n.status === 'string' ? n.status.toLowerCase() : (n.read ? 'read' : '');
+        const payload = n.payload || {};
+        return {
+          id: String(n._id || n.id),
+          title: String(payload.title || n.title || 'შეტყობინება'),
+          message: String(payload.body || n.body || n.message || ''),
+          type: String(n.type || n.category || 'info'),
+          createdAt: ts,
+          isRead: status === 'read',
+          data: payload.data || n.data || {},
+        };
+      });
+      mapped.sort((a, b) => b.createdAt - a.createdAt);
+      setNotifications(mapped);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (visible) load();
+  }, [visible, user?.id]);
+
+  const markAsRead = async (id: string) => {
+    try { await fetch(`${API_BASE_URL}/notifications/${id}/read`, { method: 'PATCH' }); } catch {}
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'chat_message': return 'chatbubble-ellipses';
+      case 'offer_status': return 'pricetag';
+      case 'carwash_booking': return 'water';
+      case 'carwash_booking_confirmed': return 'checkmark-circle';
+      case 'carwash_booking_reminder': return 'alarm';
       case 'success': return 'checkmark-circle';
       case 'warning': return 'warning';
       case 'error': return 'alert-circle';
-      default: return 'information-circle';
+      default: return 'notifications';
     }
   };
 
-  const getNotificationColor = (type: string) => {
+  const getIconPalette = (type: string) => {
     switch (type) {
-      case 'success': return '#10B981';
-      case 'warning': return '#F59E0B';
-      case 'error': return '#EF4444';
-      default: return '#3B82F6';
+      case 'chat_message':
+        return { bg: '#DBEAFE', border: '#93C5FD', color: '#1D4ED8' };
+      case 'offer_status':
+        return { bg: '#EDE9FE', border: '#C4B5FD', color: '#6D28D9' };
+      case 'carwash_booking':
+        return { bg: '#DCFCE7', border: '#86EFAC', color: '#16A34A' };
+      case 'carwash_booking_confirmed':
+        return { bg: '#DCFCE7', border: '#86EFAC', color: '#16A34A' };
+      case 'carwash_booking_reminder':
+        return { bg: '#FEF3C7', border: '#FCD34D', color: '#D97706' };
+      case 'success':
+        return { bg: '#DCFCE7', border: '#86EFAC', color: '#16A34A' };
+      case 'warning':
+        return { bg: '#FEF3C7', border: '#FCD34D', color: '#D97706' };
+      case 'error':
+        return { bg: '#FEE2E2', border: '#FCA5A5', color: '#DC2626' };
+      default:
+        return { bg: '#E5E7EB', border: '#D1D5DB', color: '#374151' };
     }
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const handleNavigation = (data?: AnyObject) => {
+    const d = data || {};
+    const screen = d.screen as string | undefined;
+    const requestId = d.requestId as string | undefined;
+    const offerId = d.offerId as string | undefined;
+    const carwashId = d.carwashId as string | undefined;
+    const chatId = d.chatId as string | undefined;
+    onClose();
+    if (screen === 'AIRecommendations' || screen === 'PartDetails') {
+      router.push('/offers');
+    } else if (screen === 'RequestDetails' && requestId) {
+      router.push(`/offers/${requestId}`);
+    } else if (screen === 'OfferDetails' && (offerId || requestId)) {
+      router.push(`/offers/${offerId || requestId}`);
+    } else if (screen === 'Bookings' && carwashId) {
+      router.push(`/bookings/${carwashId}`);
+    } else if (screen === 'Chat' && (chatId || offerId)) {
+      router.push(`/chat/${chatId || offerId}`);
+    } else {
+      router.push('/notifications');
+    }
+  };
 
   const handleViewAll = () => {
     onClose();
@@ -139,7 +176,7 @@ export function NotificationsModal({ visible, onClose }: Props) {
             {/* Content */}
             <View style={styles.content}>
               <ScrollView showsVerticalScrollIndicator={false} style={styles.notificationsList}>
-                {notifications.slice(0, 3).map((notification) => (
+                {notifications.slice(0, 5).map((notification) => (
                   <TouchableOpacity
                     key={notification.id}
                     style={[
@@ -148,33 +185,23 @@ export function NotificationsModal({ visible, onClose }: Props) {
                     ]}
                     onPress={() => {
                       markAsRead(notification.id);
-                      onClose();
-                      router.push({
-                        pathname: '/notifications/[id]',
-                        params: {
-                          id: notification.id,
-                          title: notification.title,
-                          message: notification.message,
-                          type: notification.type,
-                          timestamp: notification.timestamp,
-                          actionLabel: notification.action?.label ?? '',
-                          actionRoute: notification.action?.route ?? '',
-                        },
-                      } as any);
+                      handleNavigation(notification.data);
                     }}
                     activeOpacity={0.7}
                   >
                     <View style={styles.notificationContent}>
-                      <View style={[
-                        styles.iconContainer,
-                        { backgroundColor: getNotificationColor(notification.type) + '20' }
-                      ]}>
+                      {(() => { const p = getIconPalette(notification.type); return (
+                        <View style={[
+                          styles.iconContainer,
+                          { backgroundColor: p.bg, borderColor: p.border }
+                        ]}>
                         <Ionicons 
-                          name={getNotificationIcon(notification.type) as any} 
-                          size={16} 
-                          color={getNotificationColor(notification.type)} 
-                        />
-                      </View>
+                            name={getNotificationIcon(notification.type) as any} 
+                            size={20} 
+                            color={p.color} 
+                          />
+                        </View>
+                      ); })()}
                       
                       <View style={styles.notificationText}>
                         <View style={styles.titleRow}>
@@ -192,7 +219,7 @@ export function NotificationsModal({ visible, onClose }: Props) {
                           {notification.message}
                         </Text>
                         <Text style={styles.timestamp}>
-                          {notification.timestamp}
+                          {formatTimeAgo(notification.createdAt)}
                         </Text>
                       </View>
                     </View>
@@ -218,7 +245,7 @@ export function NotificationsModal({ visible, onClose }: Props) {
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'flex-end',
   },
   modalCard: {
@@ -226,14 +253,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',
-    backgroundColor: 'rgba(15, 15, 15, 0.8)',
+    backgroundColor: 'rgba(17, 24, 39, 0.7)',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.2)',
-    backdropFilter: 'blur(20px)',
+    borderColor: 'rgba(148, 163, 184, 0.35)',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
     elevation: 12,
   },
   modalGradient: {
@@ -267,7 +293,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontFamily: 'Inter',
   },
   unreadBadge: {
@@ -287,10 +313,9 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
-    backdropFilter: 'blur(15px)',
+    borderColor: 'rgba(148, 163, 184, 0.35)',
   },
   
   // Content
@@ -302,22 +327,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notificationCard: {
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
     elevation: 12,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
-    backdropFilter: 'blur(20px)',
+    borderColor: 'rgba(148, 163, 184, 0.3)',
   },
   unreadCard: {
-    borderColor: '#3B82F6',
-    borderWidth: 2,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: '#6366F1',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
   },
   notificationContent: {
     flexDirection: 'row',
@@ -325,12 +349,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
   },
   notificationText: {
     flex: 1,
@@ -338,12 +367,12 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#E5E7EB',
     fontFamily: 'Inter',
     marginBottom: 4,
   },
   unreadTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontWeight: '700',
   },
   unreadDot: {
@@ -355,14 +384,14 @@ const styles = StyleSheet.create({
   },
   notificationMessage: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#CBD5E1',
     lineHeight: 16,
     marginBottom: 6,
     fontFamily: 'Inter',
   },
   timestamp: {
     fontSize: 10,
-    color: '#6B7280',
+    color: '#A1A1AA',
     fontFamily: 'Inter',
   },
   
@@ -370,24 +399,23 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(156, 163, 175, 0.2)',
+    borderTopColor: 'rgba(148, 163, 184, 0.25)',
   },
   viewAllButton: {
-    backgroundColor: 'rgba(75, 85, 99, 0.6)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.4)',
-    backdropFilter: 'blur(15px)',
+    borderColor: 'rgba(148, 163, 184, 0.35)',
     gap: 8,
   },
   viewAllButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontFamily: 'Inter',
   },
 });

@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
-import { registerPushToken } from '@/utils/notifications';
 import { useMarketplace } from '@/contexts/MarketplaceContext';
 import { subscribe, publish, OfferEvent } from '@/utils/OfferBus';
 import Constants from 'expo-constants';
@@ -50,7 +49,6 @@ export default function PartnerSimpleFeed() {
     // Register push token for partner role on partner inbox
     (async () => {
       try {
-        await registerPushToken({ backendUrl: API_URL, role: 'partner', partnerId: PARTNER_ID });
       } catch {}
     })();
     let cancelled = false;

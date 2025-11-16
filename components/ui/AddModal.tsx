@@ -111,7 +111,6 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
       return;
     }
 
-    // Specific validation for dismantler
     if (currentStep.selectedType === 'dismantler') {
       if (formData.yearFrom && formData.yearTo && parseInt(formData.yearFrom) > parseInt(formData.yearTo)) {
         Alert.alert('შეცდომა', 'წლიდან არ შეიძლება იყოს უფრო დიდი ვიდრე წლამდე');
@@ -123,7 +122,6 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
       setSaving(true);
       let response;
       
-      // Process photos for upload before saving
       let uploadedPhotos: string[] = [];
       if (formData.photos && formData.photos.length > 0) {
         setUploadProgress('ფოტოების ატვირთვა...');
@@ -160,7 +158,8 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             name: formData.name,
           };
           console.log('Sending dismantler data:', dismantlerData);
-          response = await addItemApi.createDismantler(dismantlerData);
+          console.log('User ID for dismantler:', user?.id);
+          response = await addItemApi.createDismantler(dismantlerData, user?.id);
           console.log('Dismantler response:', response);
           break;
           
@@ -582,6 +581,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          
           <View style={styles.formContainer}>
             {config.fields.map((field, index) => (
               <View key={field.key} style={styles.fieldContainer}>

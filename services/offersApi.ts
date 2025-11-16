@@ -71,6 +71,27 @@ class OffersApiService {
     console.log('[offersApi] ← OK', response.status);
     return response.json();
   }
+
+  async getOffersByReminderType(reminderType: string, userId?: string): Promise<RecommendationItem[]> {
+    // Get offers by reminder type (global offers for this reminder category)
+    const url = `${OFFERS_API_URL}/offers?reminderType=${reminderType}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(userId ? { 'x-user-id': userId } : {}),
+    };
+
+    console.log('[offersApi] → getOffersByReminderType', { url, method: 'GET', headers });
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      console.log('[offersApi] ← ERROR', response.status, response.statusText);
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+
+    console.log('[offersApi] ← OK', response.status);
+    return response.json();
+  }
 }
 
 export const offersApi = new OffersApiService();

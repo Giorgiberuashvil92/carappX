@@ -9,7 +9,8 @@
     StatusBar, 
     Animated,
     Modal,
-    TextInput
+    TextInput,
+    ImageBackground
   } from 'react-native';
   import { SafeAreaView } from 'react-native-safe-area-context';
   import { Ionicons } from '@expo/vector-icons';
@@ -83,9 +84,7 @@
         setError(null);
         const response = await addItemApi.getDismantlers(dismantlerFilters as any);
         
-        console.log('=== DISMANTLERS JSON DEBUG ===');
-        console.log('Full JSON response:', JSON.stringify(response, null, 2));
-        console.log('=============================');
+
         
         if (response.success && response.data) {
           response.data.forEach((dismantler: any, index: number) => {
@@ -308,6 +307,44 @@
       setShowDetailModal(true);
     };
 
+    const convertDismantlerToDetailItem = (dismantler: any): DetailItem => {
+      // Get first photo from backend data or use fallback
+      const mainImage = dismantler.photos && dismantler.photos.length > 0 
+        ? dismantler.photos[0] 
+        : dismantler.images && dismantler.images.length > 0 
+          ? dismantler.images[0]
+          : dismantler.image || 'https://images.unsplash.com/photo-1563298723-dcfebaa392e3?q=80&w=800&auto=format&fit=crop';
+      
+      // Create gallery from all photos or fallback to single image
+      const gallery = dismantler.photos && dismantler.photos.length > 0 
+        ? dismantler.photos 
+        : dismantler.images && dismantler.images.length > 0 
+          ? dismantler.images
+          : [mainImage];
+      
+      return {
+        id: dismantler.id || dismantler._id,
+        title: dismantler.name,
+        name: dismantler.name,
+        image: mainImage,
+        type: 'dismantler',
+        location: dismantler.location,
+        phone: dismantler.phone,
+        workingHours: '09:00 - 18:00',
+        address: dismantler.location,
+        features: ['გამოცდილი პერსონალი', 'ხარისხიანი სერვისი'],
+        gallery: gallery,
+        specifications: {
+          'ტიპი': 'დაშლილი მანქანები',
+        'ბრენდი': dismantler.brand || 'უცნობი',
+        'მოდელი': dismantler.model || 'უცნობი',
+        'წლები': (dismantler.yearFrom && dismantler.yearTo) ? `${dismantler.yearFrom} - ${dismantler.yearTo}` : (dismantler.yearFrom || dismantler.yearTo || 'უცნობი'),
+          'მდებარეობა': dismantler.location,
+          'ტელეფონი': dismantler.phone || 'მიუთითებელი არ არის',
+        }
+      };
+    };
+
     const handleAddItem = (type: AddModalType, data: any) => {
       console.log('Item successfully added:', { type, data });
       
@@ -417,138 +454,7 @@
     );
 
 
-    const renderVerticalStoreCard = (store: any) => {
-      // Get first photo from backend data or use fallback
-      const imageUri = store.photos && store.photos.length > 0 
-        ? store.photos[0] 
-        : store.images && store.images.length > 0 
-          ? store.images[0]
-          : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop';
-      
-      console.log(`🖼️ Store ${store.name}: Using image ${imageUri}`);
-      
-    return (
-      <TouchableOpacity style={styles.verticalStoreCard} activeOpacity={0.95}>
-          <View style={styles.verticalStoreImageSection}>
-            <Image source={{ uri: imageUri }} style={styles.verticalStoreImage} />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.4)']}
-            style={styles.verticalStoreImageOverlay}
-          />
-          <View style={styles.verticalStoreImageBadges}>
-            <View style={styles.verticalTypeBadge}>
-              <Text style={styles.verticalTypeText}>{store.type}</Text>
-            </View>
-          </View>
-        </View>
-        
-        <View style={styles.verticalStoreContent}>
-          <View style={styles.verticalStoreMainInfo}>
-            <Text style={styles.verticalStoreName}>{store.name}</Text>
-            <View style={styles.verticalStoreMetaRow}>
-              <View style={styles.verticalLocationInfo}>
-                <Ionicons name="location" size={14} color="#6B7280" />
-                <Text style={styles.verticalLocationText}>{store.location}</Text>
-              </View>
-              <View style={styles.verticalStoreStats}>
-                <View style={styles.verticalStatItem}>
-                  <Ionicons name="time" size={12} color="#3B82F6" />
-                  <Text style={styles.verticalStatText}>მუშაობს</Text>
-                </View>
-                {store.phone && (
-                  <View style={styles.verticalStatItem}>
-                    <Ionicons name="call" size={12} color="#3B82F6" />
-                    <Text style={styles.verticalStatText}>{store.phone}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.verticalStoreActions}>
-            <TouchableOpacity style={styles.verticalActionBtnSecondary}>
-              <Ionicons name="heart-outline" size={16} color="#6B7280" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.verticalActionBtnPrimary}
-              onPress={() => handleShowStoreDetails(store)}
-            >
-              <Text style={styles.verticalActionPrimaryText}>დეტალები</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-    };
 
-    const renderVerticalPartCard = (part: any) => {
-      // Get first image from backend data or fallback
-      const imageUri = part.images && part.images.length > 0 
-        ? part.images[0] 
-        : part.photos && part.photos.length > 0 
-          ? part.photos[0]
-          : part.image || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=600&auto=format&fit=crop';
-      
-      console.log(`🖼️ Part ${part.title}: Using image ${imageUri}`);
-      
-      return (
-        <TouchableOpacity style={styles.verticalPartCard} activeOpacity={0.95}>
-          <View style={styles.verticalPartImageSection}>
-            <Image source={{ uri: imageUri }} style={styles.verticalPartImage} />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.4)']}
-            style={styles.verticalPartImageOverlay}
-          />
-          {part.condition && (
-            <View style={styles.verticalPartConditionBadge}>
-              <Text style={styles.verticalPartConditionText}>{part.condition}</Text>
-            </View>
-          )}
-          <View style={styles.verticalPartPriceBadge}>
-            <Text style={styles.verticalPartPriceText}>{part.price}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.verticalPartContent}>
-          <View style={styles.verticalPartMainInfo}>
-            <Text style={styles.verticalPartName}>{part.title}</Text>
-            <View style={styles.verticalPartMetaRow}>
-              <View style={styles.verticalPartLocationInfo}>
-                <Ionicons name="storefront-outline" size={14} color="#6B7280" />
-                <Text style={styles.verticalPartLocationText}>{part.seller}</Text>
-              </View>
-              <View style={styles.verticalPartStats}>
-                <View style={styles.verticalPartStatItem}>
-                  <Ionicons name="location" size={12} color="#3B82F6" />
-                  <Text style={styles.verticalPartStatText}>{part.location}</Text>
-                </View>
-                {part.phone && (
-                  <View style={styles.verticalPartStatItem}>
-                    <Ionicons name="call" size={12} color="#3B82F6" />
-                    <Text style={styles.verticalPartStatText}>{part.phone}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.verticalPartActions}>
-            <TouchableOpacity style={styles.verticalPartActionBtnSecondary}>
-              <Ionicons name="heart-outline" size={16} color="#6B7280" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.verticalPartActionBtnPrimary}
-              onPress={() => handleShowPartDetails(part)}
-            >
-              <Text style={styles.verticalPartActionPrimaryText}>დეტალები</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-    };
 
     return (
       <View style={styles.innovativeContainer}>
@@ -617,16 +523,11 @@
             <View style={styles.aiSearchSection}>
               {/* AI Search Banner */}
               <TouchableOpacity 
-                style={styles.aiSearchBanner}
+                style={styles.modernAICard}
                 onPress={() => router.push('/ai-chat')}
                 activeOpacity={0.95}
               >
-                <LinearGradient
-                  colors={['#6366F1', '#8B5CF6', '#EC4899']}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.aiGradient}
-                >
+                <View style={styles.modernAIBackground}>
                   <View style={styles.aiSearchContent}>
                     <View style={styles.aiIcon}>
                       <Ionicons name="sparkles" size={24} color="#FFFFFF" />
@@ -637,7 +538,7 @@
                     </View>
                     <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                   </View>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
 
               {/* Simple Filter Button */}
@@ -708,12 +609,151 @@
                     </TouchableOpacity>
                   </View>
                   {dismantlers.length > 0 ? (
-                    <View style={styles.verticalStoresList}>
+                    <View style={styles.modernDismantlersContainer}>
                       {dismantlers?.map((dismantler, index) => (
-                      <View key={dismantler.id || dismantler._id || `dismantler-${index}`}>
-                        {renderVerticalStoreCard(dismantler)}
-                      </View>
-                    ))}
+                        <View key={dismantler.id || dismantler._id || index} style={styles.modernDismantlerCard}>
+                          {/* Background Image */}
+                          <ImageBackground 
+                            source={{
+                              uri: dismantler.photos && dismantler.photos.length > 0 
+                                ? dismantler.photos[0] 
+                                : dismantler.images && dismantler.images.length > 0 
+                                  ? dismantler.images[0]
+                                  : dismantler.image || 'https://images.unsplash.com/photo-1563298723-dcfebaa392e3?q=80&w=800&auto=format&fit=crop'
+                            }}
+                            style={styles.modernDismantlerBackgroundImage}
+                            resizeMode="cover"
+                          >
+                            {/* Gradient Overlay */}
+                            <LinearGradient
+                              colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
+                              style={styles.modernDismantlerGradientOverlay}
+                            >
+                              {/* Header */}
+                              <View style={styles.modernDismantlerHeader}>
+                                <View style={styles.modernDismantlerProfileSection}>
+                                  <View style={styles.modernDismantlerAvatarPlaceholder}>
+                                    <Image 
+                                      source={{
+                                        uri: dismantler.photos && dismantler.photos.length > 0 
+                                          ? dismantler.photos[0] 
+                                          : dismantler.image || 'https://images.unsplash.com/photo-1563298723-dcfebaa392e3?q=80&w=800&auto=format&fit=crop'
+                                      }} 
+                                      style={styles.modernDismantlerAvatar} 
+                                    />
+                                  </View>
+                                  <Text style={styles.modernDismantlerUsername}>{dismantler.name}</Text>
+                                </View>
+                                <TouchableOpacity 
+                                  style={styles.modernDismantlerLikeButton}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    // Toggle like functionality
+                                    console.log('Dismantler liked:', dismantler.name);
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Ionicons name="heart" size={16} color="#FFFFFF" />
+                                  <Text style={styles.modernDismantlerActionText}>156</Text>
+                                </TouchableOpacity>
+                              </View>
+                              
+                              {/* Main Card */}
+                              <TouchableOpacity 
+                                style={styles.modernDismantlerMainCard}
+                                onPress={() => {
+                                  const detailItem = convertDismantlerToDetailItem(dismantler);
+                                  setSelectedDetailItem(detailItem);
+                                  setShowDetailModal(true);
+                                }}
+                                activeOpacity={0.95}
+                              >
+                                {/* Dismantler Info */}
+                                <View style={styles.modernDismantlerInfoSection}>
+                                  
+                                </View>
+                                
+                                {/* Separator Line */}
+                                <View style={styles.modernDismantlerSeparator} />
+                                
+                                 {/* Dismantler Type Section */}
+                                 <View style={styles.modernDismantlerTypeSection}>
+                                   <View style={styles.modernDismantlerInfoSection}>
+                                    <View style={styles.modernDismantlerCarInfoButton}>
+                                      <Text style={styles.modernDismantlerCarInfoText}>
+                                        {dismantler.brand && dismantler.model ? 
+                                          `${dismantler.brand} ${dismantler.model}` : 
+                                          'დაშლილი მანქანები'
+                                        }
+                                      </Text>
+                                    </View>
+                                    {dismantler.yearFrom && dismantler.yearTo && (
+                                      <View style={styles.modernDismantlerYearButton}>
+                                        <Text style={styles.modernDismantlerYearText}>
+                                          {dismantler.yearFrom} - {dismantler.yearTo}
+                                        </Text>
+                                      </View>
+                                    )}
+                                   </View>
+                                  
+                                  {/* Call Button */}
+                                  <TouchableOpacity 
+                                    style={styles.modernDismantlerCallButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      // Show phone number from dismantler info
+                                      const phoneNumber = dismantler.phone || '555-123-456';
+                                      console.log('Dismantler phone:', phoneNumber);
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="call-outline" size={14} color="#FFFFFF" />
+                                  </TouchableOpacity>
+                                </View>
+                                
+                                {/* Actions Footer */}
+                                <View style={styles.modernDismantlerActionsFooter}>
+                                  <View style={styles.modernDismantlerActionsLeft}>
+                                    <TouchableOpacity 
+                                      style={styles.modernDismantlerActionButton}
+                                      onPress={(e) => {
+                                        e.stopPropagation();
+                                        // Navigate to dismantler details/comments
+                                        console.log('Dismantler comments:', dismantler.name);
+                                      }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
+                                    </TouchableOpacity>
+                                    
+                                    <View style={styles.modernDismantlerLocationButton}>
+                                      <Ionicons name="location-outline" size={16} color="#FFFFFF" />
+                                      <Text style={styles.modernDismantlerLocationButtonText}>
+                                        {dismantler.location || 'მდებარეობა'}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  
+                                  <TouchableOpacity 
+                                    style={styles.modernDismantlerContactButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      // Contact dismantler functionality
+                                      const detailItem = convertDismantlerToDetailItem(dismantler);
+                                      setSelectedDetailItem(detailItem);
+                                      setShowDetailModal(true);
+                                    }}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Ionicons name="information-outline" size={14} color="#FFFFFF" />
+                                    <Text style={styles.modernDismantlerContactButtonText}>ინფო</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </TouchableOpacity>
+                            </LinearGradient>
+                          </ImageBackground>
+                        </View>
+                      ))}
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
@@ -735,12 +775,146 @@
                     </View>
                   </View>
                   {filteredParts.length > 0 ? (
-                    <View style={styles.verticalPartsList}>
-                      {filteredParts?.map((part) => (
-                      <View key={part.id}>
-                        {renderVerticalPartCard(part)}
-                      </View>
-                    ))}
+                    <View style={styles.modernPartsContainer}>
+                      {filteredParts?.map((part, index) => (
+                        <View key={part.id || index} style={styles.modernPartCard}>
+                          {/* Background Image */}
+                          <ImageBackground 
+                            source={{
+                              uri: part.photos && part.photos.length > 0 
+                                ? part.photos[0] 
+                                : part.images && part.images.length > 0 
+                                  ? part.images[0]
+                                  : part.image || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=800&auto=format&fit=crop'
+                            }}
+                            style={styles.modernPartBackgroundImage}
+                            resizeMode="cover"
+                          >
+                            {/* Gradient Overlay */}
+                            <LinearGradient
+                              colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
+                              style={styles.modernPartGradientOverlay}
+                            >
+                              {/* Header */}
+                              <View style={styles.modernPartHeader}>
+                                <View style={styles.modernPartProfileSection}>
+                                  <View style={styles.modernPartAvatarPlaceholder}>
+                                    <Image 
+                                      source={{
+                                        uri: part.photos && part.photos.length > 0 
+                                          ? part.photos[0] 
+                                          : part.image || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=800&auto=format&fit=crop'
+                                      }} 
+                                      style={styles.modernPartAvatar} 
+                                    />
+                                  </View>
+                                  <Text style={styles.modernPartUsername}>{part.name}</Text>
+                                </View>
+                                <TouchableOpacity 
+                                  style={styles.modernPartLikeButton}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    // Toggle like functionality
+                                    console.log('Part liked:', part.name);
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Ionicons name="heart" size={16} color="#FFFFFF" />
+                                  <Text style={styles.modernPartActionText}>89</Text>
+                                </TouchableOpacity>
+                              </View>
+                              
+                              {/* Main Card */}
+                              <TouchableOpacity 
+                                style={styles.modernPartMainCard}
+                                onPress={() => {
+                                  const detailItem = convertPartToDetailItem(part);
+                                  setSelectedDetailItem(detailItem);
+                                  setShowDetailModal(true);
+                                }}
+                                activeOpacity={0.95}
+                              >
+                                {/* Part Info */}
+                                <View style={styles.modernPartInfoSection}>
+                                  <Text style={styles.modernPartNameInfo}>
+                                    {part.title || part.name || 'ავტონაწილი'}
+                                  </Text>
+                                  {part.category && (
+                                    <Text style={styles.modernPartCategoryInfo}>
+                                      {part.category}
+                                    </Text>
+                                  )}
+                                </View>
+                                
+                                {/* Separator Line */}
+                                <View style={styles.modernPartSeparator} />
+                                
+                                {/* Part Type Section */}
+                                <View style={styles.modernPartTypeSection}>
+                                  <View style={styles.modernPartTypeLeft}>
+                                    <Text style={styles.modernPartLocationText}>
+                                      {part.price ? `${part.price}` : (part.category || 'ნაწილი')}
+                                    </Text>
+                                  </View>
+                                  
+                                  {/* Call Button */}
+                                  <TouchableOpacity 
+                                    style={styles.modernPartCallButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      // Show phone number from part info
+                                      const phoneNumber = part.phone || '555-123-456';
+                                      console.log('Part phone:', phoneNumber);
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="call-outline" size={14} color="#FFFFFF" />
+                                  </TouchableOpacity>
+                                </View>
+                                
+                                {/* Actions Footer */}
+                                <View style={styles.modernPartActionsFooter}>
+                                  <View style={styles.modernPartActionsLeft}>
+                                    <TouchableOpacity 
+                                      style={styles.modernPartActionButton}
+                                      onPress={(e) => {
+                                        e.stopPropagation();
+                                        // Navigate to part details/comments
+                                        console.log('Part comments:', part.name);
+                                      }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
+                                    </TouchableOpacity>
+                                    
+                                    <View style={styles.modernPartLocationButton}>
+                                      <Ionicons name="location-outline" size={16} color="#FFFFFF" />
+                                      <Text style={styles.modernPartLocationButtonText}>
+                                        {part.location || 'მდებარეობა'}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  
+                                  <TouchableOpacity 
+                                    style={styles.modernPartContactButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      // Contact part functionality
+                                      const detailItem = convertPartToDetailItem(part);
+                                      setSelectedDetailItem(detailItem);
+                                      setShowDetailModal(true);
+                                    }}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Ionicons name="information-outline" size={14} color="#FFFFFF" />
+                                    <Text style={styles.modernPartContactButtonText}>ინფო</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </TouchableOpacity>
+                            </LinearGradient>
+                          </ImageBackground>
+                        </View>
+                      ))}
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
@@ -760,12 +934,137 @@
                     </TouchableOpacity>
                   </View>
                   {filteredStores.length > 0 ? (
-                    <View style={styles.verticalStoresList}>
-                      {filteredStores?.map((store) => (
-                      <View key={store.id}>
-                        {renderVerticalStoreCard(store)}
-                      </View>
-                    ))}
+                    <View style={styles.modernStoresContainer}>
+                      {filteredStores?.map((store, index) => (
+                        <View key={store.id || index} style={styles.modernStoreCard}>
+                          {/* Background Image */}
+                          <ImageBackground 
+                            source={{
+                              uri: store.photos && store.photos.length > 0 
+                                ? store.photos[0] 
+                                : store.images && store.images.length > 0 
+                                  ? store.images[0]
+                                  : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop'
+                            }}
+                            style={styles.modernStoreBackgroundImage}
+                            resizeMode="cover"
+                          >
+                            {/* Gradient Overlay */}
+                            <LinearGradient
+                              colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
+                              style={styles.modernStoreGradientOverlay}
+                            >
+                              {/* Header */}
+                              <View style={styles.modernStoreHeader}>
+                                <View style={styles.modernStoreProfileSection}>
+                                  <View style={styles.modernStoreAvatarPlaceholder}>
+                                    <Image 
+                                      source={{
+                                        uri: store.photos && store.photos.length > 0 
+                                          ? store.photos[0] 
+                                          : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop'
+                                      }} 
+                                      style={styles.modernStoreAvatar} 
+                                    />
+                                  </View>
+                                  <Text style={styles.modernStoreUsername}>{store.name}</Text>
+                                </View>
+                                <TouchableOpacity 
+                                  style={styles.modernStoreLikeButton}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    // Toggle like functionality
+                                    console.log('Store liked:', store.name);
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Ionicons name="heart" size={16} color="#FFFFFF" />
+                                  <Text style={styles.modernStoreActionText}>127</Text>
+                                </TouchableOpacity>
+                              </View>
+                              
+                              {/* Main Card */}
+                              <TouchableOpacity 
+                                style={styles.modernStoreMainCard}
+                                onPress={() => {
+                                  const detailItem = convertStoreToDetailItem(store);
+                                  setSelectedDetailItem(detailItem);
+                                  setShowDetailModal(true);
+                                }}
+                                activeOpacity={0.95}
+                              >
+                                {/* Store Info */}
+                                <View style={styles.modernStoreInfoSection}>
+                                  {/* Store description or other info can go here */}
+                                </View>
+                                
+                                {/* Separator Line */}
+                                <View style={styles.modernStoreSeparator} />
+                                
+                                {/* Store Type Section */}
+                                <View style={styles.modernStoreTypeSection}>
+                                  <View style={styles.modernStoreTypeLeft}>
+                                    {/* Store type info */}
+                                  </View>
+                                  
+                                  {/* Call Button */}
+                                  <TouchableOpacity 
+                                    style={styles.modernStoreCallButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      // Show phone number from store info
+                                      const phoneNumber = store.phone || '555-123-456';
+                                      console.log('Store phone:', phoneNumber);
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="call-outline" size={14} color="#FFFFFF" />
+                                  </TouchableOpacity>
+                                </View>
+                                
+                                {/* Actions Footer */}
+                                <View style={styles.modernStoreActionsFooter}>
+                                  <View style={styles.modernStoreActionsLeft}>
+                                    <TouchableOpacity 
+                                      style={styles.modernStoreActionButton}
+                                      onPress={(e) => {
+                                        e.stopPropagation();
+                                        // Navigate to store details/comments
+                                        console.log('Store comments:', store.name);
+                                      }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
+                                    </TouchableOpacity>
+                                    
+                                    <View style={styles.modernStoreLocationButton}>
+                                      <Ionicons name="location-outline" size={16} color="#FFFFFF" />
+                                      <Text style={styles.modernStoreLocationButtonText}>
+                                        {store.location || 'მდებარეობა'}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  
+                                  <TouchableOpacity 
+                                    style={styles.modernStoreContactButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      // Contact store functionality
+                                      const detailItem = convertStoreToDetailItem(store);
+                                      setSelectedDetailItem(detailItem);
+                                      setShowDetailModal(true);
+                                    }}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Ionicons name="information-outline" size={14} color="#FFFFFF" />
+                                    <Text style={styles.modernStoreContactButtonText}>ინფო</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </TouchableOpacity>
+                            </LinearGradient>
+                          </ImageBackground>
+                        </View>
+                      ))}
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
@@ -2538,7 +2837,702 @@
       fontSize: 16,
       color: '#9CA3AF',
       fontWeight: '500',
-    },
-  });
+  },
+
+  // Modern Store Card Styles
+  modernStoresContainer: {
+    gap: 12,
+  },
+  
+  modernStoreCard: {
+    height: 220,
+    marginBottom: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  
+  modernStoreBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    borderRadius: 10,
+  },
+  
+  modernStoreGradientOverlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  
+  modernStoreHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  
+  modernStoreProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  modernStoreAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+    overflow: 'hidden',
+  },
+  
+  modernStoreAvatar: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  
+  modernStoreUsername: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  
+  modernStoreLikeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+  
+  modernStoreActionText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+  
+  modernStoreMainCard: {
+    borderRadius: 8,
+    padding: 8,
+  },
+  
+  modernStoreInfoSection: {
+    marginBottom: 12,
+  },
+  
+  modernStoreLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  modernStoreLocationText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+  
+  modernStoreSeparator: {
+    height: 1,
+    marginVertical: 8,
+  },
+  
+  modernStoreTypeSection: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  
+  modernStoreTypeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  
+  modernStoreCallButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  modernStoreActionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  
+  modernStoreActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  modernStoreActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+  
+  modernStoreLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+  
+  modernStoreLocationButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+    maxWidth: 80,
+  },
+
+  // Modern Parts Styles
+  modernPartsContainer: {
+    gap: 12,
+  },
+
+  modernPartCard: {
+    width: '100%',
+    height: 220,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  modernPartBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+
+  modernPartGradientOverlay: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+
+  modernPartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  modernPartProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+
+  modernPartAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+
+  modernPartAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+
+  modernPartUsername: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  modernPartLikeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+
+  modernPartActionText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+
+  modernPartMainCard: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+
+  modernPartInfoSection: {
+    marginBottom: 8,
+  },
+
+  modernPartNameInfo: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+
+  modernPartCategoryInfo: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+
+  modernPartSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: 6,
+  },
+
+  modernPartTypeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  modernPartTypeLeft: {
+    flex: 1,
+  },
+
+  modernPartLocationText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+
+  modernPartCallButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  modernPartActionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+
+  modernPartActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  modernPartActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+
+  modernPartLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+
+  modernPartLocationButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+    maxWidth: 80,
+  },
+
+  modernPartContactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  modernPartContactButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+
+  // Modern Dismantlers Styles
+  modernDismantlersContainer: {
+    gap: 12,
+  },
+
+  modernDismantlerCard: {
+    width: '100%',
+    height: 220,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  modernDismantlerBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+
+  modernDismantlerGradientOverlay: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+
+  modernDismantlerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  modernDismantlerProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+
+  modernDismantlerAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+
+  modernDismantlerAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+
+  modernDismantlerUsername: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  modernDismantlerLikeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+
+  modernDismantlerActionText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+
+  modernDismantlerMainCard: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+
+  modernDismantlerInfoSection: {
+    marginBottom: 8,
+  },
+
+  modernDismantlerCarInfoButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginBottom: 4,
+    alignSelf: 'flex-start',
+  },
+
+  modernDismantlerCarInfoText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+
+  modernDismantlerYearButton: {
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignSelf: 'flex-start',
+  },
+
+  modernDismantlerYearText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+
+  modernDismantlerSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: 6,
+  },
+
+  modernDismantlerTypeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  modernDismantlerTypeLeft: {
+    flex: 1,
+  },
+
+  modernDismantlerLocationText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+
+  modernDismantlerCallButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  modernDismantlerActionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+
+  modernDismantlerActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  modernDismantlerActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+
+  modernDismantlerLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+
+  modernDismantlerLocationButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+    maxWidth: 80,
+  },
+
+  modernDismantlerContactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  modernDismantlerContactButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+
+  // Modern AI Card with Dark Background
+  modernAICard: {
+    width: '100%',
+    height: 80,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  modernAIBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 25, 70, 0.6)',
+    padding: 12,
+    justifyContent: 'center',
+  },
+  
+  modernStoreContactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  modernStoreContactButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+});
 
 

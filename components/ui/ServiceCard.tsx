@@ -15,14 +15,45 @@ export type ServiceCardProps = {
   showFavorite?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  type?: 'carwash' | 'store' | 'dismantler' | 'part' | 'category'; // ახალი ველი
 };
 
-export default function ServiceCard({ image, title, category, rating, location, price, priceSuffix, onPress, showFavorite = true, isFavorite, onToggleFavorite }: ServiceCardProps) {
+export default function ServiceCard({ 
+  image, 
+  title, 
+  category, 
+  rating, 
+  location, 
+  price, 
+  priceSuffix, 
+  onPress, 
+  showFavorite = true, 
+  isFavorite, 
+  onToggleFavorite,
+  type 
+}: ServiceCardProps) {
   const [fav, setFav] = useState(false);
   const favorite = typeof isFavorite === 'boolean' ? isFavorite : fav;
   const toggle = () => {
     if (onToggleFavorite) onToggleFavorite();
     else setFav(v => !v);
+  };
+
+  // სერვისის ტიპის მიხედვით ფერის განსაზღვრა (ყველასთვის ერთი ფერი)
+  const getTypeColor = (serviceType?: string) => {
+    return 'rgba(99, 102, 241, 0.8)'; // ყველასთვის ერთი ლურჯი ფერი
+  };
+
+  // სერვისის ტიპის მიხედვით იკონის განსაზღვრა
+  const getTypeIcon = (serviceType?: string) => {
+    switch (serviceType) {
+      case 'carwash': return 'car-outline';
+      case 'store': return 'storefront-outline';
+      case 'dismantler': return 'build-outline';
+      case 'part': return 'cog-outline';
+      case 'category': return 'grid-outline';
+      default: return 'star-outline';
+    }
   };
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={onPress}>
@@ -36,6 +67,12 @@ export default function ServiceCard({ image, title, category, rating, location, 
             <Ionicons name="star" size={12} color="#111827" />
             <Text style={styles.ratingPillText}>{rating?.toFixed(1) ?? '4.9'}</Text>
           </View>
+          {/* სერვისის ტიპის ბეჯი */}
+          {type && (
+            <View style={[styles.typeBadge, { backgroundColor: getTypeColor(type) }]}>
+              <Ionicons name={getTypeIcon(type) as any} size={12} color="#FFFFFF" />
+            </View>
+          )}
           {showFavorite && (
             <TouchableOpacity activeOpacity={0.9} onPress={toggle} style={styles.heartButton}>
               <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={16} color={favorite ? '#EF4444' : '#111827'} />
@@ -96,6 +133,14 @@ const styles = StyleSheet.create({
   },
   ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14 },
   ratingPillText: { color: '#111827', fontFamily: 'Poppins_700Bold', fontSize: 12 },
+  typeBadge: { 
+    width: 28, 
+    height: 28, 
+    borderRadius: 14, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
   heartButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
   bottomArea: {
     position: 'absolute',

@@ -13,11 +13,12 @@ import {
   Alert,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
-import { requestsApi } from '@/services/requestsApi';
+import { requestsApi, type Request as RequestsApiRequest, type Offer } from '@/services/requestsApi';
 
 const { width } = Dimensions.get('window');
 
@@ -28,12 +29,13 @@ export default function PartnerDashboardScreen() {
   
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [requests, setRequests] = useState<Request[]>([]);
+  const [requests, setRequests] = useState<RequestsApiRequest[]>([]);
   const [myOffers, setMyOffers] = useState<Offer[]>([]);
-  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<RequestsApiRequest | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
 
   const partnerId = 'demo-partner-123';
 
@@ -70,10 +72,13 @@ export default function PartnerDashboardScreen() {
   };
 
   const handleCreateOffer = async () => {
+    if (isSubmittingOffer) return;
     if (!selectedRequest || !offerPrice) {
       Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ფასი');
       return;
     }
+
+    setIsSubmittingOffer(true);
 
     try {
       await requestsApi.createOffer({
@@ -92,6 +97,8 @@ export default function PartnerDashboardScreen() {
     } catch (error) {
       console.error('Error creating offer:', error);
       Alert.alert('შეცდომა', 'შეთავაზების გაგზავნისას მოხდა შეცდომა');
+    } finally {
+      setIsSubmittingOffer(false);
     }
   };
 
@@ -302,15 +309,25 @@ export default function PartnerDashboardScreen() {
                   </View>
 
                   <Pressable
-                    style={styles.submitButton}
+                    style={[styles.submitButton, isSubmittingOffer ? { opacity: 0.7 } : null]}
                     onPress={handleCreateOffer}
+                    disabled={isSubmittingOffer}
                   >
                     <LinearGradient
                       colors={['#10B981', '#059669']}
                       style={styles.submitButtonGradient}
                     >
-                      <Text style={styles.submitButtonText}>შეთავაზების გაგზავნა</Text>
-                      <Ionicons name="send" size={20} color="#FFFFFF" />
+                      {isSubmittingOffer ? (
+                        <>
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                          <Text style={styles.submitButtonText}>იგზავნება...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.submitButtonText}>შეთავაზების გაგზავნა</Text>
+                          <Ionicons name="send" size={20} color="#FFFFFF" />
+                        </>
+                      )}
                     </LinearGradient>
                   </Pressable>
                 </>

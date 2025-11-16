@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -67,23 +67,24 @@ export default function BookingScreen() {
   const params = useLocalSearchParams();
   const location = params.location ? JSON.parse(params.location as string) : null;
   
-  // Log all parameters to see what we're receiving
-  console.log('🔍 [BOOKING] All params:', params);
-  console.log('🔍 [BOOKING] locationServices param:', params.locationServices);
-  console.log('🔍 [BOOKING] locationDetailedServices param:', params.locationDetailedServices);
-  console.log('🔍 [BOOKING] location object:', location);
+  // Payment success detection
+  const isPaymentSuccess = params.paymentSuccess === 'true';
+  const paymentAmount = params.paymentAmount;
+  const paymentOrderId = params.paymentOrderId;
+  
+  // Payment status state
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  
+
   
   // Log time slots config if available
-  console.log('🔍 [BOOKING] locationTimeSlotsConfig param:', params.locationTimeSlotsConfig);
   if (params.locationTimeSlotsConfig) {
     try {
       const timeSlotsConfig = JSON.parse(params.locationTimeSlotsConfig as string);
-      console.log('🔍 [BOOKING] Parsed timeSlotsConfig:', timeSlotsConfig);
     } catch (error) {
       console.error('🔍 [BOOKING] Error parsing timeSlotsConfig:', error);
     }
   } else {
-    console.log('🔍 [BOOKING] No locationTimeSlotsConfig param found');
   }
 
   // Convert detailedServices to booking format
@@ -91,7 +92,6 @@ export default function BookingScreen() {
     try {
       if (params.locationDetailedServices) {
         const detailedServices = JSON.parse(params.locationDetailedServices as string);
-        console.log('🔍 [BOOKING] Parsed detailedServices:', detailedServices);
         
         if (Array.isArray(detailedServices) && detailedServices.length > 0) {
           return detailedServices.map((service: any) => ({
@@ -118,13 +118,11 @@ export default function BookingScreen() {
     try {
       if (params.locationTimeSlotsConfig) {
         const timeSlotsConfig = JSON.parse(params.locationTimeSlotsConfig as string);
-        console.log('🔍 [BOOKING] Generating time slots from config:', timeSlotsConfig);
         
         if (timeSlotsConfig.workingDays && timeSlotsConfig.interval) {
           const slots: string[] = [];
           const interval = timeSlotsConfig.interval || 30; // default 30 minutes
           
-          // Generate slots for today (for now, we'll use a simple approach)
           const startHour = 9; // 09:00
           const endHour = 18;  // 18:00
           
@@ -135,7 +133,6 @@ export default function BookingScreen() {
             }
           }
           
-          console.log('🔍 [BOOKING] Generated time slots:', slots);
           return slots;
         }
       }
@@ -144,7 +141,6 @@ export default function BookingScreen() {
     }
     
     // Fallback to static time slots
-    console.log('🔍 [BOOKING] Using static TIME_SLOTS as fallback');
     return TIME_SLOTS;
   };
 
@@ -155,8 +151,22 @@ export default function BookingScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.8));
+
+  // Payment success effect
+  useEffect(() => {
+    if (isPaymentSuccess) {
+      console.log('🎉 Payment Success detected! Showing payment success modal...');
+      setPaymentCompleted(true); // გადახდა დასრულდა
+      setShowPaymentSuccessModal(true);
+      
+      setTimeout(() => {
+        setShowPaymentSuccessModal(false);
+      }, 3000);
+    }
+  }, [isPaymentSuccess]);
 
   const styles = StyleSheet.create({
     safeArea: { 
@@ -669,6 +679,90 @@ export default function BookingScreen() {
       color: '#FFFFFF',
       letterSpacing: -0.2,
     },
+    bogPaymentButton: {
+      backgroundColor: '#22C55E',
+      marginHorizontal: 20,
+      marginBottom: 12,
+      paddingVertical: 18,
+      borderRadius: 14,
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 8,
+      shadowColor: '#22C55E',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    bogPaymentButtonText: {
+      fontFamily: 'NotoSans_700Bold',
+      fontSize: 14,
+      color: '#FFFFFF',
+      letterSpacing: -0.2,
+    },
+    modalContent: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 20,
+      padding: 24,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    modalText: {
+      fontFamily: 'NotoSans_500Medium',
+      fontSize: 16,
+      color: '#374151',
+      textAlign: 'center',
+      marginTop: 16,
+      lineHeight: 24,
+    },
+    modalSubText: {
+      fontFamily: 'NotoSans_400Regular',
+      fontSize: 14,
+      color: '#6B7280',
+      textAlign: 'center',
+      marginTop: 8,
+      lineHeight: 20,
+    },
+    // Payment Status Styles
+    paymentStatusContainer: {
+      marginHorizontal: 20,
+      marginBottom: 12,
+    },
+    paymentStatusCard: {
+      backgroundColor: '#F0FDF4',
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: '#BBF7D0',
+      shadowColor: '#22C55E',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    paymentStatusInfo: {
+      flex: 1,
+      marginLeft: 12,
+    },
+    paymentStatusTitle: {
+      fontFamily: 'NotoSans_700Bold',
+      fontSize: 14,
+      color: '#166534',
+      marginBottom: 4,
+    },
+    paymentStatusText: {
+      fontFamily: 'NotoSans_500Medium',
+      fontSize: 12,
+      color: '#15803D',
+      lineHeight: 16,
+    },
   });
 
   const getDates = () => {
@@ -802,19 +896,78 @@ export default function BookingScreen() {
         }
       };
 
+      // ჯავშნის შექმნა backend-ში
       await carwashApi.createBooking(bookingData);
-      showSuccessModalWithAnimation();
+      
+      // Payment success-ის შემთხვევაში სხვანაირი მესიჯი
+      if (isPaymentSuccess) {
+        Alert.alert(
+          'წარმატება! 🎉', 
+          'გადახდა წარმატებით განხორციელდა და ჯავშანი დადასტურებულია!',
+          [
+            {
+              text: 'კარგი',
+              onPress: () => {
+                router.push({
+                  pathname: '/(tabs)/carwash',
+                  params: { refresh: 'true' }
+                });
+              }
+            }
+          ]
+        );
+      } else {
+        // ჩვეულებრივი success modal
+        showSuccessModalWithAnimation();
+      }
     } catch (error) {
       console.error('Error creating booking:', error);
       Alert.alert('შეცდომა', 'ჯავშნის შექმნისას მოხდა შეცდომა');
     }
   };
 
-  const renderStep1 = () => {
-    console.log('🔍 [BOOKING] renderStep1 - Using dynamicServices:', dynamicServices);
-    console.log('🔍 [BOOKING] renderStep1 - params.locationServices:', params.locationServices);
-    console.log('🔍 [BOOKING] renderStep1 - params.locationDetailedServices:', params.locationDetailedServices);
+  const handleBOGPayment = async () => {
+    if (!selectedService || !selectedDate || !selectedTime) {
+      Alert.alert('შეცდომა', 'გთხოვთ აირჩიოთ სერვისი, თარიღი და დრო');
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
+      Alert.alert('შეცდომა', 'გთხოვთ ჯერ შეხვიდეთ სისტემაში');
+      return;
+    }
+
+    const service = getSelectedService();
+    if (!service || !location) return;
+
+    const servicePrice = parseInt(service.price.replace('₾', ''));
     
+    // გადავიყვანოთ payment-card სქრინზე
+    const bookingMetadata = {
+      serviceId: service.id,
+      serviceName: service.name,
+      locationId: location.id,
+      locationName: location.name,
+      selectedDate: selectedDate,
+      selectedTime: selectedTime,
+      bookingType: 'carwash'
+    };
+
+    router.push({
+      pathname: '/payment-card',
+      params: {
+        amount: servicePrice.toString(),
+        description: `CarWash ჯავშანი - ${service.name} - ${location.name}`,
+        context: 'carwash',
+        orderId: `carwash_booking_${user.id}_${Date.now()}`,
+        successUrl: '/booking-success',
+        metadata: JSON.stringify(bookingMetadata)
+      }
+    });
+  };
+
+  const renderStep1 = () => {
+  
     return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
@@ -842,9 +995,6 @@ export default function BookingScreen() {
   };
 
   const renderStep2 = () => {
-    console.log('🔍 [BOOKING] renderStep2 - Using dynamicTimeSlots:', dynamicTimeSlots);
-    console.log('🔍 [BOOKING] renderStep2 - timeSlotsConfig:', params.locationTimeSlotsConfig);
-    
     return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
@@ -1107,6 +1257,39 @@ export default function BookingScreen() {
           >
             <Text style={styles.backButtonText}>უკან</Text>
           </TouchableOpacity>
+          
+          {/* BOG გადახდის ღილაკი - მხოლოდ თუ გადახდა არ მოხდა */}
+          {!paymentCompleted && (
+            <TouchableOpacity
+              style={[
+                styles.bogPaymentButton,
+                (!selectedDate || !selectedTime) && styles.disabledButton
+              ]}
+              onPress={handleBOGPayment}
+              disabled={!selectedDate || !selectedTime}
+            >
+              <Ionicons name="card" size={16} color="#FFFFFF" />
+              <Text style={styles.bogPaymentButtonText}>
+                BOG გადახდა ({selectedService ? getSelectedService()?.price : '0₾'})
+              </Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* გადახდის სტატუსი - თუ გადახდა მოხდა */}
+          {paymentCompleted && (
+            <View style={styles.paymentStatusContainer}>
+              <View style={styles.paymentStatusCard}>
+                <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
+                <View style={styles.paymentStatusInfo}>
+                  <Text style={styles.paymentStatusTitle}>გადახდა წარმატებულია! 🎉</Text>
+                  <Text style={styles.paymentStatusText}>
+                    თქვენი გადახდა {paymentAmount}₾ წარმატებით განხორციელდა
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+          
           <TouchableOpacity
             style={[
               styles.nextButton,
@@ -1116,7 +1299,7 @@ export default function BookingScreen() {
             disabled={!selectedDate || !selectedTime}
           >
             <Text style={styles.nextButtonText}>
-              დადასტურება ({selectedService ? getSelectedService()?.price : '0₾'})
+              უფასო დადასტურება
             </Text>
           </TouchableOpacity>
         </View>
@@ -1124,6 +1307,31 @@ export default function BookingScreen() {
       </View>
       
       {renderSuccessModal()}
+      
+      {/* Payment Success Modal */}
+      {showPaymentSuccessModal && (
+        <Modal
+          visible={showPaymentSuccessModal}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.successIcon}>
+                <Ionicons name="checkmark-circle" size={64} color="#22C55E" />
+              </View>
+              <Text style={styles.modalTitle}>გადახდა წარმატებულია! 🎉</Text>
+              <Text style={styles.modalText}>
+                თქვენი გადახდა წარმატებით განხორციელდა ({paymentAmount}₾)
+              </Text>
+              <Text style={styles.modalSubText}>
+                ახლა შეგიძლიათ ჯავშნის დადასტურება
+              </Text>
+            </View>
+          </View>
+        </Modal>
+      )}
+      
     </SafeAreaView>
   );
 }

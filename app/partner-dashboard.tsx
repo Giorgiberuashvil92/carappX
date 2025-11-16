@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,14 @@ import {
   Alert,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { requestsApi, type Request, type Offer } from '@/services/requestsApi';
+import { useUser } from '@/contexts/UserContext';
+import { aiApi } from '@/services/aiApi';
 
 const { width } = Dimensions.get('window');
 
@@ -25,6 +28,7 @@ type PartnerType = 'store' | 'mechanic' | 'tow' | 'rental';
 
 export default function PartnerDashboardScreen() {
   const { partnerType } = useLocalSearchParams<{ partnerType: PartnerType }>();
+  const { user } = useUser();
   
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,7 +37,10 @@ export default function PartnerDashboardScreen() {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
+  const [partnerName, setPartnerName] = useState('');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [offerStoreName, setOfferStoreName] = useState('');
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
 
   const partnerId = 'demo-partner-123';
 
@@ -46,24 +53,82 @@ export default function PartnerDashboardScreen() {
     }).start();
   }, [partnerType]);
 
+  useEffect(() => {
+    if (user?.name) {
+      setPartnerName(prev => prev || user.name);
+    }
+  }, [user?.name]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const allRequests = await requestsApi.getRequests();
-      const relevantRequests = allRequests.filter(request => {
-        switch (partnerType) {
-          case 'store':
-            return (request.service === 'parts') || (!!request.partName && !!request.vehicle);
-          case 'mechanic':
-            return request.service === 'mechanic';
-          case 'tow':
-            return request.service === 'tow';
-          case 'rental':
-            return request.service === 'rental';
-          default:
-            return true;
+      let relevantRequests: Request[] = [];
+      if (partnerType === 'store' && user?.id) {
+        // Fetch all requests for logging/visibility
+        const allRequests = await requestsApi.getRequests();
+        try {
+        } catch {}
+
+        // Use backend inventory-based matching
+        const seller = await aiApi.getSellerStatus({ userId: user.id });
+        try {
+          
+        } catch {}
+
+        const backendMatches = (seller.data?.matchingRequests || []) as any as Request[];
+
+        const derivedName =
+          seller.data?.ownedStores?.find((store: any) => store?.title)?.title?.trim() ||
+          (seller.data as any)?.profile?.storeName?.trim() ||
+          seller.data?.ownedParts?.find((part: any) => part?.title)?.title?.trim();
+        if (derivedName) {
+          setPartnerName(derivedName);
         }
-      });
+
+        // Also log a quick local comparison snapshot for debugging
+        try {
+          const ownedParts = seller.data?.ownedParts || [];
+          const ownedDismantlers = seller.data?.ownedDismantlers || [];
+          const localMatches = (allRequests || []).filter((r: any) => {
+            const make = (r?.vehicle?.make || '').toString();
+            const model = (r?.vehicle?.model || '').toString();
+            const yearStr = (r?.vehicle?.year || '').toString();
+            const yearNum = parseInt(yearStr);
+            const partOk = ownedParts.some((p: any) => {
+              const brandOk = p?.brand && new RegExp(`^${(p.brand || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i').test(make);
+              const modelOk = p?.model && new RegExp(`^${(p.model || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i').test(model);
+              const yearOk = p?.year ? String(p.year) === yearStr : true;
+              return brandOk && modelOk && yearOk;
+            });
+            const dismantlerOk = ownedDismantlers.some((d: any) => {
+              const brandOk = d?.brand && new RegExp(`^${(d.brand || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i').test(make);
+              const modelOk = d?.model && new RegExp(`^${(d.model || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i').test(model);
+              const yearInRange = Number.isFinite(yearNum) && yearNum >= d.yearFrom && yearNum <= d.yearTo;
+              return brandOk && modelOk && yearInRange;
+            });
+            return partOk || dismantlerOk;
+          });
+          console.log('[PD] backendMatches.count', backendMatches.length, 'localMatches.count', localMatches.length);
+          // Prefer local robust matches; fallback to backend if local empty
+          relevantRequests = localMatches.length > 0 ? (localMatches as any) : backendMatches;
+        } catch {}
+      } else {
+        // Fallback to previous filtering for non-store types
+        const allRequests = await requestsApi.getRequests();
+        try { console.log('[PD] allRequests', JSON.stringify(allRequests, null, 2)); } catch {}
+        relevantRequests = allRequests.filter(request => {
+          switch (partnerType) {
+            case 'mechanic':
+              return request.service === 'mechanic';
+            case 'tow':
+              return request.service === 'tow';
+            case 'rental':
+              return request.service === 'rental';
+            default:
+              return true;
+          }
+        });
+      }
 
       const offers = await requestsApi.getOffers(undefined, undefined, partnerId);
       
@@ -77,33 +142,7 @@ export default function PartnerDashboardScreen() {
     }
   };
 
-  const handleCreateOffer = async () => {
-    if (!selectedRequest || !offerPrice) {
-      Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ფასი');
-      return;
-    }
-
-    try {
-      await requestsApi.createOffer({
-        reqId: selectedRequest.id,
-        providerName: getPartnerTitle(),
-        priceGEL: parseFloat(offerPrice),
-        etaMin: 30,
-        partnerId: partnerId,
-        userId: selectedRequest.userId,
-      });
-
-      Alert.alert('წარმატება', 'შეთავაზება წარმატებით გაიგზავნა!');
-      setShowOfferModal(false);
-      setOfferPrice('');
-      fetchData();
-    } catch (error) {
-      console.error('Error creating offer:', error);
-      Alert.alert('შეცდომა', 'შეთავაზების გაგზავნისას მოხდა შეცდომა');
-    }
-  };
-
-  const getPartnerTitle = () => {
+  const getPartnerFallbackTitle = () => {
     switch (partnerType) {
       case 'store':
         return 'ნაწილების მაღაზია';
@@ -117,6 +156,62 @@ export default function PartnerDashboardScreen() {
         return 'პარტნიორი';
     }
   };
+
+  const partnerDisplayName = useMemo(
+    () =>
+      (partnerName && partnerName.trim()) ||
+      (user?.name && user.name.trim()) ||
+      getPartnerFallbackTitle(),
+    [partnerName, user?.name, partnerType],
+  );
+
+  useEffect(() => {
+    if (showOfferModal) {
+      setOfferStoreName(prev => (prev && prev.trim().length > 0 ? prev : partnerDisplayName));
+    }
+  }, [showOfferModal, partnerDisplayName]);
+
+  const getPartnerDisplayName = () => partnerDisplayName;
+
+  const closeOfferModal = () => {
+    setShowOfferModal(false);
+    setOfferPrice('');
+    setOfferStoreName('');
+    setSelectedRequest(null);
+    setIsSubmittingOffer(false);
+  };
+
+  const handleCreateOffer = async () => {
+    if (isSubmittingOffer) return;
+    if (!selectedRequest || !offerPrice) {
+      Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ფასი');
+      return;
+    }
+
+    setIsSubmittingOffer(true);
+
+    try {
+      await requestsApi.createOffer({
+        reqId: selectedRequest.id,
+        providerName: (offerStoreName && offerStoreName.trim()) || getPartnerDisplayName(),
+        priceGEL: parseFloat(offerPrice),
+        etaMin: 30,
+        partnerId: partnerId,
+        userId: selectedRequest.userId,
+      });
+
+      Alert.alert('წარმატება', 'შეთავაზება წარმატებით გაიგზავნა!');
+      fetchData();
+      closeOfferModal();
+    } catch (error) {
+      console.error('Error creating offer:', error);
+      Alert.alert('შეცდომა', 'შეთავაზების გაგზავნისას მოხდა შეცდომა');
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const getPartnerTitle = () => getPartnerDisplayName();
 
   const getServiceGradient = (service?: string): [string, string] => {
     const inferService = () => {
@@ -144,9 +239,24 @@ export default function PartnerDashboardScreen() {
     return { name: 'construct', color: '#10B981' } as const;
   };
 
-  const formatTimeAgo = (timestamp: number): string => {
+  const formatTimeAgo = (createdAt: any): string => {
+    // Normalize to ms
+    let ts: number = 0;
+    if (typeof createdAt === 'number') {
+      ts = createdAt < 1e12 ? createdAt * 1000 : createdAt; 
+    } else if (typeof createdAt === 'string') {
+      const n = Number(createdAt);
+      ts = Number.isFinite(n)
+        ? (n < 1e12 ? n * 1000 : n)
+        : Date.parse(createdAt);
+    } else if (createdAt instanceof Date) {
+      ts = createdAt.getTime();
+    }
+
+    if (!Number.isFinite(ts) || ts <= 0) return 'ახლა';
+
     const now = Date.now();
-    const diff = now - timestamp;
+    const diff = now - ts;
     const diffInMinutes = Math.floor(diff / (1000 * 60));
     const diffInHours = Math.floor(diff / (1000 * 60 * 60));
     const diffInDays = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -319,12 +429,12 @@ export default function PartnerDashboardScreen() {
           visible={showOfferModal}
           animationType="slide"
           presentationStyle="pageSheet"
-          onRequestClose={() => setShowOfferModal(false)}
+          onRequestClose={closeOfferModal}
         >
           <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>შეთავაზების შექმნა</Text>
-              <Pressable onPress={() => setShowOfferModal(false)}>
+              <Pressable onPress={closeOfferModal}>
                 <Ionicons name="close" size={24} color="#FFFFFF" />
               </Pressable>
             </View>
@@ -341,6 +451,17 @@ export default function PartnerDashboardScreen() {
                   </View>
 
                   <View style={styles.modalCard}>
+                    <Text style={styles.modalLabel}>მაღაზიის / სერვისის სახელი *</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={offerStoreName}
+                      onChangeText={setOfferStoreName}
+                      placeholder={partnerDisplayName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+
+                  <View style={styles.modalCard}>
                     <Text style={styles.modalLabel}>ფასი (₾) *</Text>
                     <TextInput
                       style={styles.modalInput}
@@ -353,15 +474,25 @@ export default function PartnerDashboardScreen() {
                   </View>
 
                   <Pressable
-                    style={styles.submitButton}
+                    style={[styles.submitButton, isSubmittingOffer ? { opacity: 0.7 } : null]}
                     onPress={handleCreateOffer}
+                    disabled={isSubmittingOffer}
                   >
                     <LinearGradient
                       colors={['#10B981', '#059669']}
                       style={styles.submitButtonGradient}
                     >
-                      <Text style={styles.submitButtonText}>შეთავაზების გაგზავნა</Text>
-                      <Ionicons name="send" size={20} color="#FFFFFF" />
+                      {isSubmittingOffer ? (
+                        <>
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                          <Text style={styles.submitButtonText}>იგზავნება...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.submitButtonText}>შეთავაზების გაგზავნა</Text>
+                          <Ionicons name="send" size={20} color="#FFFFFF" />
+                        </>
+                      )}
                     </LinearGradient>
                   </Pressable>
                 </>

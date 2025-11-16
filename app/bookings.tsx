@@ -133,7 +133,6 @@ export default function BookingsScreen() {
 
   const loadUserBookings = useCallback(async () => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping bookings load');
       return;
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Animated } from 'react-native';
 import {
   View,
@@ -19,6 +19,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { publishLocation } from '../utils/LocationBus';
 import MapView, { Marker, PROVIDER_GOOGLE, Circle } from 'react-native-maps';
+import Supercluster from 'supercluster';
+import * as ExpoLocation from 'expo-location';
+import type { LocationObject } from 'expo-location';
 import Colors from '../constants/Colors';
 import { useColorScheme } from '../components/useColorScheme';
 import Chip from '@/components/ui/Chip';
@@ -29,7 +32,6 @@ const CARD_WIDTH = 260;
 const CARD_SPACING = 12;
 const CARDS_CONTAINER_PADDING = 16;
 
-// Mock map data - in real app this would come from API
 const PLACEHOLDER_IMAGE = require('../assets/images/car-bg.png');
 const MAP_STYLE_MINIMAL_DARK = [
   { elementType: 'geometry', stylers: [{ color: '#0B0B0E' }] },
@@ -67,30 +69,6 @@ const CAR_WASH_LOCATIONS = [
     image: PLACEHOLDER_IMAGE,
     coordinates: { latitude: 41.7151, longitude: 44.8271 },
     queue: { length: 2, avgMinsPerTicket: 6 },
-  },
-  {
-    id: 'drive-geo-1',
-    name: 'Drive GO თბილისი',
-    address: 'გლდანი, ხიზაბავრელების კვეთა',
-    rating: 4.6,
-    reviews: 57,
-    price: '9₾-დან',
-    services: ['სწრაფი პიკაპი', 'პროდუქტები გზაში'],
-    isOpen: true,
-    waitTime: '7 წთ',
-    category: 'Express',
-    phone: '+995 555 123 000',
-    isPartner: true,
-    isFeatured: true,
-    offer: '−10% პაკეტსა და ნაკრებებზე',
-    media: [
-      'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=600&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1574920162043-b872873f19bd?q=80&w=600&auto=format&fit=crop',
-    ],
-    menu: ['მინის სანიაღვრე თხევადი', 'ტილოს ნაკრები', 'სუნამო სალონისთვის'],
-    image: PLACEHOLDER_IMAGE,
-    coordinates: { latitude: 41.7392, longitude: 44.7923 },
-    queue: { length: 1, avgMinsPerTicket: 5 },
   },
   {
     id: '2',
@@ -143,12 +121,13 @@ const CAR_WASH_LOCATIONS = [
 
 export default function MapScreen() {
   const router = useRouter();
-  const navParams = useLocalSearchParams<{ driver?: string; lat?: string; lng?: string; storeName?: string; slot?: string; live?: string; picker?: string; pin?: string }>();
+  const navParams = useLocalSearchParams<{ lat?: string; lng?: string; storeName?: string; picker?: string; pin?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [showInfoCard, setShowInfoCard] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationObject | null>(null);
   // tooltip removed
   const [mapRegion, setMapRegion] = useState({
     latitude: 41.7151,
@@ -156,7 +135,8 @@ export default function MapScreen() {
     latitudeDelta: 0.02,
     longitudeDelta: 0.02,
   });
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<any>(null);
+  const clusterRef = useRef<Supercluster | null>(null);
   const [activeCategory, setActiveCategory] = useState<'All' | 'Premium' | 'Express' | 'Luxury'>('All');
   const [openNow, setOpenNow] = useState<boolean>(false);
   const [partnersOnly, setPartnersOnly] = useState<boolean>(false);
@@ -167,7 +147,6 @@ export default function MapScreen() {
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
   const [isDealsOpen, setIsDealsOpen] = useState<boolean>(false);
   const [dealsOnly, setDealsOnly] = useState<boolean>(false);
-  const [isDrivePickerOpen, setIsDrivePickerOpen] = useState<boolean>(false);
   const [queues, setQueues] = useState<Record<string, { length: number; avgMinsPerTicket: number }>>(() => {
     const map: Record<string, { length: number; avgMinsPerTicket: number }> = {};
     CAR_WASH_LOCATIONS.forEach(l => { map[l.id] = l.queue || { length: 0, avgMinsPerTicket: 6 }; });
@@ -203,12 +182,7 @@ export default function MapScreen() {
       marginTop: 10,
     },
     dealsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
-    tabsRow: { flexDirection: 'row', gap: 8 },
-    tabPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
-    tabPillActive: { backgroundColor: 'rgba(34,197,94,0.2)', borderColor: 'rgba(34,197,94,0.45)' },
-    tabText: { color: '#E5E7EB', fontFamily: 'Poppins_700Bold', fontSize: 12 },
-    tabTextActive: { color: '#22C55E' },
-    dealsTitle: { color: '#E5E7EB', fontFamily: 'Poppins_700Bold', fontSize: 12 },
+    dealsTitle: { color: '#E5E7EB', fontFamily: 'Poppins_700Bold', fontSize: 14 },
     dealsStrip: { flexDirection: 'row', gap: 10, marginTop: 8 },
     dealPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.35)', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
     dealText: { color: '#86EFAC', fontFamily: 'Poppins_700Bold', fontSize: 12 },
@@ -221,27 +195,6 @@ export default function MapScreen() {
     dealName: { color: '#FFFFFF', fontFamily: 'Poppins_700Bold', fontSize: 13 },
     dealOfferText: { color: '#86EFAC', fontFamily: 'Poppins_600SemiBold', fontSize: 12, marginTop: 2 },
     dealActions: { flexDirection: 'row', gap: 8 },
-    marketSheet: {
-      backgroundColor: 'rgba(17,24,39,0.96)',
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.08)',
-      padding: 16,
-      gap: 12,
-      height: Math.round(height * 0.85),
-    },
-    productCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
-    productThumb: { width: 64, height: 64, borderRadius: 12 },
-    productTitle: { color: '#FFFFFF', fontFamily: 'Poppins_700Bold', fontSize: 13 },
-    productPrice: { color: '#86EFAC', fontFamily: 'Poppins_700Bold', fontSize: 12 },
-    qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    qtyBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
-    qtyText: { color: '#FFFFFF', fontFamily: 'Poppins_700Bold' },
-    cartBar: { position: 'absolute', left: 16, right: 16, bottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', padding: 12, borderRadius: 16 },
-    cartTotalText: { color: '#FFFFFF', fontFamily: 'Poppins_700Bold' },
-    orderBtn: { backgroundColor: '#22C55E', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10 },
-    orderText: { color: '#0B0B0E', fontFamily: 'Poppins_700Bold' },
     chipsRow: {
       flexDirection: 'row',
       gap: 8,
@@ -734,102 +687,14 @@ export default function MapScreen() {
     return stars;
   };
 
-  const openedFromQueryRef = useRef<boolean>(false);
+  // Initialize supercluster
   useEffect(() => {
-    if (openedFromQueryRef.current) return;
-    if ((navParams as any)?.driver === '1') {
-      openedFromQueryRef.current = true;
-      if (typeof (navParams as any).slot === 'string' && (navParams as any).slot) setSelectedSlot((navParams as any).slot);
-      if (typeof (navParams as any).live === 'string') setShareLiveLocation((navParams as any).live === '1');
-      const lat = Number((navParams as any).lat);
-      const lng = Number((navParams as any).lng);
-      let found: any | null = null;
-      if ((navParams as any).storeName) {
-        found = CAR_WASH_LOCATIONS.find(s => s.name === (navParams as any).storeName) || null;
-      }
-      if (!found && isFinite(lat) && isFinite(lng)) {
-        let best: any = null;
-        let bestD = Infinity;
-        for (const s of CAR_WASH_LOCATIONS) {
-          const d = getDistanceKm(lat, lng, s.coordinates.latitude, s.coordinates.longitude);
-          if (d < bestD) { best = s; bestD = d; }
-        }
-        found = best;
-      }
-      if (found) {
-        setSelectedStore(found);
-        focusOnLocation(found);
-      }
-      setIsDriverOpen(true);
-    }
-  }, [(navParams as any)?.driver]);
-
-  const [activeTopTab, setActiveTopTab] = useState<'drives' | 'deals'>('drives');
-  const [isMarketOpen, setIsMarketOpen] = useState<boolean>(false);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
-  const [isDriverOpen, setIsDriverOpen] = useState<boolean>(false);
-  const [selectedStore, setSelectedStore] = useState<any>(null);
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [deliveryMode, setDeliveryMode] = useState<'pickup' | 'delivery'>('delivery');
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [shareLiveLocation, setShareLiveLocation] = useState<boolean>(true);
-  
-  const generateTimeSlots = () => {
-    const slots: string[] = [];
-    const stepMinutes = 30;
-    const count = 6; // მომდევნო ~3 საათი
-    const now = new Date();
-    // მომდევნო ნახევარსაათზე მომრგვალებული
-    const minutes = now.getMinutes();
-    const add = minutes % stepMinutes === 0 ? stepMinutes : (stepMinutes - (minutes % stepMinutes));
-    let cursor = new Date(now.getTime() + add * 60000);
-    for (let i = 0; i < count; i++) {
-      const hh = String(cursor.getHours()).padStart(2, '0');
-      const mm = String(cursor.getMinutes()).padStart(2, '0');
-      slots.push(`${hh}:${mm}`);
-      cursor = new Date(cursor.getTime() + stepMinutes * 60000);
-    }
-    return slots;
-  };
-
-  const formatGel = (n: number) => `${n}₾`;
-  const basePriceFromText = (txt: string) => {
-    const num = parseInt(String(txt).replace(/[^0-9]/g, ''));
-    return Number.isFinite(num) ? num : 10;
-  };
-  const computeCatalog = (store: any) => {
-    const base = basePriceFromText(store.price || '10');
-    const titles: string[] = store.menu?.length ? store.menu : ['სრული გარეცხვა', 'შიდა წმენდა', 'ცვილის ფენა'];
-    return titles.map((t: string, i: number) => ({
-      id: `${store.id}-${i}`,
-      title: t,
-      price: base + i * 3,
-      image: store.media?.[i % (store.media?.length || 1)] || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=600&auto=format&fit=crop',
-    }));
-  };
-  const openMarket = (store: any) => {
-    setSelectedStore(store);
-    setCart({});
-    setIsMarketOpen(true);
-  };
-  const beginDriveWithDestination = (store: any) => {
-    setSelectedStore(store);
-    setIsDrivePickerOpen(false);
-    setIsMarketOpen(true);
-  };
-  const addToCart = (pid: string) => setCart(prev => ({ ...prev, [pid]: (prev[pid] || 0) + 1 }));
-  const decFromCart = (pid: string) => setCart(prev => ({ ...prev, [pid]: Math.max(0, (prev[pid] || 0) - 1) }));
-  const cartTotal = (store: any) => {
-    if (!store) return 0;
-    const catalog = computeCatalog(store);
-    return catalog.reduce((sum, p) => sum + (cart[p.id] || 0) * p.price, 0);
-  };
-  const mockDriver = {
-    name: 'სალომე ბ.',
-    phone: '+995 595 123 789',
-    car: 'Toyota Prius • TBI-123',
-    photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400&auto=format&fit=crop',
-  };
+    const cluster = new Supercluster({
+      radius: 60,
+      maxZoom: 16,
+    });
+    clusterRef.current = cluster;
+  }, []);
 
   const toRad = (value: number) => (value * Math.PI) / 180;
   const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -843,11 +708,10 @@ export default function MapScreen() {
     return R * c;
   };
 
-  const handleMarkerPress = (location: any) => {
+  const handleMarkerPress = useCallback((location: any) => {
     setSelectedLocation(location);
     setShowInfoCard(true);
-    // tooltip removed
-  };
+  }, []);
 
   const onZoomIn = async () => {
     try {
@@ -857,7 +721,6 @@ export default function MapScreen() {
         return;
       }
     } catch {}
-    // Fallback: animate by region deltas
     try {
       const newRegion = {
         latitude: mapRegion.latitude,
@@ -878,7 +741,6 @@ export default function MapScreen() {
         return;
       }
     } catch {}
-    // Fallback: animate by region deltas
     try {
       const newRegion = {
         latitude: mapRegion.latitude,
@@ -889,6 +751,47 @@ export default function MapScreen() {
       setMapRegion(newRegion as any);
       mapRef.current?.animateToRegion(newRegion as any, 200);
     } catch {}
+  };
+
+  const onMyLocation = async () => {
+    try {
+      if (userLocation) {
+        const newRegion = {
+          latitude: userLocation.coords.latitude,
+          longitude: userLocation.coords.longitude,
+          latitudeDelta: 0.002,
+          longitudeDelta: 0.002,
+        };
+        setMapRegion(newRegion);
+        mapRef.current?.animateCamera(
+          { center: { latitude: userLocation.coords.latitude, longitude: userLocation.coords.longitude }, zoom: 50 },
+          { duration: 800 }
+        );
+        return;
+      }
+
+      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Location permission denied');
+        return;
+      }
+      
+      const location = await ExpoLocation.getCurrentPositionAsync({});
+      setUserLocation(location);
+      const newRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.002,
+        longitudeDelta: 0.002,
+      };
+      setMapRegion(newRegion);
+      mapRef.current?.animateCamera(
+        { center: { latitude: location.coords.latitude, longitude: location.coords.longitude }, zoom: 18.5 },
+        { duration: 800 }
+      );
+    } catch (error) {
+      console.log('Error getting location:', error);
+    }
   };
 
   const focusOnLocation = async (location: any) => {
@@ -920,24 +823,66 @@ export default function MapScreen() {
     }
   };
 
-  // useEffect(() => {
-  //   (async () => {
-  //     let { status } = await Location.requestForegroundPermissionsAsync();
-  //     if (status !== 'granted') {
-  //       Alert.alert('Permission to access location was denied');
-  //       return;
-  //     }
+  useEffect(() => {
+    let locationSubscription: any;
+    
+    (async () => {
+      try {
+        const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.log('Location permission denied');
+          return;
+        }
 
-  //     let location = await Location.getCurrentPositionAsync({});
-  //     setUserLocation(location);
-  //     setMapRegion({
-  //       latitude: location.coords.latitude,
-  //       longitude: location.coords.longitude,
-  //       latitudeDelta: 0.02,
-  //       longitudeDelta: 0.02,
-  //     });
-  //   })();
-  // }, []);
+        // პირველი ლოკაცია
+        const location = await ExpoLocation.getCurrentPositionAsync({});
+        setUserLocation(location);
+        
+        // ავტომატურად გადაიტანოს რუკა მომხმარებლის ლოკაციაზე
+        const newRegion = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        };
+        setMapRegion(newRegion);
+        
+        // ანიმაციით გადაიტანოს კამერა
+        setTimeout(() => {
+          mapRef.current?.animateCamera(
+            { 
+              center: { 
+                latitude: location.coords.latitude, 
+                longitude: location.coords.longitude 
+              }, 
+              zoom: 15 
+            },
+            { duration: 1000 }
+          );
+        }, 500);
+
+        // Real-time location tracking
+        locationSubscription = await ExpoLocation.watchPositionAsync(
+          {
+            accuracy: ExpoLocation.Accuracy.High,
+            timeInterval: 5000, // განახლება ყოველ 5 წამში
+            distanceInterval: 10, // ან ყოველ 10 მეტრზე
+          },
+          (newLocation) => {
+            setUserLocation(newLocation);
+          }
+        );
+      } catch (error) {
+        console.log('Error getting initial location:', error);
+      }
+    })();
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, []);
 
   const handleBooking = () => {
     if (selectedLocation) {
@@ -964,6 +909,7 @@ export default function MapScreen() {
     const t = setInterval(() => forceTick(v => v + 1), 1000);
     return () => clearInterval(t);
   }, []);
+  
   const getEtaText = (locationId: string) => {
     const q = queues[locationId];
     const my = tickets[locationId];
@@ -1016,6 +962,39 @@ export default function MapScreen() {
     return list;
   }, [activeCategory, openNow, partnersOnly, minRating, radiusKm, searchQuery, mapRegion, sortBy]);
 
+  const clusteredMarkers = useMemo(() => {
+    if (!clusterRef.current || filtered.length === 0) return [];
+
+    const points = filtered.map((location) => ({
+      type: 'Feature' as const,
+      properties: {
+        cluster: false,
+        locationId: location.id,
+        location: location,
+      },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [location.coordinates.longitude, location.coordinates.latitude],
+      },
+    }));
+
+    // Load points into supercluster
+    clusterRef.current.load(points);
+
+    // Get clusters for current map bounds
+    const bbox: [number, number, number, number] = [
+      mapRegion.longitude - mapRegion.longitudeDelta / 2,
+      mapRegion.latitude - mapRegion.latitudeDelta / 2,
+      mapRegion.longitude + mapRegion.longitudeDelta / 2,
+      mapRegion.latitude + mapRegion.latitudeDelta / 2,
+    ];
+
+    // Calculate zoom level from latitudeDelta
+    const zoom = Math.round(Math.log(360 / mapRegion.latitudeDelta) / Math.LN2);
+
+    return clusterRef.current.getClusters(bbox, zoom);
+  }, [filtered, mapRegion]);
+
   const isPickerMode = (navParams as any)?.picker === '1';
 
   return (
@@ -1039,24 +1018,16 @@ export default function MapScreen() {
 
           {/* Deals strip */}
           <View style={styles.dealsRow}>
-            <View style={styles.tabsRow}>
-              <TouchableOpacity onPress={() => setActiveTopTab('drives')} style={[styles.tabPill, activeTopTab==='drives' && styles.tabPillActive]}>
-                <Text style={[styles.tabText, activeTopTab==='drives' && styles.tabTextActive]}>დრაივები</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setActiveTopTab('deals')} style={[styles.tabPill, activeTopTab==='deals' && styles.tabPillActive]}>
-                <Text style={[styles.tabText, activeTopTab==='deals' && styles.tabTextActive]}>შეთავაზებები</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.dealsTitle}>{activeTopTab==='deals' ? 'შეთავაზებები' : 'ახლო დრაივები'}</Text>
+            <Text style={styles.dealsTitle}>შეთავაზებები</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dealsStrip}>
-            {(activeTopTab==='deals' ? CAR_WASH_LOCATIONS.filter(l => !!l.offer) : CAR_WASH_LOCATIONS).slice(0, 6).map(d => (
-              <TouchableOpacity key={d.id} style={styles.dealPill} onPress={() => activeTopTab==='drives' ? setIsDrivePickerOpen(true) : openMarket(d)}>
+            {CAR_WASH_LOCATIONS.filter(l => !!l.offer).slice(0, 6).map(d => (
+              <TouchableOpacity key={d.id} style={styles.dealPill} onPress={() => handleMarkerPress(d)}>
                 <Feather name="zap" size={14} color="#22C55E" />
                 <Text style={styles.dealText}>{d.offer}</Text>
                 <View style={styles.applyBtn}>
-                  <Feather name="shopping-bag" size={14} color="#0B0B0E" />
-                  <Text style={styles.applyText}>გახსნა</Text>
+                  <Feather name="eye" size={14} color="#0B0B0E" />
+                  <Text style={styles.applyText}>ნახვა</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -1133,24 +1104,120 @@ export default function MapScreen() {
             fillColor="rgba(59,130,246,0.08)"
           />
 
-          {filtered.map((location) => (
+          {/* User location marker - Car icon with heading */}
+          {userLocation && (
             <Marker
-              key={location.id}
-              coordinate={location.coordinates}
-              onPress={() => handleMarkerPress(location)}
+              coordinate={{
+                latitude: userLocation.coords.latitude,
+                longitude: userLocation.coords.longitude,
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              rotation={userLocation.coords.heading || 0}
+              flat={true}
             >
-              <View style={[
-                styles.mapMarker,
-                selectedLocation?.id === location.id && styles.mapMarkerSelected
-              ]}>
-                <Feather 
-                  name="droplet" 
-                  size={16} 
-                  color={selectedLocation?.id === location.id ? '#FFFFFF' : '#E5E7EB'} 
-                />
+              <View style={{
+                backgroundColor: '#60A5FA',
+                borderRadius: 20,
+                padding: 8,
+                borderWidth: 3,
+                borderColor: '#FFFFFF',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.4,
+                shadowRadius: 6,
+                elevation: 8,
+                transform: [{ rotate: `${userLocation.coords.heading || 0}deg` }],
+              }}>
+                <Ionicons name="car-sport" size={24} color="#FFFFFF" />
               </View>
             </Marker>
-          ))}
+          )}
+
+          {/* Accuracy circle */}
+          {userLocation && userLocation.coords.accuracy && (
+            <Circle
+              center={{
+                latitude: userLocation.coords.latitude,
+                longitude: userLocation.coords.longitude,
+              }}
+              radius={userLocation.coords.accuracy}
+              fillColor="rgba(96, 165, 250, 0.1)"
+              strokeColor="rgba(96, 165, 250, 0.3)"
+              strokeWidth={1}
+            />
+          )}
+
+          {clusteredMarkers.map((marker: any) => {
+            const [longitude, latitude] = marker.geometry.coordinates;
+            const { cluster: isCluster, point_count: pointCount } = marker.properties;
+
+            if (isCluster) {
+              return (
+                <Marker
+                  key={`cluster-${marker.id}`}
+                  coordinate={{ latitude, longitude }}
+                  onPress={() => {
+                    const expansionZoom = Math.min(
+                      clusterRef.current?.getClusterExpansionZoom(marker.id) || 16,
+                      16
+                    );
+                    const newDelta = 360 / Math.pow(2, expansionZoom);
+                    mapRef.current?.animateToRegion({
+                      latitude,
+                      longitude,
+                      latitudeDelta: newDelta,
+                      longitudeDelta: newDelta,
+                    }, 300);
+                  }}
+                >
+                  <View style={{
+                    backgroundColor: '#8B5CF6',
+                    borderRadius: 25,
+                    width: 50,
+                    height: 50,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 3,
+                    borderColor: '#FFFFFF',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 3 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 6,
+                    elevation: 8,
+                  }}>
+                    <Text style={{
+                      color: '#FFFFFF',
+                      fontFamily: 'Poppins_700Bold',
+                      fontSize: 16,
+                    }}>
+                      {pointCount}
+                    </Text>
+                  </View>
+                </Marker>
+              );
+            }
+
+            // Render individual marker
+            const location = marker.properties.location;
+            return (
+              <Marker
+                key={location.id}
+                coordinate={location.coordinates}
+                onPress={() => handleMarkerPress(location)}
+              >
+                <View style={[
+                  styles.mapMarker,
+                  selectedLocation?.id === location.id && styles.mapMarkerSelected
+                ]}>
+                  <Feather 
+                    name="droplet" 
+                    size={16} 
+                    color={selectedLocation?.id === location.id ? '#FFFFFF' : '#E5E7EB'} 
+                  />
+                </View>
+              </Marker>
+            );
+          })}
         </MapView>
         {isPickerModeAnim && (
           <View style={{ position: 'absolute', left: 0, right: 0, top: '50%', alignItems: 'center', marginTop: -16 }} pointerEvents="none">
@@ -1221,6 +1288,10 @@ export default function MapScreen() {
           <View style={styles.zoomDivider} />
           <TouchableOpacity style={styles.zoomButton} onPress={onZoomOut}>
             <Feather name="minus" size={18} color="#E5E7EB" />
+          </TouchableOpacity>
+          <View style={styles.zoomDivider} />
+          <TouchableOpacity style={styles.zoomButton} onPress={onMyLocation}>
+            <Feather name="navigation" size={18} color="#60A5FA" />
           </TouchableOpacity>
         </View>
         {!showInfoCard && !isPickerMode && (
@@ -1470,241 +1541,6 @@ export default function MapScreen() {
       </Modal>
       )}
 
-      {/* Checkout Modal */}
-      {!isPickerMode && (
-      <Modal
-        visible={isCheckoutOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsCheckoutOpen(false)}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.marketSheet}>
-            <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>დაბარების მონიშვნა</Text>
-              <TouchableOpacity onPress={() => setIsCheckoutOpen(false)}><Feather name="x" size={18} color="#FFFFFF" /></TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator contentContainerStyle={{ gap: 12, paddingBottom: 160 }}>
-              <Text style={styles.sectionTitle}>მიწოდების რეჟიმი</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity onPress={() => setDeliveryMode('delivery')} style={[styles.pill, deliveryMode==='delivery' && styles.pillActive]}>
-                  <Text style={[styles.pillText, deliveryMode==='delivery' && styles.pillTextActive]}>მიწოდება მანქანამდე</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setDeliveryMode('pickup')} style={[styles.pill, deliveryMode==='pickup' && styles.pillActive]}>
-                  <Text style={[styles.pillText, deliveryMode==='pickup' && styles.pillTextActive]}>პიკაპი</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.sectionTitle}>დროის სლოტი</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8, paddingRight: 12 }}
-              >
-                {generateTimeSlots().map(slot => (
-                  <TouchableOpacity key={slot} onPress={() => setSelectedSlot(slot)} style={[styles.pill, selectedSlot===slot && styles.pillActive]}>
-                    <Text style={[styles.pillText, selectedSlot===slot && styles.pillTextActive]}>{slot}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={styles.sectionTitle}>შეჯამება</Text>
-              <View style={{ gap: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={styles.cartTotalText}>ნივთები: {Object.values(cart).reduce((a,b)=>a+(b||0),0)}</Text>
-                  <Text style={styles.cartTotalText}>{formatGel(cartTotal(selectedStore))}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={styles.cartTotalText}>ვიქნები: {selectedSlot}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.cartTotalText}>Live</Text>
-                    <Switch value={shareLiveLocation} onValueChange={setShareLiveLocation} />
-                  </View>
-                </View>
-              </View>
-            </ScrollView>
-            <View style={styles.cartBar}>
-              <Text style={styles.cartTotalText}>ჯამი: {formatGel(cartTotal(selectedStore))}</Text>
-              <TouchableOpacity style={styles.orderBtn} onPress={() => {
-                setIsCheckoutOpen(false);
-                const total = cartTotal(selectedStore);
-                const params = new URLSearchParams({
-                  storeName: selectedStore?.name ?? '',
-                  address: selectedStore?.address ?? '',
-                  lat: String(selectedStore?.coordinates?.latitude ?? ''),
-                  lng: String(selectedStore?.coordinates?.longitude ?? ''),
-                  phone: selectedStore?.phone ?? '',
-                  slot: selectedSlot || '',
-                  total: String(total),
-                  live: shareLiveLocation ? '1' : '0',
-                }).toString();
-                router.push(`/payment?${params}` as never);
-              }}>
-                <Text style={styles.orderText}>ბარათით გადახდა</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      )}
-
-      {/* Market Info Modal (final screen) */}
-      {!isPickerMode && (
-      <Modal
-        visible={isDriverOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsDriverOpen(false)}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.marketSheet}>
-            <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>მაღაზია გზაშია</Text>
-              <TouchableOpacity onPress={() => setIsDriverOpen(false)}><Feather name="x" size={18} color="#FFFFFF" /></TouchableOpacity>
-            </View>
-            <View style={{ gap: 12 }}>
-              <Text style={styles.sectionTitle}>{selectedStore?.name}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Image source={{ uri: selectedStore?.media?.[0] }} style={{ width: 56, height: 56, borderRadius: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.dealOfferText}>{selectedStore?.address}</Text>
-                </View>
-                <TouchableOpacity style={styles.applyBtn} onPress={() => {
-                  const lat = selectedStore?.coordinates?.latitude; const lng = selectedStore?.coordinates?.longitude;
-                  const label = selectedStore?.name || 'Market';
-                  const url = Platform.select({ ios: `http://maps.apple.com/?daddr=${lat},${lng}&q=${encodeURIComponent(label)}`, android: `geo:0,0?q=${lat},${lng}(${encodeURIComponent(label)})` });
-                  if (url) Linking.openURL(url);
-                }}>
-                  <Feather name="navigation" size={14} color="#0B0B0E" />
-                  <Text style={styles.applyText}>ნავიგაცია</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.sectionTitle}>ვინ მოგაწვდის</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Image source={{ uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400&auto=format&fit=crop' }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                <Text style={styles.productTitle}>დრაივერი გუნდი</Text>
-                <View style={{ flex: 1 }} />
-                <TouchableOpacity style={styles.applyBtn} onPress={() => Linking.openURL(`tel:+995595123789`)}>
-                  <Feather name="phone" size={14} color="#0B0B0E" />
-                  <Text style={styles.applyText}>დარეკვა</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.sectionTitle}>შეკვეთის სია</Text>
-              <View style={{ gap: 8 }}>
-                {selectedStore && computeCatalog(selectedStore).slice(0,3).map(p => (
-                  <View key={p.id} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={styles.productTitle}>{p.title}</Text>
-                    <Text style={styles.productPrice}>{(cart[p.id]||0)} x {formatGel(p.price)}</Text>
-                  </View>
-                ))}
-                <Text style={styles.cartTotalText}>ჯამი: {formatGel(cartTotal(selectedStore))}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      )}
-      {/* Market Modal */}
-      {!isPickerMode && (
-      <Modal
-        visible={isMarketOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsMarketOpen(false)}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.marketSheet}>
-            <View style={[styles.sheetTitleRow, { gap: 8 }]}>
-              <TouchableOpacity onPress={() => { setIsMarketOpen(false); setIsDrivePickerOpen(true); }} style={{ padding: 6 }}>
-                <Feather name="arrow-left" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={styles.sheetTitle}>{selectedStore?.name || 'მაღაზია'}</Text>
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity onPress={() => setIsMarketOpen(false)}><Feather name="x" size={18} color="#FFFFFF" /></TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator contentContainerStyle={{ gap: 12, paddingBottom: 120 }}>
-              {selectedStore && computeCatalog(selectedStore).map(p => (
-                <View key={p.id} style={styles.productCard}>
-                  <Image source={{ uri: p.image }} style={styles.productThumb} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.productTitle}>{p.title}</Text>
-                    <Text style={styles.productPrice}>{formatGel(p.price)}</Text>
-                  </View>
-                  <View style={styles.qtyRow}>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => decFromCart(p.id)}><Text style={styles.qtyText}>-</Text></TouchableOpacity>
-                    <Text style={styles.qtyText}>{cart[p.id] || 0}</Text>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => addToCart(p.id)}><Text style={styles.qtyText}>+</Text></TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.cartBar}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 8 }}>
-                  {generateTimeSlots().map(slot => (
-                    <TouchableOpacity key={slot} onPress={() => setSelectedSlot(slot)} style={[styles.pill, selectedSlot===slot && styles.pillActive]}>
-                      <Text style={[styles.pillText, selectedSlot===slot && styles.pillTextActive]}>{slot}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              <TouchableOpacity style={styles.orderBtn} onPress={() => { setIsMarketOpen(false); setIsCheckoutOpen(true); }}>
-                <Text style={styles.orderText}>გაგრძელება</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      )}
-
-      {/* Drive Picker Modal */}
-      {!isPickerMode && (
-      <Modal
-        visible={isDrivePickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsDrivePickerOpen(false)}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.marketSheet}>
-            <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>ახლომდებარე დრაივები</Text>
-              <TouchableOpacity onPress={() => setIsDrivePickerOpen(false)}><Feather name="x" size={18} color="#FFFFFF" /></TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator contentContainerStyle={{ gap: 10 }}>
-              {CAR_WASH_LOCATIONS
-                .map(l => ({
-                  ...l,
-                  _distanceKm: getDistanceKm(mapRegion.latitude, mapRegion.longitude, l.coordinates.latitude, l.coordinates.longitude),
-                }))
-                .sort((a, b) => a._distanceKm - b._distanceKm)
-                .slice(0, 20)
-                .map(l => (
-                  <TouchableOpacity key={l.id} style={styles.dealItem}>
-                    <Image source={{ uri: l.media?.[0] || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=600&auto=format&fit=crop' }} style={styles.dealThumb} />
-                    <View style={styles.dealInfo}>
-                      <Text style={styles.dealName}>{l.name}</Text>
-                      <Text style={styles.dealOfferText}>{l._distanceKm.toFixed(1)}კმ • {l.isPartner ? 'Partner' : 'Store'}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.applyBtn} onPress={() => { beginDriveWithDestination(l); }}>
-                      <Feather name="check" size={14} color="#0B0B0E" />
-                      <Text style={styles.applyText}>არჩევა</Text>
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-      )}
-
-      {/* Destination step removed (drive მიდის თავად დრაივთან) */}
       {/* Deals Modal */}
       {!isPickerMode && (
       <Modal
@@ -1767,6 +1603,7 @@ export default function MapScreen() {
           </TouchableOpacity>
         </View>
       )}
+
     </View>
   );
-}
+}  

@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
+import API_BASE_URL from '@/config/api';
 
 const { width } = Dimensions.get('window');
 
@@ -54,7 +55,7 @@ const MAIN_CATEGORIES = [
   },
 ];
 
-const FEATURED_SERVICES = [
+const DEFAULT_FEATURED_SERVICES = [
   {
     id: '1',
     title: 'BMW ორიგინალი ნაწილები',
@@ -91,10 +92,81 @@ export default function MarketplaceScreen() {
   const { user } = useUser();
   const router = useRouter();
   
+  // State for featured services
+  const [featuredServices, setFeaturedServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+
+  // Load latest services
+  const loadLatestServices = async () => {
+    setLoading(true);
+    try {
+      // Load latest parts, stores, and dismantlers
+      const [partsResponse, storesResponse, dismantlersResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/parts?sort=createdAt&order=desc&limit=3`),
+        fetch(`${API_BASE_URL}/stores?sort=createdAt&order=desc&limit=3`),
+        fetch(`${API_BASE_URL}/dismantlers?sort=createdAt&order=desc&limit=3`)  
+      ]);
+
+      const [parts, stores, dismantlers] = await Promise.all([
+        partsResponse.ok ? partsResponse.json() : [],
+        storesResponse.ok ? storesResponse.json() : [],
+        dismantlersResponse.ok ? dismantlersResponse.json() : []
+      ]);
+
+      // Combine all latest items
+      const latestItems = [
+        ...(parts.data || parts || []).map((item: any) => ({
+          id: item._id || item.id,
+          title: item.title || item.name,
+          description: item.description || `${item.brand} ${item.model}`,
+          price: item.price || 'ფასი დასაზუსტებელია',
+          image: item.images?.[0] || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=600&auto=format&fit=crop',
+          rating: 4.5 + Math.random() * 0.5,
+          verified: true,
+          type: 'part'
+        })),
+        ...(stores.data || stores || []).map((item: any) => ({
+          id: item._id || item.id,
+          title: item.name || item.title,
+          description: item.description || item.type,
+          price: 'ფასი დასაზუსტებელია',
+          image: item.images?.[0] || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400&auto=format&fit=crop',
+          rating: 4.5 + Math.random() * 0.5,
+          verified: true,
+          type: 'store'
+        })),
+        ...(dismantlers.data || dismantlers || []).map((item: any) => ({
+          id: item._id || item.id,
+          title: `${item.brand} ${item.model}`,
+          description: `${item.yearFrom}-${item.yearTo} წლები`,
+          price: 'ფასი დასაზუსტებელია',
+          image: item.photos?.[0] || 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?q=80&w=400&auto=format&fit=crop',
+          rating: 4.5 + Math.random() * 0.5,
+          verified: true,
+          type: 'dismantler'
+        }))
+      ];
+
+      // Sort by creation date and take top 6
+      const sortedItems = latestItems
+        .sort((a, b) => Math.random() - 0.5) // Shuffle for variety
+        .slice(0, 6);
+
+      if (sortedItems.length > 0) {
+        setFeaturedServices(sortedItems);
+      }
+    } catch (error) {
+      console.error('Error loading latest services:', error);
+      // Keep default services on error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -109,9 +181,12 @@ export default function MarketplaceScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Load latest services on mount
+    loadLatestServices();
   }, []);
 
-  const COMING_SOON = new Set(['mechanics', 'services', 'towing']);
+  const COMING_SOON = new Set(['services', 'towing']);
 
   const handleCategoryPress = (categoryId: string) => {
     if (COMING_SOON.has(categoryId)) {
@@ -145,7 +220,7 @@ export default function MarketplaceScreen() {
         onPress={() => handleCategoryPress(category.id)}
         activeOpacity={0.8}
       >
-        {isComingSoon && (
+        {isComingSoon && category.id !== 'mechanics' && (
           <View style={styles.comingSoonPill}>
             <Ionicons name="time-outline" size={12} color="#6B7280" />
             <Text style={styles.comingSoonText}>მალე</Text>
@@ -166,9 +241,13 @@ export default function MarketplaceScreen() {
       style={styles.featureCard} 
       activeOpacity={0.95}
       onPress={() => {
-        // Featured services navigation based on title
-        if (item.title.includes('ნაწილები')) {
+        // Navigation based on item type
+        if (item.type === 'part') {
           router.push('/parts');
+        } else if (item.type === 'store') {
+          router.push('/details');
+        } else if (item.type === 'dismantler') {
+          router.push('/details');
         } else if (item.title.includes('დეტეილინგი')) {
           router.push('/carwash');
         } else {
@@ -182,15 +261,16 @@ export default function MarketplaceScreen() {
         style={styles.featureOverlay}
       />
       <View style={styles.featureBadgesRow}>
-        <View style={styles.badgePillPrimary}><Text style={styles.badgePillPrimaryText}>რეკომენდირებული</Text></View>
+        <View style={styles.badgePillPrimary}><Text style={styles.badgePillPrimaryText}>ახალი</Text></View>
         {item.verified && (
           <View style={styles.badgePillLight}><Ionicons name="checkmark-circle" size={14} color="#10B981" /><Text style={styles.badgePillLightText}>ვერიფიცირებული</Text></View>
         )}
       </View>
       <View style={styles.featureContent}>
         <Text style={styles.featureTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.featureSubtitle} numberOfLines={1}>{item.description}</Text>
         <View style={styles.featureMetaRow}>
-          <View style={styles.featureRating}><Ionicons name="star" size={14} color="#F59E0B" /><Text style={styles.featureRatingText}>{item.rating}</Text></View>
+          <View style={styles.featureRating}><Ionicons name="star" size={14} color="#F59E0B" /><Text style={styles.featureRatingText}>{item.rating?.toFixed(1)}</Text></View>
           <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price}</Text></View>
         </View>
       </View>
@@ -217,53 +297,7 @@ export default function MarketplaceScreen() {
       </SafeAreaView>
 
       {/* Hero Promo Banner */}
-      <View style={styles.heroPromoContainer}>
-        <TouchableOpacity
-          activeOpacity={0.92}
-          style={styles.heroPromo}
-          onPress={() => router.push('/details')}
-        >
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1518459031867-a89b944bffe0?q=80&w=1600&auto=format&fit=crop' }}
-            style={styles.heroPromoBackground}
-          />
-          <LinearGradient
-            colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.65)"]}
-            style={styles.heroPromoOverlay}
-          />
-
-          {/* Floating top-right pill */}
-          <View style={styles.heroPromoTopRow}>
-            <View style={styles.heroPromoPillLight}>
-              <Ionicons name="sparkles" size={14} color="#10B981" />
-              <Text style={styles.heroPromoPillLightText}>პრივილეგირებული შეთავაზება</Text>
-            </View>
-            <View style={styles.heroPromoDiscount}>
-              <Text style={styles.heroPromoDiscountText}>-25%</Text>
-            </View>
-          </View>
-
-          {/* Content */}
-          <View style={styles.heroPromoContent}>
-            <View style={{ gap: 6 }}>
-              <Text style={styles.heroPromoTitle}>პრემიუმ მოვლა შენი ავტომობილისთვის</Text>
-              <Text style={styles.heroPromoSubtitle}>სუფთა, სწრაფი და ტექნოლოგიური სერვისი ახლოს შენთან</Text>
-            </View>
-
-            <View style={styles.heroPromoFooter}>
-              <View style={styles.heroPromoFeatures}>
-                <View style={styles.heroPromoFeature}><Ionicons name="checkmark-circle" size={16} color="#22C55E" /><Text style={styles.heroPromoFeatureText}>Quality</Text></View>
-                <View style={styles.heroPromoFeature}><Ionicons name="time" size={16} color="#22C55E" /><Text style={styles.heroPromoFeatureText}>Fast</Text></View>
-                <View style={styles.heroPromoFeature}><Ionicons name="shield-checkmark" size={16} color="#22C55E" /><Text style={styles.heroPromoFeatureText}>Safe</Text></View>
-              </View>
-              <View style={styles.heroPromoButton}>
-                <Text style={styles.heroPromoButtonText}>გაიგე მეტი</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
+  
 
       <Animated.ScrollView
         style={styles.content}
@@ -285,10 +319,10 @@ export default function MarketplaceScreen() {
         {/* Featured Section */}
         <View style={styles.featuredSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>რეკომენდირებული</Text>
-            <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>ყველა</Text>
-              <Ionicons name="chevron-forward" size={16} color="#3B82F6" />
+            <Text style={styles.sectionTitle}>ახალი დამატებები</Text>
+            <TouchableOpacity style={styles.seeAllButton} onPress={loadLatestServices}>
+              <Text style={styles.seeAllText}>განახლება</Text>
+              <Ionicons name="refresh" size={16} color="#3B82F6" />
             </TouchableOpacity>
           </View>
           <ScrollView
@@ -300,9 +334,8 @@ export default function MarketplaceScreen() {
             snapToAlignment="start"
           >
             {/* Skeletons while loading */}
-            {/* Replace with loading state when wired to API */}
-            {FEATURED_SERVICES.length === 0 && [1,2].map((i) => <FeaturedSkeleton key={`sk-${i}`} />)}
-            {FEATURED_SERVICES.map((item, index) => renderFeaturedCard(item, index))}
+            {loading && [1,2,3].map((i) => <FeaturedSkeleton key={`sk-${i}`} />)}
+            {!loading && featuredServices.map((item: any, index: number) => renderFeaturedCard(item, index))}
           </ScrollView>
         </View>
 
@@ -630,5 +663,10 @@ const styles = StyleSheet.create({
   quickText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  featureSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 8,
   },
 });

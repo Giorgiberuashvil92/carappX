@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Pressable,
   Image,
@@ -11,19 +10,28 @@ import {
   Animated,
   Dimensions,
   StatusBar,
+  RefreshControl,
+  Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCars } from '@/contexts/CarContext';
+import AddCarModal from '@/components/garage/AddCarModal';
+import { useUser } from '@/contexts/UserContext';
+import { aiApi } from '@/services/aiApi';
 
 const { width } = Dimensions.get('window');
 
 export default function AILandingScreen() {
-  const { selectedCar, cars } = useCars();
+  const { selectedCar, cars, addCar, selectCar } = useCars();
+  const { user } = useUser();
   const [showCarPicker, setShowCarPicker] = useState(false);
+  const [showAddCarModal, setShowAddCarModal] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     Animated.parallel([
@@ -40,7 +48,80 @@ export default function AILandingScreen() {
     ]).start();
   }, []);
 
+  // მიიღე და დალოგე push token (TestFlight-ზე რეალურ მოწყობილობაზე)
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getPushToken();
+        if (token) {
+          console.log('[Push] device token:', token);
+        } else {
+          console.log('[Push] token unavailable');
+        }
+      } catch (e) {
+        console.log('[Push] token error', e);
+      }
+    })();
+  }, []);
+
+  // Seller panel status + matching requests
+  const [sellerLoading, setSellerLoading] = useState(false);
+  const [sellerStatus, setSellerStatus] = useState<{
+    showSellerPanel: boolean;
+    counts: { stores: number; parts: number; dismantlers: number };
+    matchingRequests: any[];
+  } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadSellerStatus = async () => {
+    if (!user?.id) return;
+    try {
+      setSellerLoading(true);
+      console.log('[AI] calling getSellerStatus with', {
+        userId: user.id,
+        make: selectedCar?.make,
+        model: selectedCar?.model,
+        year: selectedCar?.year ? String(selectedCar.year) : undefined,
+      });
+      const res = await aiApi.getSellerStatus({
+        userId: user.id,
+        phone: user.phone,
+        make: selectedCar?.make,
+        model: selectedCar?.model,
+        year: selectedCar?.year ? String(selectedCar.year) : undefined,
+      });
+      console.log('[AI] getSellerStatus response', res);
+      try {
+        console.log('[AI] ownedStores', JSON.stringify(res?.data?.ownedStores ?? [], null, 2));
+        console.log('[AI] ownedParts', JSON.stringify(res?.data?.ownedParts ?? [], null, 2));
+        console.log('[AI] ownedDismantlers', JSON.stringify(res?.data?.ownedDismantlers ?? [], null, 2));
+      } catch {}
+      setSellerStatus(res.data);
+    } catch (e) {
+      console.warn('[AI] seller-status error', e);
+    } finally {
+      setSellerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSellerStatus();
+  }, [user?.id, selectedCar?.make, selectedCar?.model, selectedCar?.year]);
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadSellerStatus();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleServicePress = (service: string) => {
+    if (service !== 'parts') {
+      Alert.alert('მალე', 'ეს სექცია მუშაობის პროცესშია და მალე დაემატება.');
+      return;
+    }
     router.push(`/service-form?service=${service}`);
   };
 
@@ -82,20 +163,32 @@ export default function AILandingScreen() {
       <ScrollView 
         style={styles.container} 
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FFFFFF"
+            titleColor="#FFFFFF"
+            colors={['#6366F1']}
+            progressBackgroundColor="#111827"
+          />
+        }
       >
         <Animated.View 
           style={[
             styles.content,
             {
               opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
+              transform: [{ translateY: slideAnim }],
+              paddingTop: 10 + insets.top,
+              paddingBottom: 24 + insets.bottom,
             }
           ]}
         >
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <LinearGradient
-              colors={['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.1)']}
+              colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.06)']}
               style={styles.heroGradient}
             >
               <View style={styles.heroContent}>
@@ -136,10 +229,16 @@ export default function AILandingScreen() {
           <Animated.View style={styles.carSection}>
             <Pressable 
               style={styles.carCard}
-              onPress={() => setShowCarPicker(true)}
+              onPress={() => {
+                if ((cars?.length || 0) === 0) {
+                  setShowAddCarModal(true);
+                } else {
+                  setShowCarPicker(true);
+                }
+              }}
             >
               <LinearGradient
-                colors={['rgba(55, 65, 81, 0.3)', 'rgba(75, 85, 99, 0.3)']}
+                colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.06)']}
                 style={styles.carGradient}
               >
                 <View style={styles.carContent}>
@@ -155,10 +254,14 @@ export default function AILandingScreen() {
                     </View>
                     <View style={styles.carDetails}>
                       <Text style={styles.carTitle}>
-                        {selectedCar ? `${selectedCar.make} ${selectedCar.model}` : 'აირჩიეთ მანქანა'}
+                        {selectedCar
+                          ? `${selectedCar.make} ${selectedCar.model}`
+                          : (cars.length === 0 ? 'დაამატე მანქანა' : 'აირჩიეთ მანქანა')}
                       </Text>
                       <Text style={styles.carMeta}>
-                        {selectedCar ? `${selectedCar.year} • ${selectedCar.plateNumber}` : 'დააჭირეთ არჩევისთვის'}
+                        {selectedCar
+                          ? `${selectedCar.year} • ${selectedCar.plateNumber}`
+                          : (cars.length === 0 ? 'მოდალის გახსნა დამატებისთვის' : 'დააჭირეთ არჩევისთვის')}
                       </Text>
                     </View>
                   </View>
@@ -199,6 +302,8 @@ export default function AILandingScreen() {
             </Pressable>
           </View>
 
+        {/* Seller Panel */}
+
           {/* Services Grid */}
           <View style={styles.servicesSection}>
             <Text style={styles.sectionTitle}>რა გჭირდებათ?</Text>
@@ -216,6 +321,11 @@ export default function AILandingScreen() {
                       colors={service.gradient as [string, string]}
                       style={styles.serviceGradient}
                     >
+                      {service.id !== 'parts' && (
+                        <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+                          <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>მალე</Text>
+                        </View>
+                      )}
                       <View style={styles.serviceContent}>
                         <View style={styles.serviceIconContainer}>
                           <Ionicons name={service.icon as any} size={32} color="#FFFFFF" />
@@ -251,6 +361,7 @@ export default function AILandingScreen() {
                     selectedCar?.id === car.id && styles.carRowActive
                   ]}
                   onPress={() => {
+                    try { selectCar(car as any); } catch {}
                     setShowCarPicker(false);
                   }}
                 >
@@ -282,6 +393,25 @@ export default function AILandingScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Add Car Modal (identical to garage) */}
+      <AddCarModal
+        visible={showAddCarModal}
+        onClose={() => setShowAddCarModal(false)}
+        onAddCar={async (car) => {
+          try {
+            await addCar({
+              make: car.make,
+              model: car.model,
+              year: parseInt(car.year as any),
+              plateNumber: car.plateNumber,
+              imageUri: (car as any).photo as string | undefined,
+            } as any);
+          } finally {
+            setShowAddCarModal(false);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -289,11 +419,11 @@ export default function AILandingScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#0F172A',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: 'transparent',
   },
   content: {
     padding: 20,
@@ -308,6 +438,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.30)',
   },
   heroContent: {
     alignItems: 'center',
@@ -384,6 +516,8 @@ const styles = StyleSheet.create({
   carCard: {
     borderRadius: 16,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.30)',
   },
   carGradient: {
     padding: 16,
@@ -459,6 +593,8 @@ const styles = StyleSheet.create({
     width: (width - 52) / 2,
     borderRadius: 14,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.30)',
   },
   servicePressable: {
     flex: 1,
@@ -476,7 +612,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -504,6 +642,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.30)',
   },
   quickLinkGradient: {
     flexDirection: 'row',
@@ -522,15 +662,21 @@ const styles = StyleSheet.create({
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'center',
     padding: 20,
   },
   modalCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: 'rgba(17, 24, 39, 0.7)',
     borderRadius: 24,
     padding: 24,
     maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
   },
   modalTitle: {
     fontFamily: 'NotoSans_700Bold',

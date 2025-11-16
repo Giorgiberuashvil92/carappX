@@ -18,28 +18,31 @@ import Colors from '@/constants/Colors';
 import { CarProvider } from '../contexts/CarContext';
 import { MarketplaceProvider } from '../contexts/MarketplaceContext';
 import { UserProvider } from '../contexts/UserContext';
+
+if (__DEV__) {
+  import('../utils/reactotron');
+}
 import { ToastProvider } from '../contexts/ToastContext';
 import { ModalProvider } from '../contexts/ModalContext';
-import { registerPushToken } from '../utils/notifications';
+import { SubscriptionProvider } from '../contexts/SubscriptionContext';
 import API_BASE_URL from '../config/api';
+import  {requestPermission, getToken, AuthorizationStatus } from '@react-native-firebase/messaging';
+import messaging from '@react-native-firebase/messaging';
+
 
 export {
-  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: 'login',
+  initialRouteName: 'index',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     ...FontAwesome.font,
-    // Alias so we can use fontFamily: 'Inter'
     Inter: Inter_400Regular,
   });
   const [interLoaded] = useInterFonts({
@@ -49,7 +52,6 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (fontError) throw fontError;
   }, [fontError]);
@@ -60,17 +62,6 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, interLoaded]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const maybeUserId = (global as any)?.currentUserId || 'anonymous';
-        await registerPushToken({ backendUrl: API_BASE_URL, userId: maybeUserId });
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, []);
 
   if (!fontsLoaded || !interLoaded) {
     return null;
@@ -84,6 +75,7 @@ function RootLayoutNav() {
   const colors = Colors[colorScheme ?? 'light'];
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
 
   const customTheme = {
     ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme),
@@ -101,9 +93,25 @@ function RootLayoutNav() {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
 
+    const requestUserPermission = async () => {
+      const authStatus = await messaging().requestPermission();
+      const enabled = authStatus === AuthorizationStatus.AUTHORIZED || authStatus === AuthorizationStatus.PROVISIONAL;
+      if (enabled) {
+        console.log(enabled, 'ინეიბლი')
+        const token = await messaging().getToken();
+        console.log('Token:', token);
+      }
+    };
+
+    requestUserPermission();
+    const onMessageReceived = (message: any) => {
+      console.log('Message:', message);
+    };
+    messaging().onMessage(onMessageReceived);
+
+
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App came to foreground, dismiss keyboard
         Keyboard.dismiss();
       }
       appState.current = nextAppState;
@@ -111,7 +119,6 @@ function RootLayoutNav() {
 
     const appStateSub = AppState.addEventListener('change', handleAppStateChange);
 
-    // Android back handler
     const onBackPress = () => {
       if (keyboardVisible) {
         Keyboard.dismiss();
@@ -134,16 +141,14 @@ function RootLayoutNav() {
 
   return (
     <UserProvider>
-      <CarProvider>
-        <MarketplaceProvider>
-          <ToastProvider>
-            <ModalProvider>
+      <SubscriptionProvider>
+        <CarProvider>
+          <MarketplaceProvider>
+            <ToastProvider>
+              <ModalProvider>
             <ThemeProvider value={customTheme}>
               {(() => {
-                // Set global default font to Inter
-                // Note: RNText/RNTextInput allow setting defaultProps safely here
-                // This makes all Text/TextInput use Inter without per-component styles
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                
                 (RNText as any).defaultProps = (RNText as any).defaultProps || {};
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (RNText as any).defaultProps.style = [
@@ -185,12 +190,23 @@ function RootLayoutNav() {
               <Stack.Screen name="notifications/[id]" options={{ headerShown: false }} />
               <Stack.Screen name="financing-request" options={{ headerShown: false }} />
               <Stack.Screen name="financing-info" options={{ headerShown: false }} />
+              <Stack.Screen name="caru-service" options={{ headerShown: false }} />
+              <Stack.Screen name="caru-orders" options={{ headerShown: false }} />
+              <Stack.Screen name="caru-order" options={{ headerShown: false }} />
+              <Stack.Screen name="carfax" options={{headerShown: false}} />
+              <Stack.Screen name="payment-card" options={{headerShown: false}} />
+              <Stack.Screen name="payment-success" options={{headerShown: false}} />
+              <Stack.Screen name="carfax-simulation" options={{headerShown: false}} />
+              <Stack.Screen name="all-services" options={{headerShown: false}} />
+              <Stack.Screen name="all-community" options={{headerShown: false}} />
+              <Stack.Screen name="category" options={{headerShown: false}} />
               </Stack>
             </ThemeProvider>
-            </ModalProvider>
-          </ToastProvider>
-        </MarketplaceProvider>
-      </CarProvider>
+              </ModalProvider>
+            </ToastProvider>
+          </MarketplaceProvider>
+        </CarProvider>
+      </SubscriptionProvider>
     </UserProvider>
   );
 }
