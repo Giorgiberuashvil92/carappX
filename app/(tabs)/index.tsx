@@ -9,46 +9,102 @@ import {
   ImageBackground,
   Image,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../../constants/Colors';
-import { useColorScheme } from '../../components/useColorScheme';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
-import { useCars } from '../../contexts/CarContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
+import SubscriptionModal from '../../components/ui/SubscriptionModal';
+import API_BASE_URL from '../../config/api';
 import ServiceCard from '../../components/ui/ServiceCard';
-import Button from '../../components/ui/Button';
-import Chip from '../../components/ui/Chip';
-import MiniServiceCard from '../../components/ui/MiniServiceCard';
-import NearbyCard from '../../components/ui/NearbyCard';
 import CommunitySection from '../../components/ui/CommunitySection';
 import ReminderSection from '../../components/ui/ReminderSection';
+import StoriesRow from '../../components/ui/StoriesRow';
+import StoryViewer from '../../components/ui/StoryViewer';
+import StoryOverlay from '../../components/ui/StoryOverlay';
+import NotificationsModal from '../../components/ui/NotificationsModal';
+import RacingBanner from '../../components/ui/RacingBanner';
+import { useEffect } from 'react';
 
 const { width } = Dimensions.get('window');
+const H_MARGIN = 20;
+const H_GAP = 16;
+const POPULAR_CARD_WIDTH = width - (H_MARGIN * 2);
 
 
-// POPULAR_SERVICES ახლა API-დან მოვიღებთ
+// Popular services are now fetched from API
 
 export default function TabOneScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  // უბრალოდ light mode გამოვიყენოთ error-ის თავიდან ასაცილებლად
+  const colors = Colors['light'];
   const { user } = useUser();
+  const { subscription, hasActiveSubscription } = useSubscription();
+  const displayFirstName = user?.name ? user.name.split(' ')[0] : '';
   
   // Promo banner state
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [openStoryIndex, setOpenStoryIndex] = useState<number | null>(null);
+  const [overlayVisible, setOverlayVisible] = useState(false);
   
-  // დინამიური სერვისები
+  // Refresh stories when overlay closes (to update seen status)
+  const refreshStories = React.useCallback(async () => {
+    try {
+      const userIdParam = user?.id ? `&userId=${encodeURIComponent(user.id)}` : '';
+      const res = await fetch(`${API_BASE_URL}/stories?highlight=true${userIdParam}`);
+      const json = await res.json().catch(() => ({}));
+      const data = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+      setStories(data.map((s: any) => ({
+        id: String(s.id || s._id),
+        author: { id: String(s.authorId || 'svc'), name: s.authorName || 'Story', avatar: s.authorAvatar },
+        createdAt: Number(s.createdAt || Date.now()),
+        items: Array.isArray(s.items) ? s.items.map((it: any) => ({ id: String(it.id || Math.random()), type: it.type || 'image', uri: it.uri, durationMs: it.durationMs, caption: it.caption, poll: it.poll })) : [],
+        highlight: !!s.highlight,
+        category: s.category,
+        seen: !!s.isSeen,
+      })));
+    } catch {}
+  }, [user?.id]);
+  
+  // Dynamic services
   const [popularServices, setPopularServices] = useState<any[]>([]);
   const [nearbyServices, setNearbyServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [nearbyLoading, setNearbyLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // Pull-to-refresh state
+  const [offers, setOffers] = useState<any[]>([]);
+  const [offersLoading, setOffersLoading] = useState<boolean>(false);
 
   console.log(popularServices, 'პოპულარული სერვისები');
+  
+  // Stories state
+  const [stories, setStories] = useState<any[]>([]);
+
+  useEffect(() => {
+    refreshStories();
+  }, [refreshStories]);
+
+  // Show subscription modal on main page load if user doesn't have active subscription
+  React.useEffect(() => {
+    if (user && !hasActiveSubscription && subscription?.plan === 'free') {
+      // Show modal after a short delay to allow page to load
+      const timer = setTimeout(() => {
+        setShowSubscriptionModal(true);
+      }, 2000); // 2 seconds delay
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, hasActiveSubscription, subscription?.plan]);
   
   const handleScroll = (event: any) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
@@ -56,166 +112,132 @@ export default function TabOneScreen() {
     setCurrentBannerIndex(index);
   };
 
-  // API-დან პოპულარული სერვისების მიღება
-  React.useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        setLoading(true);
-        // პოპულარული სერვისების endpoint
-        const response = await fetch('http://192.168.1.73:4000/carwash/locations/popular?limit=6');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const text = await response.text();
-        if (!text) {
-          throw new Error('Empty response from server');
-        }
-        
-        const data = JSON.parse(text);
-        
-        // მონაცემების ფორმატირება
-        // პოპულარობის ალგორითმი:
-        // 1. რეიტინგი (40%) - მაღალი რეიტინგი = პოპულარული
-        // 2. რევიუების რაოდენობა (25%) - მეტი რევიუ = უფრო პოპულარული
-        // 3. ღიაა თუ არა (15%) - ღია სერვისები პრიორიტეტულია
-        // 4. ფასის კონკურენტუნარიანობა (10%) - საშუალო ფასის მახლობლად
-        // 5. სერვისების რაოდენობა (10%) - მეტი სერვისი = უკეთესი
-        const formattedServices = data.map((location: any) => ({
-          id: location.id,
-          name: location.name,
-          location: location.location,
-          rating: location.rating,
-          price: `${location.price}₾`,
-          image: location.images?.[0] || require('../../assets/images/car-bg.png'),
-          category: location.category,
-          address: location.address,
-          phone: location.phone,
-          services: location.detailedServices || [],
-          isOpen: location.realTimeStatus?.isOpen || location.isOpen,
-          waitTime: location.realTimeStatus?.currentWaitTime || 0,
-          socialMedia: location.socialMedia || {}, // Facebook, Instagram, Website
-          reviews: location.reviews || 0,
-        }));
-        
-        setPopularServices(formattedServices);
-      } catch (error) {
-        console.error('სერვისების ჩატვირთვის შეცდომა:', error);
-        // fallback სტატიკური მონაცემები
-        setPopularServices([
-          {
-            id: '1',
-            name: 'ძმაკაცი მოტორსი',
-            location: 'ვაჟა-ფშაველას გამზირი',
-            rating: 4.8,
-            price: '50₾',
-            image: require('../../assets/images/car-bg.png'),
-            category: 'ავტოსერვისი',
-          }
-        ]);
-      } finally {
-        setLoading(false);
+  // Fetch popular services function
+  const fetchServices = async (isRefresh = false) => {
+    try {
+      if (!isRefresh) setLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/services/popular?limit=6`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
+      
+      const text = await response.text();
+      if (!text) {
+        throw new Error('Empty response from server');
+      }
+      
+      const data = JSON.parse(text);
+      const formattedServices = data.map((service: any) => ({
+        id: service.id,
+        name: service.title, // title-ი name-ად
+        location: service.location,
+        rating: service.rating || 4.5, // default rating
+        price: typeof service.price === 'string' ? service.price : `${service.price || 25}₾`,
+        image: typeof service.images?.[0] === 'string'
+          ? { uri: service.images[0] }
+          : require('../../assets/images/car-bg.png'),
+        category: service.category || service.type, // category ან type
+        address: service.location, // location address-ად
+        phone: service.phone || 'N/A',
+        services: [], // დეტალური სერვისები
+        isOpen: service.isOpen !== undefined ? service.isOpen : true, // default ღია
+        waitTime: 0, // default wait time
+        socialMedia: {}, // default social media
+        reviews: service.reviews || Math.floor(Math.random() * 50) + 10, // random reviews თუ არ არის
+        type: service.type, // ახალი ველი - სერვისის ტიპი
+        description: service.description, // აღწერა
+      }));
+      
+      console.log('🎉 Fetched services from new API:', formattedServices);
+      setPopularServices(formattedServices);
+    } catch (error) {
+      console.error('❌ Error fetching services:', error);
+      // Fallback static data
+      setPopularServices([
+        {
+          id: '1',
+          name: 'ძმაკაცი მოტორსი',
+          location: 'ვაჟა-ფშაველას გამზირი',
+          rating: 4.8,
+          price: '50₾',
+          image: require('../../assets/images/car-bg.png'),
+          category: 'ავტოსერვისი',
+          type: 'carwash',
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      if (isRefresh) setRefreshing(false);
+    }
+  };
 
+  const onRefresh = React.useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([
+        fetchServices(true),
+        refreshStories(),
+        (async () => {
+          setOffersLoading(true);
+          try {
+            if (!user?.id) return;
+            const res = await fetch(`${API_BASE_URL}/offers?userId=${encodeURIComponent(user.id)}`);
+            const json = await res.json().catch(() => ({}));
+            const data = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+            setOffers(data);
+          } finally { setOffersLoading(false); }
+        })(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchServices, refreshStories]);
+
+  
+
+  React.useEffect(() => {
     fetchServices();
   }, []);
 
-  // API-დან ყველა ტიპის ახლოს მყოფი სერვისების მიღება
+  // Initial offers load
   React.useEffect(() => {
-    const fetchNearbyServices = async () => {
+    let active = true;
+    (async () => {
       try {
-        setNearbyLoading(true);
-        
-        // რეალური ლოკაციის მიღება (თუ ხელმისაწვდომია)
-        let userLat = 41.7151; // თბილისის ცენტრალური კოორდინატები (fallback)
-        let userLon = 44.8271;
-        
-        try {
-          // Expo Location API-ს გამოყენება
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === 'granted') {
-            const location = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            });
-            userLat = location.coords.latitude;
-            userLon = location.coords.longitude;
-            console.log('მომხმარებლის ლოკაცია:', userLat, userLon);
-            
-            // თუ მომხმარებელი სან ფრანცისკოშია (Expo Go სიმულატორი), ვიყენებთ თბილისის კოორდინატებს
-            if (userLat > 37 && userLat < 38 && userLon > -123 && userLon < -122) {
-              console.log('მომხმარებელი სან ფრანცისკოშია, ვიყენებთ თბილისის კოორდინატებს');
-              userLat = 41.7151;
-              userLon = 44.8271;
-            }
-          }
-        } catch (locationError) {
-          console.log('ლოკაციის მიღება ვერ მოხერხდა, გამოიყენება default კოორდინატები');
-        }
-        
-        console.log('გამოყენებული კოორდინატები:', userLat, userLon);
-        
-        // ახალი endpoint - ყველა ტიპის სერვისი
-        const response = await fetch(`http://192.168.1.73:4000/carwash/locations/all-nearby?lat=${userLat}&lng=${userLon}&radius=10`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const text = await response.text();
-        if (!text) {
-          throw new Error('Empty response from server');
-        }
-        
-        const data = JSON.parse(text);
-        console.log('API-დან მიღებული მონაცემები:', data.length, 'სერვისი');
-        
-        const formattedNearbyServices = data.map((service: any) => ({
-          id: service.id,
-          name: service.displayName || service.name || service.title,
-          location: service.displayAddress || service.address || service.location,
-          rating: service.displayRating || service.rating || 0,
-          price: service.displayPrice || `${service.price}₾`,
-          image: service.images?.[0] || require('../../assets/images/car-bg.png'),
-          category: service.category || service.type,
-          address: service.displayAddress || service.address,
-          phone: service.phone,
-          services: service.detailedServices || service.services || [],
-          isOpen: service.isOpen,
-          waitTime: service.waitTime || 0,
-          socialMedia: service.socialMedia || {},
-          reviews: service.displayReviews || service.reviews || 0,
-          type: service.type, // 'carwash' ან 'store'
-          distance: service.distance, // კილომეტრებში
-          coordinates: service.coordinates,
-        }));
-        
-        console.log('ფორმატირებული სერვისები:', formattedNearbyServices.length);
-        setNearbyServices(formattedNearbyServices);
-      } catch (error) {
-        console.error('ახლოს მყოფი სერვისების ჩატვირთვის შეცდომა:', error);
-        // fallback - პოპულარული სერვისების გამოყენება
-        console.log('Fallback: Using popular services as nearby services');
-        console.log('Popular services count:', popularServices.length);
-        console.log('Popular services data:', popularServices);
-        console.log('Setting nearby services to popular services');
-        setNearbyServices(popularServices);
-      } finally {
-        setNearbyLoading(false);
-      }
+        if (!user?.id) return;
+        setOffersLoading(true);
+        const res = await fetch(`${API_BASE_URL}/offers?userId=${encodeURIComponent(user.id)}`);
+        const json = await res.json().catch(() => ({}));
+        const data = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+        if (!active) return;
+        setOffers(data);
+      } finally { setOffersLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
+
+  React.useEffect(() => {
+    let active = true;
+    const loadUnread = async () => {
+      try {
+        if (!user?.id) return;
+        const res = await fetch(`${API_BASE_URL}/notifications/user/${user.id}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!active) return;
+        const list = Array.isArray(json?.data) ? json.data : [];
+        const unread = list.filter((n: any) => n?.status !== 'read').length;
+        setUnreadCount(unread);
+      } catch {}
     };
+    loadUnread();
+    const t = setInterval(loadUnread, 30000);
+    return () => { active = false; clearInterval(t); };
+  }, [user?.id]);
 
-    fetchNearbyServices();
-  }, [popularServices]);
-
-  type Category = { id: string; title: string; image: string };
-  const CATEGORIES: Category[] = [
-    { id: 'repair',     title: 'Repairing',  image: 'https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=600&auto=format&fit=crop' },
-    { id: 'electrical', title: 'Electrical', image: 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=600&auto=format&fit=crop' },
-    { id: 'cleaning',   title: 'Cleaning',   image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=600&auto=format&fit=crop' },
-    { id: 'painting',   title: 'Painting',   image: 'https://images.unsplash.com/photo-1510414696678-2415ad8474aa?q=80&w=600&auto=format&fit=crop' },
-  ];
+  
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -234,17 +256,17 @@ export default function TabOneScreen() {
       marginBottom: 24,
     },
     avatarSmall: { 
-      width: 48, 
-      height: 48, 
-      borderRadius: 24,
+      width: 52, 
+      height: 52, 
+      borderRadius: 26,
       backgroundColor: '#6366F1',
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
       shadowColor: '#6366F1',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
+      elevation: 6,
     },
     userName: { 
       fontSize: 18, 
@@ -260,80 +282,19 @@ export default function TabOneScreen() {
       opacity: 0.8,
     },
     roundIcon: {
-      width: 44, 
-      height: 44, 
-      borderRadius: 22, 
+      width: 48, 
+      height: 48, 
+      borderRadius: 24, 
       backgroundColor: '#FFFFFF', 
       borderWidth: 1, 
       borderColor: '#E5E7EB',
       alignItems: 'center' as const, 
       justifyContent: 'center' as const,
       shadowColor: '#000', 
-      shadowOffset: { width: 0, height: 2 }, 
-      shadowOpacity: 0.08, 
-      shadowRadius: 4, 
-      elevation: 3,
-    },
-    promoScrollContainer: {
-      paddingHorizontal: 20,
-      gap: 16,
-    },
-    promoCard: {
-      width: width - 60,
-      backgroundColor: '#111827',
-      borderRadius: 20,
-      overflow: 'hidden' as const,
-      height: 160,
-      position: 'relative' as const,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 6,
-    },
-    promoImage: { position: 'absolute' as const, width: '100%', height: '100%' },
-    promoOverlay: { ...StyleSheet.absoluteFillObject },
-    promoContent: { position: 'absolute' as const, left: 16, top: 16, right: 16, bottom: 16, justifyContent: 'space-between' as const },
-    promoBadge: {
-      alignSelf: 'flex-start',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
-      backgroundColor: '#EF4444',
-      marginBottom: 8,
-    },
-    promoBadgeText: {
-      color: '#FFFFFF',
-      fontFamily: 'Inter',
-      fontSize: 11,
-    },
-    promoTitle: { 
-      fontSize: 16, 
-      lineHeight: 20, 
-      color: '#FFFFFF', 
-      fontFamily: 'Inter',
-      marginBottom: 4,
-    },
-    promoSubtitle: { 
-      color: '#E5E7EB', 
-      fontFamily: 'Inter', 
-      fontSize: 12,
-      marginBottom: 8,
-    },
-    promoButton: { 
-      alignSelf: 'flex-start', 
-      backgroundColor: '#6366F1', 
-      paddingHorizontal: 16, 
-      paddingVertical: 8, 
-      borderRadius: 12,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 6,
-    },
-    promoButtonText: { 
-      color: '#FFFFFF', 
-      fontFamily: 'Inter', 
-      fontSize: 12,
+      shadowOffset: { width: 0, height: 4 }, 
+      shadowOpacity: 0.12, 
+      shadowRadius: 8, 
+      elevation: 5,
     },
     paginationContainer: {
       flexDirection: 'row' as const,
@@ -369,15 +330,17 @@ export default function TabOneScreen() {
     },
     recommendationTitle: {
       fontSize: 16,
-      fontWeight: '700' as const,
+      fontWeight: '600' as const,
       color: '#1E293B',
       marginLeft: 8,
+      fontFamily: 'Inter',
     },
     recommendationText: {
       fontSize: 14,
       color: '#64748B',
       lineHeight: 20,
       marginBottom: 16,
+      fontFamily: 'Inter',
     },
     recommendationButton: {
       backgroundColor: '#6366F1',
@@ -392,7 +355,8 @@ export default function TabOneScreen() {
     recommendationButtonText: {
       color: '#FFFFFF',
       fontSize: 14,
-      fontWeight: '600' as const,
+      fontWeight: '500' as const,
+      fontFamily: 'Inter',
     },
     headerTop: {
       flexDirection: 'row' as const,
@@ -445,9 +409,10 @@ export default function TabOneScreen() {
     },
     username: {
       fontSize: 26,
-      fontWeight: '700' as const,
+      fontWeight: '600' as const,
       color: colors.text,
       letterSpacing: -0.5,
+      fontFamily: 'Inter',
     },
     themeButton: {
       width: 44,
@@ -544,41 +509,47 @@ export default function TabOneScreen() {
       gap: 8,
     },
     quickActionIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 56,
+      height: 56,
+      borderRadius: 20,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 6,
     },
     quickActionText: {
-      fontSize: 12,
+      fontSize: 16,
       fontWeight: '500' as const,
-      color: colors.secondary,
+      color: '#374151',
       textAlign: 'center' as const,
+      lineHeight: 20,
+      width: 56,
+      alignSelf: 'center' as const,
+      fontFamily: 'Inter',
     },
     categoriesContainer: {
       paddingTop: 24,
       paddingHorizontal: 20,
     },
     sectionTitle: {
-      fontSize: 20,
-      color: colors.text,
+      fontSize: 22,
+      color: '#1F2937',
       fontFamily: 'Inter',
-      marginBottom: 16,
-      fontWeight: '600' as const,
+      marginBottom: 18,
+      fontWeight: '700' as const,
+      letterSpacing: -0.5,
     },
     categoriesList: {
-      marginHorizontal: -20,
-      paddingHorizontal: 20,
+      marginHorizontal: 0,
+      paddingLeft: H_MARGIN,
+      paddingRight: H_MARGIN,
     },
     categoryCard: {
       alignItems: 'center' as const,
-      marginRight: 16,
+      marginRight: H_GAP,
       padding: 16,
       borderRadius: 24,
       width: 110,
@@ -594,7 +565,8 @@ export default function TabOneScreen() {
     },
     categoryName: {
       fontSize: 13,
-      fontFamily: 'Poppins_600SemiBold',
+      fontFamily: 'Inter',
+      fontWeight: '500' as const,
       textAlign: 'center' as const,
       lineHeight: 18,
     },
@@ -633,11 +605,12 @@ export default function TabOneScreen() {
     },
     serviceName: {
       fontSize: 22,
-      fontWeight: '700' as const,
+      fontWeight: '600' as const,
       color: '#FFFFFF',
       textShadowColor: 'rgba(0, 0, 0, 0.3)',
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 4,
+      fontFamily: 'Inter',
     },
     serviceDetails: {
       flexDirection: 'row' as const,
@@ -683,6 +656,7 @@ export default function TabOneScreen() {
       paddingHorizontal: 20,
       paddingBottom: 24,
     },
+    
     chipsRow: {
       flexDirection: 'row' as const,
       gap: 8,
@@ -717,19 +691,20 @@ export default function TabOneScreen() {
       color: colors.primary,
     },
     popularContent: {
-      paddingHorizontal: 20,
-      gap: 16,
+      paddingLeft: H_MARGIN,
+      paddingRight: H_MARGIN,
+      gap: H_GAP,
     },
     popularCard: {
-      width: 280,
-      height: 200,
-      borderRadius: 20,
+      width: POPULAR_CARD_WIDTH,
+      height: 220,
+      borderRadius: 24,
       overflow: 'hidden' as const,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 12,
-      elevation: 5,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 8,
     },
     popularImage: {
       width: '100%',
@@ -737,8 +712,8 @@ export default function TabOneScreen() {
     },
     popularOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      padding: 16,
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      padding: 20,
       justifyContent: 'space-between' as const,
     },
     popularHeader: {
@@ -800,12 +775,403 @@ export default function TabOneScreen() {
       fontFamily: 'Inter',
       color: '#FFFFFF',
     },
+    chatsContainer: {
+      paddingTop: 8,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      gap: 12,
+    },
+    chatCard: {
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(229, 231, 235, 0.35)',
+      backgroundColor: 'rgba(17, 24, 39, 0.35)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 6,
+    },
+    chatRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 12 },
+    chatLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, flex: 1 },
+    chatAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: 'rgba(229,231,235,0.25)' },
+    chatInitials: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 },
+    chatTitle: { color: '#F3F4F6', fontFamily: 'Inter', fontSize: 14, fontWeight: '700' as const },
+    chatMeta: { color: '#D1D5DB', fontFamily: 'Inter', fontSize: 11, opacity: 0.8 },
+    chatSnippet: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12, marginTop: 4, opacity: 0.9 },
+    unreadBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: '#EF4444', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+    unreadText: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' as const },
+    bannerContainer: {
+      paddingHorizontal: 20,
+      marginTop: 20,
+      marginBottom: 8,
+    },
+    promoBanner: {
+      height: 160,
+      borderRadius: 20,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+    bannerBackground: {
+      flex: 1,
+    },
+    bannerImageStyle: {
+      borderRadius: 20,
+    },
+    bannerOverlay: {
+      flex: 1,
+      padding: 20,
+      justifyContent: 'space-between',
+    },
+    bannerContent: {
+      flex: 1,
+      justifyContent: 'space-between',
+    },
+    bannerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    bannerBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      gap: 6,
+    },
+    bannerBadgeText: {
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    bannerDiscount: {
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    discountText: {
+      fontSize: 14,
+      fontFamily: 'Inter',
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    bannerMain: {
+      flex: 1,
+      justifyContent: 'center',
+      marginVertical: 8,
+    },
+    bannerTitle: {
+      fontSize: 24,
+      fontFamily: 'Inter',
+      fontWeight: '700',
+      color: '#FFFFFF',
+      marginBottom: 6,
+      textShadowColor: 'rgba(0, 0, 0, 0.3)',
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
+    },
+    bannerSubtitle: {
+      fontSize: 14,
+      fontFamily: 'Inter',
+      color: 'rgba(255, 255, 255, 0.9)',
+      lineHeight: 20,
+    },
+    bannerFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    bannerFeatures: {
+      flexDirection: 'row',
+      gap: 16,
+    },
+    featureItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    featureText: {
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '500',
+      color: 'rgba(255, 255, 255, 0.9)',
+    },
+    bannerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#10B981',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 16,
+      gap: 6,
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    bannerButtonText: {
+      fontSize: 14,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+     
+    // Social cards styles
+    socialCard: {
+      width: 320,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      elevation: 6,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      overflow: 'hidden',
+    },
+    
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      paddingBottom: 12,
+    },
+    
+    profileSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    
+    profileAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+    },
+    
+    profileInfo: {
+      gap: 2,
+    },
+    
+    profileName: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#111827',
+      fontFamily: 'Inter',
+    },
+    
+    postTime: {
+      fontSize: 12,
+      color: '#6B7280',
+      fontFamily: 'Inter',
+    },
+    
+    moreButton: {
+      padding: 4,
+    },
+    
+    cardContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      gap: 12,
+    },
+    
+    postText: {
+      fontSize: 14,
+      color: '#374151',
+      lineHeight: 20,
+      fontFamily: 'Inter',
+    },
+    
+    postImage: {
+      width: '100%',
+      height: 180,
+      borderRadius: 12,
+    },
+    
+    offerBanner: {
+      height: 80,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    
+    offerGradient: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    
+    offerText: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: '#FFFFFF',
+      fontFamily: 'Inter',
+    },
+    
+    interactionsBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#F3F4F6',
+    },
+    
+    interactionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    
+    interactionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    
+    interactionText: {
+      fontSize: 13,
+      color: '#6B7280',
+      fontFamily: 'Inter',
+      fontWeight: '500',
+    },
+    
+    saveButton: {
+      padding: 4,
+    },
+    
+    subscriptionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 20,
+      marginTop: 6,
+      gap: 6,
+      borderWidth: 1.5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    subscriptionGradient: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 20,
+    },
+    // Modern Subscription CTA
+    subscriptionCTA: {
+      marginTop: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      overflow: 'hidden',
+      position: 'relative',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 4,
+      backgroundColor: '#FFFFFF'
+    },
+    subscriptionCTABlur: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 14,
+    },
+    subscriptionCTAGradient: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 16,
+      opacity: 0.08,
+    },
+    subscriptionCTAIconWrap: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(59,130,246,0.10)',
+      borderWidth: 1,
+      borderColor: 'rgba(59,130,246,0.25)'
+    },
+    subscriptionCTAContent: {
+      flex: 1,
+    },
+    subscriptionCTATitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'Inter',
+      letterSpacing: 0.2,
+    },
+    subscriptionCTASubtitle: {
+      display: 'none',
+    },
+    premiumBadge: {
+      backgroundColor: '#F59E0B',
+      borderColor: '#D97706',
+    },
+    basicBadge: {
+      backgroundColor: '#3B82F6',
+      borderColor: '#2563EB',
+    },
+    freeBadge: {
+      backgroundColor: '#10B981',
+      borderColor: '#059669',
+    },
+    
+    subscriptionText: {
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: 'Inter',
+      color: '#FFFFFF',
+      textShadowColor: 'rgba(0, 0, 0, 0.3)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
   });
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-      {/* Header (new) */}
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#F8FAFC', '#F1F5F9', '#E2E8F0']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#3B82F6']} // Android
+            tintColor="#3B82F6" // iOS
+            title="სერვისების განახლება..." // iOS
+            titleColor="#6B7280" // iOS
+          />
+        }
+      >
+        {/* Header (new) */}
+        <View style={styles.header}>
         <View style={styles.profileRow}>
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center' }}
@@ -822,137 +1188,115 @@ export default function TabOneScreen() {
               )}
             </View>
             <View style={{ marginLeft: 10 }}>
-              <Text style={styles.userName}>
-                გამარჯობა{user?.name ? `, ${user.name}` : ''}!
+              <Text style={styles.userName} numberOfLines={1}>
+                გამარჯობა{displayFirstName ? `, ${displayFirstName}` : ''}!
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="location-outline" size={14} color={colors.secondary} />
                 <Text style={styles.smallLocation}>თბილისი, საქართველო</Text>
               </View>
+
+              {/* Modern Subscription CTA */}
+              {/* {!hasActiveSubscription && ( */}
+                <TouchableOpacity
+                  onPress={() => setShowSubscriptionModal(true)}
+                  activeOpacity={0.9}
+                  style={styles.subscriptionCTA}
+                >
+                  <BlurView intensity={35} tint="light" style={styles.subscriptionCTABlur} />
+                  <View style={styles.subscriptionCTAIconWrap}>
+                    <Ionicons name="sparkles" size={16} color={colors.primary} />
+                  </View>
+                  <View style={styles.subscriptionCTAContent}>
+                    <Text style={styles.subscriptionCTATitle}>გახდი პრემიუმ</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.secondary} />
+                </TouchableOpacity>
+              {/* )} */}
+              
             </View>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity 
+/* ... */
               style={styles.roundIcon}
               onPress={() => router.push('/map')}
               activeOpacity={0.7}
             >
-              <Ionicons name="search" size={18} color={'#111827'} />
+              <Ionicons name="map-outline" size={18} color={'#111827'} />
             </TouchableOpacity>
+            
             <TouchableOpacity 
               style={styles.roundIcon}
-              onPress={() => router.push('/comments')}
+              onPress={() => setNotificationsModalVisible(true)}
               activeOpacity={0.7}
             >
               <Ionicons name="notifications-outline" size={18} color={'#111827'} />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationCount}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Promo Banners - Scrollable */}
-        <ScrollView 
-          ref={scrollViewRef}
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.promoScrollContainer}
-          pagingEnabled={true}
-          snapToInterval={361}
-          decelerationRate="fast"
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-        >
-          {/* Banner 1 - Car Wash */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>🔥 ფასდაკლება</Text>
-              </View>
-              <Text style={styles.promoTitle}>35% ფასდაკლება{'\n'}პირველ სერვისზე</Text>
-              <Text style={styles.promoSubtitle}>სამრეცხაო სერვისები</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/map')}>
-                <Text style={styles.promoButtonText}>დაჯავშნა</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Banner 2 - Auto Service */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>⭐ პრემიუმი</Text>
-              </View>
-              <Text style={styles.promoTitle}>პრემიუმ ავტო{'\n'}სერვისი</Text>
-              <Text style={styles.promoSubtitle}>პროფესიონალური მოვლა</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/garage')}>
-                <Text style={styles.promoButtonText}>შეუკვეთე</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Banner 3 - Technical Inspection */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>✅ ოფიციალური</Text>
-              </View>
-              <Text style={styles.promoTitle}>ტექდათვალიერება{'\n'}ოფიციალურად</Text>
-              <Text style={styles.promoSubtitle}>სწრაფი და ხარისხიანი</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/booking')}>
-                <Text style={styles.promoButtonText}>დაჯავშნა</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Banner 4 - Loyalty Program */}
-          <View style={styles.promoCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=1200&auto=format&fit=crop' }} style={styles.promoImage} />
-            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.7)"]} style={styles.promoOverlay} />
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>🏆 ლოიალობა</Text>
-              </View>
-              <Text style={styles.promoTitle}>მოაგროვე ქულები{'\n'}და მიიღე ჯილდოები</Text>
-              <Text style={styles.promoSubtitle}>ყოველი სერვისი იძლევა ქულებს</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/loyalty')}>
-                <Text style={styles.promoButtonText}>ქულები</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-        
-        {/* Pagination Dots */}
-        <View style={styles.paginationContainer}>
-          {[0, 1, 2, 3].map((index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.paginationDot,
-                currentBannerIndex === index && styles.paginationDotActive
-              ]}
-              onPress={() => {
-                scrollViewRef.current?.scrollTo({
-                  x: index * (width - 60),
-                  animated: true,
-                });
-              }}
-            />
-          ))}
+        {/* ინოვაციური Stories სექცია */}
+        <View style={{ 
+          paddingHorizontal: 5, 
+          paddingTop: 10 , 
+          paddingBottom: 24,
+          marginBottom: 8 
+        }}>
+          
+          {/* მარტივი Stories */}
+          <StoriesRow 
+            stories={stories} 
+            onOpen={(idx) => { 
+              setOpenStoryIndex(idx); 
+              setOverlayVisible(true); 
+            }} 
+          />
         </View>
 
-        {/* სწრაფი მოქმედებები */}
+        {/* Credo Bank Financing Banner */}
+        <View style={{ paddingHorizontal: 5, marginBottom: 16, marginTop: 16 }}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => router.push('/financing-info')}
+            style={{ borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 }}
+          >
+            <LinearGradient colors={["#1E293B", "#0F172A"]} style={{ paddingHorizontal: 16, paddingVertical: 24, minHeight: 160, justifyContent: 'center' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(59,130,246,0.15)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.35)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginBottom: 8 }}>
+                    <Text style={{ color: '#93C5FD', fontWeight: '700', fontSize: 11 }}>Credo Bank • 0%</Text>
+                  </View>
+                  <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.2, marginBottom: 8 }}>0%-იანი განვადება ყველაფერზე</Text>
+                  <Text style={{ color: '#CBD5E1', fontSize: 13 }}>შეავსე მოკლე ფორმა და ჩვენი ოპერატორი დაგიკავშირდება</Text>
+                </View>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', padding: 12, borderRadius: 12 }}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* ახალი სექცია - მომხმარებლის სტატისტიკა */}
         <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>კატეგორიები</Text>
+          <Text style={styles.sectionTitle}>ჩემი ავტოები</Text>
           <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.quickActionButton}
+              onPress={() => router.push('/caru-service' as any)}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: '#3B82F6' }]}>
+                <Ionicons name="car" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.quickActionText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>MARTE</Text>
+            </TouchableOpacity>
+            
             <TouchableOpacity 
               style={styles.quickActionButton}
               onPress={() => router.push('/ai')}
@@ -960,17 +1304,17 @@ export default function TabOneScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: '#6366F1' }]}>
                 <Ionicons name="sparkles" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText}>AI</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit>AI</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.quickActionButton}
-              onPress={() => router.push('/carwash')}
+              onPress={() => router.push('/(tabs)/carwash')}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: '#22C55E' }]}>
                 <Ionicons name="water" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText}>სამრეცხაო</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >სამრეცხაო</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -980,17 +1324,17 @@ export default function TabOneScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: '#F59E0B' }]}>
                 <Ionicons name="star" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText}>ლოიალობა</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>ლოიალობა</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.quickActionButton}
-              onPress={() => router.push('/fuel-stations')}
+              onPress={() => router.push('/carfax')}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#EF4444' }]}>
-                <Ionicons name="car" size={20} color="#FFFFFF" />
+              <View style={[styles.quickActionIcon, { backgroundColor: '#374151' }]}>
+                <Ionicons name="document-text" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText}>ბენზინი</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>CarFAX</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -999,23 +1343,25 @@ export default function TabOneScreen() {
 
 
         <ReminderSection />
-
-      {/* Community Section */}
-     
-
-
-      {/* Categories */}
-     
+        
 
       {/* Quick filter chips moved to Carwash screen */}
       <View style={styles.popularContainer}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>პოპულარული სერვისები</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/all-services')}>
             <Text style={styles.sectionAction}>ყველა</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularContent}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToAlignment="start"
+          snapToInterval={POPULAR_CARD_WIDTH + H_GAP}
+          decelerationRate="fast"
+          contentOffset={{ x: 0, y: 0 }}
+          contentContainerStyle={styles.popularContent}
+        >
           {loading ? (
             <View style={{ padding: 20, alignItems: 'center' }}>
               <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>სერვისების ჩატვირთვა...</Text>
@@ -1030,12 +1376,17 @@ export default function TabOneScreen() {
                 rating={service.rating}
                 location={service.location}
                 price={service.price}
+                type={service.type} // ახალი ველი - სერვისის ტიპი
                 onPress={() => {
-                  const detailsParams = {
-                    // ძირითადი ინფორმაცია (carwash ფეიჯის მიხედვით)
+                const imgParam = typeof service.image === 'string'
+                  ? service.image
+                  : (service.image && (service.image as any).uri)
+                    ? (service.image as any).uri
+                    : 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=800&auto=format&fit=crop';
+                const detailsParams = {
                     id: service.id,
                     title: service.name,
-                    lat: '41.7151', // თბილისის კოორდინატები
+                    lat: '41.7151',
                     lng: '44.8271',
                     rating: service.rating?.toString() || '4.9',
                     distance: service.distance || '1.2 კმ',
@@ -1053,7 +1404,7 @@ export default function TabOneScreen() {
                     availableSlots: JSON.stringify([]),
                     realTimeStatus: JSON.stringify({}),
                     workingHours: '09:00 - 18:00',
-                    image: typeof service.image === 'string' ? service.image : 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=800&auto=format&fit=crop',
+                  image: imgParam,
                   };
                   
                   console.log('🔍 [POPULAR] Navigating to details with params:', detailsParams);
@@ -1070,72 +1421,40 @@ export default function TabOneScreen() {
       </View>
 
 
-      {/* Nearby quick list */}
-      <View style={{ paddingTop: 24, paddingHorizontal: 20, paddingBottom: 24 }}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>ახლოს შენთან</Text>
-          <TouchableOpacity>
-            <Text style={styles.sectionAction}>ყველა</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-          {nearbyLoading ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>ახლოს შენთან...</Text>
-            </View>
-          ) : (
-            nearbyServices.map(s => (
-              <NearbyCard 
-                key={s.id} 
-                image={s.image} 
-                title={s.name} 
-                subtitle={s.location} 
-                rating={s.rating} 
-                distance={s.distance ? `${s.distance.toFixed(1)} კმ` : `${s.waitTime || 5} წთ`} 
-                price={s.price} 
-                onPress={() => {
-                  const detailsParams = { 
-                    title: s.name,
-                    type: s.type,
-                    id: s.id,
-                    rating: s.rating?.toString() || '4.9',
-                    reviews: s.reviews?.toString() || '0',
-                    address: s.address || s.location,
-                    price: s.price,
-                    image: s.image,
-                    category: s.category,
-                    isOpen: s.isOpen?.toString() || 'true',
-                    waitTime: s.waitTime?.toString() || '10',
-                    distance: s.distance ? `${s.distance.toFixed(1)} კმ` : '1.2 კმ',
-                    description: s.description || 'პრემიუმ ხარისხის მომსახურება',
-                    features: JSON.stringify(s.features || ['WiFi', 'პარკინგი', 'ღამის სერვისი']),
-                    services: JSON.stringify(s.services || ['შიდა რეცხვა', 'გარე რეცხვა', 'ვაკუუმი']),
-                    detailedServices: JSON.stringify(s.detailedServices || []),
-                    workingHours: s.workingHours || '09:00 - 18:00',
-                    phone: s.phone || '+995 32 123 4567',
-                    lat: s.coordinates?.latitude?.toString() || '41.7151',
-                    lng: s.coordinates?.longitude?.toString() || '44.8271',
-                  };
-                  
-                  console.log('🔍 [NEARBY] Navigating to details with params:', detailsParams);
-                  console.log('🔍 [NEARBY] Service data:', s);
-                  
-                  router.push({ 
-                    pathname: '/details', 
-                    params: detailsParams
-                  });
-                }} 
-              />
-            ))
-          )}
-        </ScrollView>
-      </View>
-
       <CommunitySection />
 
 
-      {/* Bottom Spacing */}
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      {/* Story Overlay */}
+      <StoryOverlay
+        visible={overlayVisible && openStoryIndex !== null}
+        stories={stories}
+        initialIndex={openStoryIndex ?? 0}
+        viewerUserId={user?.id}
+        onClose={() => { 
+          setOverlayVisible(false); 
+          setOpenStoryIndex(null);
+          refreshStories();
+        }}
+      />
+
+      <NotificationsModal
+        visible={notificationsModalVisible}
+        onClose={() => setNotificationsModalVisible(false)}
+      />
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          // Show success message or update UI
+        }}
+      />
+
+    </View>
   );
 }

@@ -32,34 +32,32 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
   const [tab, setTab] = useState<'best' | 'price' | 'near'>('best');
 
   const sortedItems = useMemo(() => {
-    if (!items) return [] as RecommendationItem[];
-    if (tab === 'price') return [...items].sort((a, b) => (a.priceGEL || 0) - (b.priceGEL || 0));
-    if (tab === 'near') return [...items].sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
-    return [...items].sort((a, b) => {
+    // გამოვიყენოთ მხოლოდ API-დან მიღებული მონაცემები
+    const dataToUse = items || [];
+    
+    if (tab === 'price') return [...dataToUse].sort((a, b) => (a.priceGEL || 0) - (b.priceGEL || 0));
+    if (tab === 'near') return [...dataToUse].sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+    return [...dataToUse].sort((a, b) => {
       const aScore = (a.distanceKm ?? 5) * 0.4 + (a.priceGEL ?? 100) * 0.6;
       const bScore = (b.distanceKm ?? 5) * 0.4 + (b.priceGEL ?? 100) * 0.6;
       return aScore - bScore;
     });
-  }, [items, tab]);
+  }, [tab, items]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
         
-        {/* Modern Modal Card */}
         <View style={styles.modalCard}>
-          <LinearGradient
-            colors={['#FFFFFF', '#F9FAFB']}
-            style={styles.modalGradient}
-          >
+          <View style={styles.modalGradient}>
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerStrip} />
               <View style={styles.headerContent}>
                 <Text style={styles.title}>შეთავაზებები</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={20} color="#6B7280" />
+                  <Ionicons name="close" size={20} color="#9CA3AF" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -83,7 +81,7 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
                   <Ionicons 
                     name={filter.icon as any} 
                     size={16} 
-                    color={tab === filter.id ? '#FFFFFF' : '#6B7280'} 
+                    color={tab === filter.id ? '#FFFFFF' : '#9CA3AF'} 
                   />
                   <Text style={[styles.filterTabText, tab === filter.id && styles.filterTabTextActive]}>
                     {filter.label}
@@ -112,7 +110,7 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
                 </View>
               )}
 
-              {!loading && !error && sortedItems?.length > 0 && (
+              {sortedItems?.length > 0 && (
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.offersList}>
                   {sortedItems.map((offer, index) => (
                     <View key={index} style={styles.offerCard}>
@@ -154,13 +152,13 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
                         <View style={styles.metaItems}>
                           {offer.distanceKm && (
                             <View style={styles.metaItem}>
-                              <Ionicons name="location" size={12} color="#6B7280" />
+                              <Ionicons name="location" size={12} color="#9CA3AF" />
                               <Text style={styles.metaText}>{offer.distanceKm.toFixed(1)} კმ</Text>
                             </View>
                           )}
                           {offer.etaMin && (
                             <View style={styles.metaItem}>
-                              <Ionicons name="time" size={12} color="#6B7280" />
+                              <Ionicons name="time" size={12} color="#9CA3AF" />
                               <Text style={styles.metaText}>{offer.etaMin} წთ</Text>
                             </View>
                           )}
@@ -174,7 +172,7 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
                 </ScrollView>
               )}
 
-              {!loading && !error && (!sortedItems || sortedItems.length === 0) && (
+              {(!sortedItems || sortedItems.length === 0) && (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}>
                     <Ionicons name="search-outline" size={48} color="#9CA3AF" />
@@ -186,7 +184,7 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
             </View>
 
             {/* Footer */}
-            {!loading && !error && sortedItems && sortedItems.length > 0 && (
+            {sortedItems && sortedItems.length > 0 && (
               <View style={styles.footer}>
                 <TouchableOpacity style={styles.footerButton} onPress={onVisit}>
                   <LinearGradient
@@ -199,7 +197,7 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
                 </TouchableOpacity>
               </View>
             )}
-          </LinearGradient>
+          </View>
         </View>
       </View>
     </Modal>
@@ -209,7 +207,7 @@ export function OffersModal({ visible, onClose, items, loading, error, onSortByP
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   modalCard: {
@@ -217,11 +215,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    backgroundColor: 'rgba(15, 15, 15, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.2)',
+    backdropFilter: 'blur(20px)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
   },
   modalGradient: {
     flex: 1,
@@ -236,7 +238,7 @@ const styles = StyleSheet.create({
   headerStrip: {
     width: 40,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'rgba(156, 163, 175, 0.3)',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 16,
@@ -249,13 +251,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
+    color: '#FFFFFF',
     fontFamily: 'Inter',
   },
   closeButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.3)',
+    backdropFilter: 'blur(15px)',
   },
   
   // Filter Tabs
@@ -263,27 +268,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
+    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    borderRadius: 16,
     padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.3)',
+    backdropFilter: 'blur(25px)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
   },
   filterTab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     gap: 6,
+    minWidth: 100,
+    height: 44,
   },
   filterTabActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: 'rgba(75, 85, 99, 0.6)',
+    borderColor: 'rgba(156, 163, 175, 0.4)',
+    backdropFilter: 'blur(20px)',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   filterTabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontFamily: 'Inter',
+    letterSpacing: 0.3,
   },
   filterTabTextActive: {
     color: '#FFFFFF',
@@ -313,7 +337,7 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontFamily: 'Inter',
   },
   errorState: {
@@ -325,10 +349,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backdropFilter: 'blur(10px)',
   },
   errorText: {
     fontSize: 14,
@@ -355,13 +382,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: '#FFFFFF',
     fontFamily: 'Inter',
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontFamily: 'Inter',
   },
   
@@ -370,17 +397,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   offerCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(55, 65, 81, 0.4)',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: 'rgba(156, 163, 175, 0.3)',
+    backdropFilter: 'blur(20px)',
   },
   
   // Provider Section
@@ -415,7 +443,7 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: '#FFFFFF',
     fontFamily: 'Inter',
     marginBottom: 4,
   },
@@ -432,17 +460,20 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontFamily: 'Inter',
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backdropFilter: 'blur(10px)',
   },
   verifiedText: {
     fontSize: 10,
@@ -456,7 +487,7 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: '#F59E0B',
     fontFamily: 'Inter',
   },
   
@@ -478,19 +509,22 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontFamily: 'Inter',
   },
   visitButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'rgba(75, 85, 99, 0.6)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.4)',
+    backdropFilter: 'blur(15px)',
   },
   visitButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: '#FFFFFF',
     fontFamily: 'Inter',
   },
   
@@ -498,7 +532,7 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: 'rgba(156, 163, 175, 0.2)',
   },
   footerButton: {
     borderRadius: 12,

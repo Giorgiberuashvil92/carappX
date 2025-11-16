@@ -4,7 +4,7 @@ export interface Car {
   model: string;
   year: number;
   plateNumber: string;
-  imageUri: string;
+  imageUri?: string;
   lastService?: Date;
   nextService?: Date;
 }

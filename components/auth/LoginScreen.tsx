@@ -23,20 +23,26 @@ import Colors from '../../constants/Colors';
 import { useColorScheme } from '../useColorScheme';
 import { useUser } from '../../contexts/UserContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
+import SubscriptionModal from '../ui/SubscriptionModal';
 import API_BASE_URL from '../../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// Firebase removed – using backend OTP endpoints
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
   const [otp, setOTP] = useState(['', '', '', '']);
-  const [otpId, setOtpId] = useState<string | null>(null);
+  const [verificationId, setVerificationId] = useState<string | null>(null);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [pendingIntent, setPendingIntent] = useState<'login' | 'register' | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [role, setRole] = useState<'user' | 'partner' | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  // Firebase removed - using backend OTP only
   
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -46,7 +52,11 @@ export default function LoginScreen() {
     useRef<TextInput>(null),
     useRef<TextInput>(null),
     useRef<TextInput>(null),
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
   ];
+
+  // No Firebase init required
 
   function resolveApiBase(): string {
     const envUrl = process.env.EXPO_PUBLIC_API_URL as string | undefined;
@@ -64,6 +74,15 @@ export default function LoginScreen() {
   const API_URL = resolveApiBase();
   const { login } = useUser();
   const { success, error, warning, info } = useToast();
+  const { subscription, updateSubscription } = useSubscription();
+
+  // Show subscription modal after successful login
+  const showSubscriptionModalAfterLogin = () => {
+    // Show modal after a short delay to allow navigation to complete
+    setTimeout(() => {
+      setShowSubscriptionModal(true);
+    }, 1000);
+  };
 
   const formatPhoneNumber = (text: string) => {
     // მხოლოდ ციფრების დატოვება
@@ -131,8 +150,7 @@ export default function LoginScreen() {
       error('შეცდომა', 'გთხოვთ შეიყვანოთ სრული კოდი');
       return;
     }
-
-    if (!otpId) {
+    if (!verificationId) {
       error('შეცდომა', 'კოდი ვადაგასულია, სცადეთ ხელახლა');
       return;
     }
@@ -142,7 +160,7 @@ export default function LoginScreen() {
       const res = await fetch(`${API_URL}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otpId, code: otpString }),
+        body: JSON.stringify({ otpId: verificationId, code: otpString }),
       });
       const data = await res.json();
       setLoading(false);
@@ -151,31 +169,39 @@ export default function LoginScreen() {
         error('შეცდომა', msg);
         return;
       }
-      // success
-      const intent = (data?.intent === 'register' ? 'register' : 'login') as 'login' | 'register';
-      const userId = data?.user?.id ? String(data.user.id) : null;
-      setPendingUserId(userId);
-      setPendingIntent(intent);
-      setShowOTP(false);
-      setOtpId(null);
-      if (intent === 'register') {
-        setShowRegister(true);
-        success('წარმატება!', 'კოდი დადასტურებულია, გააგრძელეთ რეგისტრაცია');
-      } else {
-        // Save user data to context for login
-        if (data?.user) {
+      if (data?.user) {
+        if (data?.intent === 'register') {
+          setPendingUserId(data.user.id);
+          setShowOTP(false);
+          setShowRegister(true);
+          success('კოდი დადასტურებულია', 'დასრულეთ რეგისტრაცია');
+        } else {
           await login(data.user);
+          
+          // Save subscription info if available
+          if (data.subscription) {
+            console.log('📋 Subscription info from auth:', data.subscription);
+            await AsyncStorage.setItem('user_subscription', JSON.stringify(data.subscription));
+          }
+          
+          success('წარმატება!', 'წარმატებით შეხვედით სისტემაში');
+          setShowOTP(false);
+          setVerificationId(null);
+          router.replace('/(tabs)');
+          // Show subscription modal after login
+          showSubscriptionModalAfterLogin();
         }
-        success('წარმატება!', 'წარმატებით შეხვედით სისტემაში');
-        router.replace('/(tabs)');
       }
     } catch (e) {
       setLoading(false);
-      error('შეცდომა', 'ქსელური შეცდომა');
+      error('შეცდომა', 'ვერიფიკაცია ვერ მოხერხდა');
     }
   };
 
-  const handleLogin = async () => {
+  // Firebase OTP helper აღარ გვჭირდება ცალკე
+
+  // Start OTP via backend
+  const handleStartOtp = async () => {
     const cleanPhone = phone.replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 9) {
       error('შეცდომა', 'გთხოვთ შეიყვანოთ სწორი ტელეფონის ნომერი');
@@ -187,27 +213,30 @@ export default function LoginScreen() {
       const res = await fetch(`${API_URL}/auth/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `+995${cleanPhone}` }),
+        body: JSON.stringify({ phone: cleanPhone }),
       });
       const data = await res.json();
-      setLoading(false);
       if (!res.ok) {
-        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'ვერ გაიგზავნა კოდი';
-        error('შეცდომა', msg);
-        return;
+        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'SMS-ის გაგზავნა ვერ მოხერხდა';
+        throw new Error(msg);
       }
-      if (data?.id) setOtpId(String(data.id));
-      if (data?.intent) setPendingIntent(data.intent === 'register' ? 'register' : 'login');
+      setVerificationId(data?.id || null);
+      setPendingIntent(data?.intent || null);
       setShowOTP(true);
       success('SMS გაიგზავნა!', `კოდი გაიგზავნა ნომერზე ${phone}`);
-      // dev only: თუ mockCode გვაქვს, შევავსოთ წასაკითხად კონსოლში
-      if (data?.mockCode) {
-        console.log('[AUTH] mockCode =', data.mockCode);
+      if (__DEV__ && data?.mockCode) {
+        info('DEV', `კოდი: ${data.mockCode}`);
       }
-    } catch (e) {
+    } catch (err: any) {
+      error('შეცდომა', err?.message || 'SMS-ის გაგზავნა ვერ მოხერხდა');
+    } finally {
       setLoading(false);
-      error('შეცდომა', 'ქსელური შეცდომა');
     }
+  };
+
+
+  const handleLogin = async () => {
+    await handleStartOtp();
   };
 
   const styles = StyleSheet.create({
@@ -666,6 +695,7 @@ export default function LoginScreen() {
                   onPress={() => {
                     setOTP(['', '', '', '']);
                     setShowOTP(false);
+                    setVerificationId(null);
                   }}
                 >
                   <Text style={styles.resendText}>ხელახლა გაგზავნა</Text>
@@ -741,6 +771,8 @@ export default function LoginScreen() {
                       success('წარმატება!', 'ანგარიში წარმატებით შეიქმნა');
                       setShowRegister(false);
                       router.replace('/(tabs)');
+                      // Show subscription modal after registration
+                      showSubscriptionModalAfterLogin();
                     } catch (e) {
                       setLoading(false);
                       error('შეცდომა', 'ქსელური შეცდომა');
@@ -767,6 +799,9 @@ export default function LoginScreen() {
           </TouchableWithoutFeedback>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Subscription Modal */}
+      
     </ImageBackground>
   );
 }

@@ -1,1332 +1,582 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  TextInput,
-  SafeAreaView,
-  StatusBar,
-  RefreshControl,
-  StyleSheet,
-  Dimensions,
-  Modal,
-  Animated,
-} from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, StatusBar, TextInput, ActivityIndicator, Dimensions, Modal, Switch, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import { mechanicsApi, MechanicDTO } from '@/services/mechanicsApi';
+import photoService from '@/services/photoService';
 
 const { width } = Dimensions.get('window');
+const GAP = 16;
+const CARD_WIDTH = (width - GAP * 3) / 2; // 2-cols grid with 16px paddings
 
-interface Mechanic {
-  id: string;
-  name: string;
-  specialty: string;
-  rating: number;
-  reviews: number;
-  experience: string;
-  location: string;
-  distance: string;
-  price: string;
-  avatar: string;
-  isAvailable: boolean;
-  services: string[];
-  description: string;
-}
-
-const MECHANICS_DATA: Mechanic[] = [
-  {
-    id: '1',
-    name: 'გიორგი ბერიძე',
-    specialty: 'ელექტრიკოსი',
-    rating: 4.9,
-    reviews: 127,
-    experience: '8 წელი',
-    location: 'ვაკე, თბილისი',
-    distance: '2.3 კმ',
-    price: '50₾/საათი',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
-    isAvailable: true,
-    services: ['ელექტრო სისტემა', 'ბატარეა', 'გენერატორი', 'სტარტერი'],
-    description: 'პროფესიონალური ელექტრიკოსი 8 წლიანი გამოცდილებით. სპეციალიზებული ყველა ტიპის ავტომობილზე.'
-  },
-  {
-    id: '2',
-    name: 'ლევან კვარაცხელია',
-    specialty: 'მექანიკოსი',
-    rating: 4.8,
-    reviews: 89,
-    experience: '12 წელი',
-    location: 'ისანი, თბილისი',
-    distance: '4.1 კმ',
-    price: '45₾/საათი',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop',
-    isAvailable: true,
-    services: ['ძრავი', 'ტრანსმისია', 'საბურავები', 'ფრენები'],
-    description: 'გამოცდილი მექანიკოსი ყველა ტიპის ავტომობილის შეკეთებაზე. 24/7 სერვისი.'
-  },
-  {
-    id: '3',
-    name: 'ნინო ჩხიკვაძე',
-    specialty: 'დიაგნოსტიკა',
-    rating: 4.9,
-    reviews: 156,
-    experience: '6 წელი',
-    location: 'საბურთალო, თბილისი',
-    distance: '1.8 კმ',
-    price: '60₾/საათი',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?q=80&w=400&auto=format&fit=crop',
-    isAvailable: false,
-    services: ['კომპიუტერული დიაგნოსტიკა', 'OBD სკანერი', 'ძრავის ანალიზი'],
-    description: 'პროფესიონალური დიაგნოსტიკა ყველა ტიპის ავტომობილისთვის. თანამედროვე ტექნოლოგიები.'
-  },
-  {
-    id: '4',
-    name: 'დავით ხარაძე',
-    specialty: 'კონდიციონერი',
-    rating: 4.7,
-    reviews: 73,
-    experience: '5 წელი',
-    location: 'დიდუბე, თბილისი',
-    distance: '3.5 კმ',
-    price: '40₾/საათი',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
-    isAvailable: true,
-    services: ['კონდიციონერი', 'გათბობა', 'ვენტილაცია', 'ფილტრები'],
-    description: 'სპეციალისტი ავტომობილის კლიმატ კონტროლზე. სწრაფი და ხარისხიანი სერვისი.'
-  },
-  {
-    id: '5',
-    name: 'თამარ მელაძე',
-    specialty: 'საბურავების სპეციალისტი',
-    rating: 4.8,
-    reviews: 94,
-    experience: '7 წელი',
-    location: 'ჩუღურეთი, თბილისი',
-    distance: '2.9 კმ',
-    price: '35₾/საათი',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=400&auto=format&fit=crop',
-    isAvailable: true,
-    services: ['საბურავების შეცვლა', 'ბალანსირება', 'შეკეთება', 'შენახვა'],
-    description: 'პროფესიონალური სერვისი საბურავების შეცვლაზე და შენახვაზე. ყველა ზომა.'
-  }
-];
-
-const SPECIALTIES = [
-  { id: 'all', title: 'ყველა', icon: 'grid-outline' },
-  { id: 'electrician', title: 'ელექტრიკოსი', icon: 'flash-outline' },
-  { id: 'mechanic', title: 'მექანიკოსი', icon: 'build-outline' },
-  { id: 'diagnostic', title: 'დიაგნოსტიკა', icon: 'analytics-outline' },
-  { id: 'ac', title: 'კონდიციონერი', icon: 'snow-outline' },
-  { id: 'tires', title: 'საბურავები', icon: 'disc-outline' },
-];
-
-const LOCATIONS = [
-  { id: 'vake', title: 'ვაკე', icon: 'location-outline' },
-  { id: 'isani', title: 'ისანი', icon: 'location-outline' },
-  { id: 'saburtalo', title: 'საბურთალო', icon: 'location-outline' },
-  { id: 'didube', title: 'დიდუბე', icon: 'location-outline' },
-  { id: 'chugureti', title: 'ჩუღურეთი', icon: 'location-outline' },
-  { id: 'mtatsminda', title: 'მთაწმინდა', icon: 'location-outline' },
-  { id: 'old_tbilisi', title: 'ძველი თბილისი', icon: 'location-outline' },
-];
-
-const ALL_SERVICES = [
-  'ელექტრო სისტემა', 'ბატარეა', 'გენერატორი', 'სტარტერი',
-  'ძრავი', 'ტრანსმისია', 'საბურავები', 'ფრენები',
-  'კომპიუტერული დიაგნოსტიკა', 'OBD სკანერი', 'ძრავის ანალიზი',
-  'კონდიციონერი', 'გათბობა', 'ვენტილაცია', 'ფილტრები',
-  'საბურავების შეცვლა', 'ბალანსირება', 'შეკეთება', 'შენახვა'
-];
-
-const TIME_AVAILABILITY = [
-  { id: 'all', title: 'ყველა დრო', icon: 'time-outline' },
-  { id: 'morning', title: 'დილა (8:00-12:00)', icon: 'sunny-outline' },
-  { id: 'afternoon', title: 'შუადღე (12:00-18:00)', icon: 'partly-sunny-outline' },
-  { id: 'evening', title: 'საღამო (18:00-22:00)', icon: 'moon-outline' },
-  { id: 'night', title: 'ღამე (22:00-8:00)', icon: 'moon-outline' },
-  { id: '24_7', title: '24/7', icon: 'time-outline' },
-];
-
-const SPECIAL_FEATURES = [
-  { id: 'emergency', title: 'ემერგენცია', icon: 'warning-outline' },
-  { id: 'mobile', title: 'მობილური სერვისი', icon: 'car-outline' },
-  { id: 'warranty', title: 'გარანტია', icon: 'shield-checkmark-outline' },
-  { id: 'certified', title: 'სერტიფიცირებული', icon: 'ribbon-outline' },
-  { id: 'fast', title: 'სწრაფი სერვისი', icon: 'flash-outline' },
-];
-
-const SORT_OPTIONS = [
-  { id: 'rating', title: 'რეიტინგი', icon: 'star-outline' },
-  { id: 'price_low', title: 'ფასი (დაბალი)', icon: 'trending-down-outline' },
-  { id: 'price_high', title: 'ფასი (მაღალი)', icon: 'trending-up-outline' },
-  { id: 'distance', title: 'მანძილი', icon: 'location-outline' },
-  { id: 'experience', title: 'გამოცდილება', icon: 'time-outline' },
+type SortKey = 'recommended' | 'rating' | 'price' | 'name';
+const SPECIALTIES: string[] = [
+  'ზოგადი სერვისი',
+  'კომპიუტერული დიაგნოსტიკა',
+  'ძრავი (ტაიმინგი/ზეთის სისტემა)',
+  'გადაცემათა კოლოფი (ავტომატი)',
+  'გადაცემათა კოლოფი (მექანიკა)',
+  'სავალი ნაწილი / ამორტიზატორი',
+  'მუხრუჭები',
+  'გაგრილების სისტემა (რადიატორი/ტუმბო)',
+  'საწვავის სისტემა (ინჟექტორი/ტუმბო)',
+  'ავტოელექტრიკა / ელექტრონიკა',
+  'სტარტერი / გენერატორი',
+  'კონდიციონერი / კლიმატი',
+  'გამონაბოლქვი / გამომშვები სისტემა',
+  'საბურავები / დაბალანსება / ვულკანიზაცია',
+  'კუზავი / ფერწერა / შედუღება',
+  'დეტეილინგი / ანტიკოროზია',
 ];
 
 export default function MechanicsScreen() {
   const router = useRouter();
+  const [mechanics, setMechanics] = useState<MechanicDTO[]>([]);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSpecialty, setSelectedSpecialty] = useState('all');
-  const [mechanics, setMechanics] = useState<Mechanic[]>(MECHANICS_DATA);
-  
-  // Filter Modal States
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [filterDistance, setFilterDistance] = useState(10);
-  const [filterExperience, setFilterExperience] = useState('all');
-  
-  // New Custom Filters
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [filterTimeAvailability, setFilterTimeAvailability] = useState('all');
-  const [filterSpecialFeatures, setFilterSpecialFeatures] = useState<string[]>([]);
-  const [filterSortBy, setFilterSortBy] = useState('rating');
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [sortBy, setSortBy] = useState<SortKey>('recommended');
+  const [specialty, setSpecialty] = useState<string>('');
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
+  // Add mechanic modal state
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showSpecDropdown, setShowSpecDropdown] = useState(false);
+  // Filter modal state
+  const [showFilter, setShowFilter] = useState(false);
+  const [filterSpec, setFilterSpec] = useState<string>('');
+  const [filterLocation, setFilterLocation] = useState<string>('');
+  const [form, setForm] = useState({
+    name: '',
+    specialty: '',
+    location: '',
+    phone: '',
+    address: '',
+    avatar: '',
+    servicesCsv: '',
+    isAvailable: true,
+  });
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params: { q?: string; specialty?: string } = {};
+      if (debounced.trim()) params.q = debounced.trim();
+      if (specialty) params.specialty = specialty;
+      const data = await mechanicsApi.getMechanics(params);
+      setMechanics(data);
+    } catch (e) {
+      console.error(e);
+      setError('მონაცემების ჩატვირთვა ვერ მოხერხდა');
+    } finally {
+      setLoading(false);
       setRefreshing(false);
-    }, 1000);
-  }, []);
-
-  const filteredMechanics = mechanics.filter(mechanic => {
-    // Search filter
-    const matchesSearch = mechanic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         mechanic.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         mechanic.location.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // Specialty filter
-    const matchesSpecialty = selectedSpecialty === 'all' || 
-                            mechanic.specialty.toLowerCase().includes(selectedSpecialty.toLowerCase());
-    
-    // Distance filter (extract number from distance string like "2.3 კმ")
-    const distanceNumber = parseFloat(mechanic.distance.replace(/[^\d.]/g, ''));
-    const matchesDistance = distanceNumber <= filterDistance;
-    
-    // Experience filter (extract years from experience string like "8 წელი")
-    const experienceYears = parseInt(mechanic.experience.replace(/[^\d]/g, ''));
-    const matchesExperience = filterExperience === 'all' ||
-                             (filterExperience === '1-3' && experienceYears >= 1 && experienceYears <= 3) ||
-                             (filterExperience === '3-5' && experienceYears >= 3 && experienceYears <= 5) ||
-                             (filterExperience === '5+' && experienceYears >= 5);
-    
-    // New Custom Filters
-    const matchesCategories = selectedCategories.length === 0 || 
-                             selectedCategories.some(cat => mechanic.specialty.toLowerCase().includes(cat.toLowerCase()));
-    
-    const matchesLocations = selectedLocations.length === 0 || 
-                            selectedLocations.some(loc => mechanic.location.toLowerCase().includes(loc.toLowerCase()));
-    
-    const matchesServices = selectedServices.length === 0 || 
-                           selectedServices.some(service => mechanic.services.includes(service));
-    
-    const matchesTimeAvailability = filterTimeAvailability === 'all' || 
-                                   (filterTimeAvailability === '24_7' && mechanic.isAvailable); // Simplified for demo
-    
-    const matchesSpecialFeatures = filterSpecialFeatures.length === 0; // Simplified for demo
-    
-    return matchesSearch && matchesSpecialty && matchesDistance && matchesExperience && 
-           matchesCategories && matchesLocations && matchesServices && matchesTimeAvailability && 
-           matchesSpecialFeatures;
-  });
-
-  // Sort filtered mechanics
-  const sortedMechanics = [...filteredMechanics].sort((a, b) => {
-    switch (filterSortBy) {
-      case 'rating':
-        return b.rating - a.rating;
-      case 'price_low':
-        const priceA = parseInt(a.price.replace(/[^\d]/g, ''));
-        const priceB = parseInt(b.price.replace(/[^\d]/g, ''));
-        return priceA - priceB;
-      case 'price_high':
-        const priceAHigh = parseInt(a.price.replace(/[^\d]/g, ''));
-        const priceBHigh = parseInt(b.price.replace(/[^\d]/g, ''));
-        return priceBHigh - priceAHigh;
-      case 'distance':
-        const distanceA = parseFloat(a.distance.replace(/[^\d.]/g, ''));
-        const distanceB = parseFloat(b.distance.replace(/[^\d.]/g, ''));
-        return distanceA - distanceB;
-      case 'experience':
-        const expA = parseInt(a.experience.replace(/[^\d]/g, ''));
-        const expB = parseInt(b.experience.replace(/[^\d]/g, ''));
-        return expB - expA;
-      default:
-        return 0;
     }
-  });
+  }, [debounced, specialty]);
 
-  const getSpecialtyIcon = (specialty: string) => {
-    const spec = SPECIALTIES.find(s => s.id === specialty);
-    return spec ? spec.icon : 'help-outline';
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const sorted = useMemo(() => {
+    const list = [...mechanics];
+    if (sortBy === 'rating') {
+      list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    } else if (sortBy === 'price') {
+      list.sort((a, b) => (a.priceGEL ?? Infinity) - (b.priceGEL ?? Infinity));
+    } else if (sortBy === 'name') {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+    return list;
+  }, [mechanics, sortBy]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
   };
 
-  const getSpecialtyColor = (specialty: string) => {
-    const colors: { [key: string]: string } = {
-      'ელექტრიკოსი': '#6366F1',
-      'მექანიკოსი': '#3B82F6',
-      'დიაგნოსტიკა': '#22C55E',
-      'კონდიციონერი': '#F59E0B',
-      'საბურავების სპეციალისტი': '#EF4444',
-    };
-    return colors[specialty] || '#6B7280';
-  };
-
-  const resetFilters = () => {
-    setFilterDistance(10);
-    setFilterExperience('all');
-    setSelectedCategories([]);
-    setSelectedLocations([]);
-    setSelectedServices([]);
-    setFilterTimeAvailability('all');
-    setFilterSpecialFeatures([]);
-    setFilterSortBy('rating');
-  };
-
-  const applyFilters = () => {
-    setShowFilterModal(false);
-  };
-
-  const renderFilterModal = () => (
-    <Modal
-      visible={showFilterModal}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowFilterModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {/* Modal Header */}
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>ფილტრები</Text>
-            <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-            {/* Distance Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>მანძილი</Text>
-              <View style={styles.distanceContainer}>
-                <Text style={styles.filterDistanceText}>{filterDistance} კმ-ში</Text>
+  const renderCard = ({ item }: { item: MechanicDTO }) => {
+    const img = item.avatar || 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=600&auto=format&fit=crop';
+    const topServices = (item.services || []).slice(0, 2);
+    return (
+      <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => router.push(`/mechanic/${item.id}`)}>
+        <View style={styles.cardImageWrap}>
+          <Image source={{ uri: img }} style={styles.cardImage} />
+          <View style={styles.badgeRow}>
+            <View style={[styles.badge, item.isAvailable ? styles.badgeGreen : styles.badgeRed]}>
+              <View style={styles.dot} />
+              <Text style={styles.badgeText}>{item.isAvailable ? 'ხელმისაწვდომი' : 'დაკავებული'}</Text>
+            </View>
+            {typeof item.rating === 'number' && (
+              <View style={styles.ratingLight}>
+                <Ionicons name="star" size={12} color="#F59E0B" />
+                <Text style={styles.ratingLightText}>{item.rating.toFixed(1)}</Text>
               </View>
-            </View>
-
-            {/* Experience Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>გამოცდილება</Text>
-              <View style={styles.experienceContainer}>
-                {[
-                  { id: 'all', title: 'ყველა' },
-                  { id: '1-3', title: '1-3 წელი' },
-                  { id: '3-5', title: '3-5 წელი' },
-                  { id: '5+', title: '5+ წელი' },
-                ].map((option) => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.experienceOption,
-                      filterExperience === option.id && styles.experienceOptionActive,
-                    ]}
-                    onPress={() => setFilterExperience(option.id)}
-                  >
-                    <Text style={[
-                      styles.experienceOptionText,
-                      filterExperience === option.id && styles.experienceOptionTextActive,
-                    ]}>
-                      {option.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Categories Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>კატეგორიები</Text>
-              <View style={styles.categoriesContainer}>
-                {SPECIALTIES.slice(1).map((category) => (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[
-                      styles.categoryChip,
-                      selectedCategories.includes(category.id) && styles.categoryChipActive,
-                    ]}
-                    onPress={() => {
-                      if (selectedCategories.includes(category.id)) {
-                        setSelectedCategories(selectedCategories.filter(id => id !== category.id));
-                      } else {
-                        setSelectedCategories([...selectedCategories, category.id]);
-                      }
-                    }}
-                  >
-                    <Ionicons 
-                      name={category.icon as any} 
-                      size={16} 
-                      color={selectedCategories.includes(category.id) ? '#FFFFFF' : '#6B7280'} 
-                    />
-                    <Text style={[
-                      styles.categoryChipText,
-                      { color: selectedCategories.includes(category.id) ? '#FFFFFF' : '#6B7280' }
-                    ]}>
-                      {category.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Locations Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>მდებარეობა</Text>
-              <View style={styles.locationsContainer}>
-                {LOCATIONS.map((location) => (
-                  <TouchableOpacity
-                    key={location.id}
-                    style={[
-                      styles.locationChip,
-                      selectedLocations.includes(location.id) && styles.locationChipActive,
-                    ]}
-                    onPress={() => {
-                      if (selectedLocations.includes(location.id)) {
-                        setSelectedLocations(selectedLocations.filter(id => id !== location.id));
-                      } else {
-                        setSelectedLocations([...selectedLocations, location.id]);
-                      }
-                    }}
-                  >
-                    <Ionicons 
-                      name={location.icon as any} 
-                      size={16} 
-                      color={selectedLocations.includes(location.id) ? '#FFFFFF' : '#6B7280'} 
-                    />
-                    <Text style={[
-                      styles.locationChipText,
-                      { color: selectedLocations.includes(location.id) ? '#FFFFFF' : '#6B7280' }
-                    ]}>
-                      {location.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Services Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>სერვისები</Text>
-              <View style={styles.filterServicesContainer}>
-                {ALL_SERVICES.slice(0, 8).map((service) => (
-                  <TouchableOpacity
-                    key={service}
-                    style={[
-                      styles.serviceChip,
-                      selectedServices.includes(service) && styles.serviceChipActive,
-                    ]}
-                    onPress={() => {
-                      if (selectedServices.includes(service)) {
-                        setSelectedServices(selectedServices.filter(s => s !== service));
-                      } else {
-                        setSelectedServices([...selectedServices, service]);
-                      }
-                    }}
-                  >
-                    <Text style={[
-                      styles.serviceChipText,
-                      { color: selectedServices.includes(service) ? '#FFFFFF' : '#6B7280' }
-                    ]}>
-                      {service}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Time Availability Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>დროის ხელმისაწვდომობა</Text>
-              <View style={styles.timeAvailabilityContainer}>
-                {TIME_AVAILABILITY.map((time) => (
-                  <TouchableOpacity
-                    key={time.id}
-                    style={[
-                      styles.timeOption,
-                      filterTimeAvailability === time.id && styles.timeOptionActive,
-                    ]}
-                    onPress={() => setFilterTimeAvailability(time.id)}
-                  >
-                    <Ionicons 
-                      name={time.icon as any} 
-                      size={18} 
-                      color={filterTimeAvailability === time.id ? '#FFFFFF' : '#6B7280'} 
-                    />
-                    <Text style={[
-                      styles.timeOptionText,
-                      filterTimeAvailability === time.id && styles.timeOptionTextActive,
-                    ]}>
-                      {time.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Special Features Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>სპეციალური ფუნქციები</Text>
-              <View style={styles.specialFeaturesContainer}>
-                {SPECIAL_FEATURES.map((feature) => (
-                  <TouchableOpacity
-                    key={feature.id}
-                    style={[
-                      styles.featureChip,
-                      filterSpecialFeatures.includes(feature.id) && styles.featureChipActive,
-                    ]}
-                    onPress={() => {
-                      if (filterSpecialFeatures.includes(feature.id)) {
-                        setFilterSpecialFeatures(filterSpecialFeatures.filter(id => id !== feature.id));
-                      } else {
-                        setFilterSpecialFeatures([...filterSpecialFeatures, feature.id]);
-                      }
-                    }}
-                  >
-                    <Ionicons 
-                      name={feature.icon as any} 
-                      size={16} 
-                      color={filterSpecialFeatures.includes(feature.id) ? '#FFFFFF' : '#6B7280'} 
-                    />
-                    <Text style={[
-                      styles.featureChipText,
-                      { color: filterSpecialFeatures.includes(feature.id) ? '#FFFFFF' : '#6B7280' }
-                    ]}>
-                      {feature.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Sort By Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>დალაგება</Text>
-              <View style={styles.sortContainer}>
-                {SORT_OPTIONS.map((sort) => (
-                  <TouchableOpacity
-                    key={sort.id}
-                    style={[
-                      styles.sortOption,
-                      filterSortBy === sort.id && styles.sortOptionActive,
-                    ]}
-                    onPress={() => setFilterSortBy(sort.id)}
-                  >
-                    <Ionicons 
-                      name={sort.icon as any} 
-                      size={18} 
-                      color={filterSortBy === sort.id ? '#FFFFFF' : '#6B7280'} 
-                    />
-                    <Text style={[
-                      styles.sortOptionText,
-                      filterSortBy === sort.id && styles.sortOptionTextActive,
-                    ]}>
-                      {sort.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </ScrollView>
-
-          {/* Modal Footer */}
-          <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
-              <Text style={styles.resetButtonText}>გასუფთავება</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
-              <LinearGradient
-                colors={['#111827', '#374151']}
-                style={styles.applyButtonGradient}
-              >
-                <Text style={styles.applyButtonText}>გამოყენება</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const renderMechanic = (mechanic: Mechanic) => (
-    <TouchableOpacity key={mechanic.id} style={styles.mechanicCard}>
-      <View style={styles.mechanicHeader}>
-        <View style={styles.avatarContainer}>
-          <Image source={{ uri: mechanic.avatar }} style={styles.avatar} />
-          {mechanic.isAvailable && (
-            <View style={styles.availableIndicator} />
-          )}
-        </View>
-        
-        <View style={styles.mechanicInfo}>
-          <View style={styles.nameRow}>
-            <Text style={styles.mechanicName}>{mechanic.name}</Text>
-            <View style={[styles.specialtyBadge, { backgroundColor: getSpecialtyColor(mechanic.specialty) }]}>
-              <Text style={styles.specialtyText}>{mechanic.specialty}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.ratingRow}>
-            <View style={styles.ratingContainer}>
-              <Ionicons name="star" size={14} color="#F59E0B" />
-              <Text style={styles.ratingText}>{mechanic.rating}</Text>
-              <Text style={styles.reviewsText}>({mechanic.reviews})</Text>
-            </View>
-            <Text style={styles.experienceText}>{mechanic.experience}</Text>
-          </View>
-          
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={14} color="#6B7280" />
-            <Text style={styles.locationText}>{mechanic.location}</Text>
-            <Text style={styles.distanceText}>• {mechanic.distance}</Text>
-          </View>
-        </View>
-      </View>
-      
-      <Text style={styles.description} numberOfLines={2}>
-        {mechanic.description}
-      </Text>
-      
-      <View style={styles.servicesContainer}>
-        {mechanic.services.slice(0, 3).map((service, index) => (
-          <View key={index} style={styles.serviceTag}>
-            <Text style={styles.serviceText}>{service}</Text>
-          </View>
-        ))}
-        {mechanic.services.length > 3 && (
-          <View style={styles.moreServices}>
-            <Text style={styles.moreServicesText}>+{mechanic.services.length - 3}</Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.mechanicFooter}>
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceLabel}>ფასი:</Text>
-          <Text style={styles.priceText}>{mechanic.price}</Text>
-        </View>
-        
-        <TouchableOpacity 
-          style={[styles.contactButton, !mechanic.isAvailable && styles.contactButtonDisabled]}
-          onPress={() => router.push(`/mechanic-detail?id=${mechanic.id}`)}
-        >
-          <Text style={[styles.contactButtonText, !mechanic.isAvailable && styles.contactButtonTextDisabled]}>
-            {mechanic.isAvailable ? 'დაკავშირება' : 'მიუწვდომელი'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header */}
-      <LinearGradient
-        colors={['#FFFFFF', '#F8FAFC']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>ხელოსნები</Text>
-            <Text style={styles.headerSubtitle}>{filteredMechanics.length} სპეციალისტი</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.filterButton}
-            onPress={() => setShowFilterModal(true)}
-          >
-            <Ionicons name="filter" size={24} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-
-      <ScrollView 
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh}
-            colors={['#111827']}
-          />
-        }
-      >
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#6B7280" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="ძებნა ხელოსნების..."
-              placeholderTextColor="#9CA3AF"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
             )}
           </View>
         </View>
+        <View style={styles.cardBody}>
+          <Text numberOfLines={2} style={styles.name}>{item.name}</Text>
+          <View style={styles.rowBetween}>
+            <Text numberOfLines={1} style={styles.sub}>{item.specialty || 'სპეციალობა'}</Text>
+            {item.priceGEL ? (
+              <View style={styles.pricePill}>
+                <Text style={styles.pricePillText}>₾{item.priceGEL}/სთ</Text>
+              </View>
+            ) : null}
+          </View>
+          {topServices.length > 0 && (
+            <View style={styles.tagsRow}>
+              {topServices.map((s, i) => (
+                <View key={`${s}-${i}`} style={styles.tag}>
+                  <Text numberOfLines={1} style={styles.tagText}>{s}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={styles.rowCenter}>
+            <Ionicons name="location" size={12} color="#6B7280" />
+            <Text numberOfLines={1} style={styles.meta}>{item.location || 'თბილისი'}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+    );
+  };
 
-        {/* Specialties */}
-        <View style={styles.specialtiesContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.specialtiesContent}>
-            {SPECIALTIES.map((specialty) => (
+  const header = (
+    <View>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color="#111827" />
+            </TouchableOpacity>
+        <Text style={styles.title}>ხელოსნები</Text>
+        <TouchableOpacity style={styles.headerAddBtn} onPress={() => setShowAdd(true)}>
+          <Ionicons name="add" size={16} color="#111827" />
+          <Text style={styles.headerAddBtnText}>ხელოსნად დამატება</Text>
+            </TouchableOpacity>
+          </View>
+      <View style={styles.searchWrap}>
+              <Ionicons name="search" size={18} color="#9CA3AF" />
+              <TextInput
+          style={styles.input}
+          placeholder="ძიება სახელით ან სპეციალობით"
+                placeholderTextColor="#6B7280"
+          value={search}
+          onChangeText={setSearch}
+              />
+        {search ? (
+          <TouchableOpacity onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+        ) : null}
+          </View>
+      <View style={styles.controlsRow}>
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={["ყველა", ...SPECIALTIES]}
+            keyExtractor={(i) => i}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 8, gap: 8 }}
+            renderItem={({ item }) => (
               <TouchableOpacity
-                key={specialty.id}
                 style={[
-                  styles.specialtyChip,
-                  selectedSpecialty === specialty.id && styles.specialtyChipActive,
+                  styles.pill,
+                  (item === 'ყველა' ? !specialty : specialty === item) && styles.pillActive,
                 ]}
-                onPress={() => setSelectedSpecialty(specialty.id)}
+                onPress={() => setSpecialty(item === 'ყველა' ? '' : item)}
               >
-                <Ionicons 
-                  name={specialty.icon as any} 
-                  size={16} 
-                  color={selectedSpecialty === specialty.id ? '#FFFFFF' : '#6B7280'} 
-                />
-                <Text style={[
-                  styles.specialtyChipText,
-                  { color: selectedSpecialty === specialty.id ? '#FFFFFF' : '#6B7280' }
-                ]}>
-                  {specialty.title}
-                </Text>
+                <Text style={[styles.pillText, (item === 'ყველა' ? !specialty : specialty === item) && styles.pillTextActive]}>
+                  {item}
+                  </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            )}
+          />
         </View>
-
-        {/* Results Count */}
-        <View style={styles.resultsContainer}>
-          <Text style={styles.resultsText}>
-            {filteredMechanics.length} შედეგი
-          </Text>
+        <View style={styles.actionsCol}>
+            <TouchableOpacity 
+            style={[styles.pillSm, styles.pillAccent]}
+            onPress={() => {
+              setFilterSpec(specialty);
+              setFilterLocation('');
+              setShowFilter(true);
+            }}
+          >
+            <Ionicons name="options" size={14} color="#111827" />
+            <Text style={[styles.pillText, styles.pillTextActive]}>ფილტრი</Text>
+            </TouchableOpacity>
         </View>
+      </View>
+          </View>
+  );
 
-        {/* Mechanics List */}
-        <View style={styles.mechanicsContainer}>
-          {sortedMechanics.map(renderMechanic)}
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="dark-content" />
+      <SafeAreaView style={{ flex: 1 }}>
+        {error ? (
+          <View style={styles.center}>
+            <Text style={styles.error}>{error}</Text>
+            <TouchableOpacity style={styles.retry} onPress={fetchData}>
+              <Text style={styles.retryText}>თავიდან ცდა</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={sorted}
+            keyExtractor={(it) => it.id}
+            numColumns={2}
+            columnWrapperStyle={{ gap: GAP, paddingHorizontal: GAP }}
+            contentContainerStyle={{ paddingTop: 12, paddingBottom: 32, gap: GAP }}
+            ListHeaderComponent={header}
+            renderItem={renderCard}
+            ListEmptyComponent={loading ? (
+              <View style={styles.center}><ActivityIndicator color="#6366F1" size="large" /></View>
+            ) : (
+              <View style={styles.center}><Text style={styles.error}>ხელოსნები ვერ მოიძებნა</Text></View>
+            )}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        )}
+      </SafeAreaView>
+
+      {/* Floating Add Button */}
+      <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => setShowAdd(true)}>
+        <Ionicons name="add" size={24} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Add Mechanic Modal */}
+      <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>ახალი ხელოსანი</Text>
+              <TouchableOpacity onPress={() => setShowAdd(false)}>
+                <Ionicons name="close" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+              <ScrollView contentContainerStyle={styles.formGrid} keyboardShouldPersistTaps="handled">
+              <View style={styles.field}>
+                <Text style={styles.label}>სახელი *</Text>
+                <TextInput
+                  value={form.name}
+                  onChangeText={(t) => setForm({ ...form, name: t })}
+                  placeholder="მაგ: გიორგი პაპაშვილი"
+                  placeholderTextColor="#6B7280"
+                  style={styles.inputDark}
+                />
+              </View>
+              <View style={[styles.field, styles.fieldRelative]}>
+                <Text style={styles.label}>სპეციალობა *</Text>
+                    <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={[styles.inputDark, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  onPress={() => setShowSpecDropdown((v) => !v)}
+                >
+                  <Text style={{ color: form.specialty ? '#111827' : '#6B7280' }}>
+                    {form.specialty || 'აირჩიე სპეციალობა'}
+                  </Text>
+                  <Ionicons name={showSpecDropdown ? 'chevron-up' : 'chevron-down'} size={16} color="#9CA3AF" />
+                </TouchableOpacity>
+                {showSpecDropdown && (
+                  <View style={styles.dropdownAbsolute}>
+                    <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                      {SPECIALTIES.map((opt) => (
+                        <TouchableOpacity
+                          key={opt}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setForm({ ...form, specialty: opt });
+                            setShowSpecDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.dropdownText, form.specialty === opt && styles.dropdownTextActive]}>
+                            {opt}
+                        </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                  </View>
+                )}
+              </View>
+              <View style={styles.fieldRow}>
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.label}>ლოკაცია</Text>
+                  <TextInput
+                    value={form.location}
+                    onChangeText={(t) => setForm({ ...form, location: t })}
+                    placeholder="მაგ: თბილისი"
+                    placeholderTextColor="#6B7280"
+                    style={styles.inputDark}
+                  />
+                </View>
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.label}>ტელეფონი</Text>
+                  <TextInput
+                    value={form.phone}
+                    onChangeText={(t) => setForm({ ...form, phone: t })}
+                    placeholder="5XX XX XX XX"
+                    placeholderTextColor="#6B7280"
+                    style={styles.inputDark}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>მისამართი</Text>
+                <TextInput
+                  value={form.address}
+                  onChangeText={(t) => setForm({ ...form, address: t })}
+                  placeholder="ქუჩა, ნომერი"
+                  placeholderTextColor="#6B7280"
+                  style={styles.inputDark}
+                />
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>Avatar URL</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={styles.avatarPreview}>
+                    {form.avatar ? (
+                      <Image source={{ uri: form.avatar }} style={styles.avatarImage} />
+                    ) : (
+                      <Ionicons name="person" size={18} color="#9CA3AF" />
+                    )}
+                  </View>
+                <TouchableOpacity 
+                    style={styles.btnSecondary}
+                    onPress={async () => {
+                      photoService.showPhotoPickerOptions(async (res) => {
+                        if (!res.success || !res.assets?.length) return;
+                        const uri = res.assets[0].uri;
+                        const up = await photoService.uploadPhoto(uri, 'mechanics');
+                        if (up.success && up.url) {
+                          setForm({ ...form, avatar: up.url });
+                        }
+                      });
+                    }}
+                  >
+                    <Text style={styles.btnSecondaryText}>ფოტოს ატვირთვა</Text>
+                </TouchableOpacity>
+                </View>
+                <TextInput
+                  value={form.avatar}
+                  onChangeText={(t) => setForm({ ...form, avatar: t })}
+                  placeholder="ან ჩასვი URL"
+                  placeholderTextColor="#6B7280"
+                  style={[styles.inputDark, { marginTop: 8 }]}
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>სერვისები (მძიმით)</Text>
+                <TextInput
+                  value={form.servicesCsv}
+                  onChangeText={(t) => setForm({ ...form, servicesCsv: t })}
+                  placeholder="ძრავის შეკეთება, დიაგნოსტიკა"
+                  placeholderTextColor="#6B7280"
+                  style={styles.inputDark}
+                />
+              </View>
+              <View style={[styles.fieldRow, { alignItems: 'center', justifyContent: 'space-between' }]}>
+                <Text style={styles.label}>ხელმისაწვდომია</Text>
+                <Switch
+                  value={form.isAvailable}
+                  onValueChange={(v) => setForm({ ...form, isAvailable: v })}
+                  trackColor={{ false: '#374151', true: '#4ADE80' }}
+                  thumbColor="#111827"
+                />
+              </View>
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setShowAdd(false)}>
+                <Text style={styles.btnSecondaryText}>გაუქმება</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, saving && { opacity: 0.6 }]}
+                disabled={saving}
+                onPress={async () => {
+                  if (!form.name.trim() || !form.specialty.trim()) {
+                    setError('სახელი და სპეციალობა სავალდებულოა');
+                    return;
+                  }
+                  try {
+                    setSaving(true);
+                    const payload = {
+                      name: form.name.trim(),
+                      specialty: form.specialty.trim(),
+                      location: form.location.trim() || undefined,
+                      phone: form.phone.trim() || undefined,
+                      address: form.address.trim() || undefined,
+                      avatar: form.avatar.trim() || undefined,
+                      isAvailable: form.isAvailable,
+                      services: form.servicesCsv
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    };
+                    await mechanicsApi.createMechanic(payload as any);
+                    setShowAdd(false);
+                    setForm({ name: '', specialty: '', location: '', phone: '', address: '', avatar: '', servicesCsv: '', isAvailable: true });
+                    fetchData();
+                  } catch (e) {
+                    console.error(e);
+                    setError('შენახვა ვერ მოხერხდა');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                <Text style={styles.btnPrimaryText}>{saving ? 'ინახება...' : 'დამატება'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          </KeyboardAvoidingView>
         </View>
-
-        {/* Bottom Spacing */}
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      </Modal>
 
       {/* Filter Modal */}
-      {renderFilterModal()}
-    </SafeAreaView>
+      <Modal visible={showFilter} animationType="slide" transparent onRequestClose={() => setShowFilter(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>ფილტრი</Text>
+              <TouchableOpacity onPress={() => setShowFilter(false)}>
+                <Ionicons name="close" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={[{ key: 'content' }]}
+              keyExtractor={(i) => String(i.key)}
+              renderItem={() => (
+                <View style={styles.formGrid}>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>სპეციალობა</Text>
+                    <View style={styles.dropdown}>
+                      {SPECIALTIES.map((opt) => (
+                        <TouchableOpacity key={opt} style={styles.dropdownItem} onPress={() => setFilterSpec(opt)}>
+                          <Text style={[styles.dropdownText, filterSpec === opt && styles.dropdownTextActive]}>{opt}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>მდებარეობა (არასავალდებულო)</Text>
+                    <TextInput
+                      value={filterLocation}
+                      onChangeText={setFilterLocation}
+                      placeholder="მაგ: თბილისი"
+                      placeholderTextColor="#6B7280"
+                      style={styles.inputDark}
+                    />
+                  </View>
+                </View>
+              )}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                onPress={() => { setFilterSpec(''); setFilterLocation(''); setSpecialty(''); setShowFilter(false); }}
+              >
+                <Text style={styles.btnSecondaryText}>გასუფთავება</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                onPress={() => {
+                  setSpecialty(filterSpec);
+                  // Note: filterLocation can be wired to backend if needed
+                  setShowFilter(false);
+                  fetchData();
+                }}
+              >
+                <Text style={styles.btnPrimaryText}>გამოყენება</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    paddingTop: 10,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#1F2937',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  filterButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 50,
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1F2937',
-    fontFamily: 'NotoSans_500Medium',
-  },
-  specialtiesContainer: {
-    paddingBottom: 16,
-  },
-  specialtiesContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  specialtyChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 8,
-  },
-  specialtyChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  specialtyChipText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
-  },
-  resultsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  resultsText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  mechanicsContainer: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  mechanicCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  mechanicHeader: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  availableIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  mechanicInfo: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  mechanicName: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#1F2937',
-  },
-  specialtyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  specialtyText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#FFFFFF',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#1F2937',
-  },
-  reviewsText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  experienceText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  locationText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  distanceText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  description: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  servicesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
-  serviceTag: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  serviceText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  moreServices: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  moreServicesText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  mechanicFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  priceLabel: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-  },
-  priceText: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#1F2937',
-  },
-  contactButton: {
-    backgroundColor: '#111827',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  contactButtonDisabled: {
-    backgroundColor: '#E5E7EB',
-  },
-  contactButtonText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#FFFFFF',
-  },
-  contactButtonTextDisabled: {
-    color: '#9CA3AF',
-  },
-  // Filter Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '95%',
-    minHeight: '85%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontFamily: 'NotoSans_700Bold',
-    color: '#1F2937',
-  },
-  modalBody: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  filterSection: {
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  filterSectionTitle: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  filterRatingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  starButton: {
-    padding: 4,
-  },
-  filterRatingText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_500Medium',
-    color: '#6B7280',
-    marginLeft: 8,
-  },
-  priceRangeContainer: {
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  priceRangeText: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#1F2937',
-  },
-  distanceContainer: {
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  filterDistanceText: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#1F2937',
-  },
-  availabilityContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  availabilityOption: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  availabilityOptionActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  availabilityOptionText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  availabilityOptionTextActive: {
-    color: '#FFFFFF',
-  },
-  experienceContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  experienceOption: {
-    flex: 1,
-    minWidth: '45%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  experienceOptionActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  experienceOptionText: {
-    fontSize: 14,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  experienceOptionTextActive: {
-    color: '#FFFFFF',
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  resetButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  resetButtonText: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  applyButton: {
-    flex: 2,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  applyButtonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  applyButtonText: {
-    fontSize: 16,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#FFFFFF',
-  },
-  // New Custom Filter Styles
-  categoriesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 6,
-  },
-  categoryChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  categoryChipText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-  },
-  locationsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  locationChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 6,
-  },
-  locationChipActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
-  },
-  locationChipText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-  },
-  filterServicesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  serviceChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-  },
-  serviceChipActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
-  },
-  serviceChipText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-  },
-  timeAvailabilityContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  timeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 8,
-    minWidth: '45%',
-  },
-  timeOptionActive: {
-    backgroundColor: '#F59E0B',
-    borderColor: '#F59E0B',
-  },
-  timeOptionText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  timeOptionTextActive: {
-    color: '#FFFFFF',
-  },
-  specialFeaturesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  featureChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 6,
-  },
-  featureChipActive: {
-    backgroundColor: '#EF4444',
-    borderColor: '#EF4444',
-  },
-  featureChipText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-  },
-  sortContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  sortOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 8,
-    flex: 1,
-    minWidth: '45%',
-  },
-  sortOptionActive: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-  },
-  sortOptionText: {
-    fontSize: 12,
-    fontFamily: 'NotoSans_600SemiBold',
-    color: '#6B7280',
-  },
-  sortOptionTextActive: {
-    color: '#FFFFFF',
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GAP, paddingTop: 8 },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+  title: { color: '#111827', fontSize: 22, fontWeight: '800' },
+  searchWrap: { marginTop: 12, marginHorizontal: GAP, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
+  input: { flex: 1, color: '#111827', fontSize: 14, fontWeight: '500' },
+  controlsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: GAP, paddingVertical: 12 },
+  pill: { borderRadius: 18, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F9FAFB' },
+  pillActive: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
+  pillAccent: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
+  pillText: { color: '#6B7280', fontWeight: '600', fontSize: 12 },
+  pillTextActive: { color: '#111827' },
+  pillSm: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB', paddingHorizontal: 10, paddingVertical: 8 },
+  actionsCol: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  card: { width: CARD_WIDTH, backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  cardImageWrap: { width: '100%', height: 120, position: 'relative' },
+  cardImage: { width: '100%', height: '100%' },
+  badgeRow: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  badgeGreen: { backgroundColor: 'rgba(16,185,129,0.9)' },
+  badgeRed: { backgroundColor: 'rgba(239,68,68,0.9)' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 10 },
+  ratingText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  ratingLight: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  ratingLightText: { color: '#111827', fontSize: 12, fontWeight: '800' },
+  cardBody: { padding: 12, gap: 6 },
+  name: { color: '#111827', fontSize: 14, fontWeight: '800' },
+  sub: { color: '#6B7280', fontSize: 12, fontWeight: '600' },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: CARD_WIDTH - 70 },
+  meta: { color: '#6B7280', fontSize: 11, fontWeight: '600' },
+  pricePill: { paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#EEF2FF', borderRadius: 10, borderWidth: 1, borderColor: '#C7D2FE' },
+  pricePillText: { color: '#4338CA', fontSize: 11, fontWeight: '800' },
+  tagsRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  tag: { paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#F3F4F6', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  tagText: { color: '#6B7280', fontSize: 10, fontWeight: '600', maxWidth: CARD_WIDTH / 2 - 16 },
+  price: { color: '#4F46E5', fontSize: 11, fontWeight: '800' },
+  center: { paddingTop: 40, alignItems: 'center' },
+  error: { color: '#DC2626', fontSize: 14, marginBottom: 12 },
+  retry: { backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+  retryText: { color: '#111827', fontWeight: '700' },
+  headerAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE' },
+  headerAddBtnText: { color: '#111827', fontSize: 12, fontWeight: '700' },
+  fab: { position: 'absolute', right: 16, bottom: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: '#6366F1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, borderWidth: 1, borderColor: 'rgba(99,102,241,0.5)' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(17,24,39,0.35)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: '#E5E7EB' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  modalTitle: { color: '#111827', fontSize: 18, fontWeight: '800' },
+  formGrid: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+  field: { gap: 6 },
+  fieldRow: { flexDirection: 'row', gap: 12 },
+  label: { color: '#374151', fontSize: 12, fontWeight: '600' },
+  inputDark: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, color: '#111827' },
+  modalActions: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 16, paddingBottom: 24 },
+  btnSecondary: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', paddingVertical: 12, backgroundColor: '#F9FAFB' },
+  btnSecondaryText: { color: '#374151', fontWeight: '700' },
+  btnPrimary: { flex: 1, borderRadius: 12, backgroundColor: '#6366F1', alignItems: 'center', paddingVertical: 12, borderWidth: 1, borderColor: '#4F46E5' },
+  btnPrimaryText: { color: '#FFFFFF', fontWeight: '800' },
+  dropdown: { marginTop: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' },
+  dropdownAbsolute: { position: 'absolute', top: 76, left: 0, right: 0, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', zIndex: 50, elevation: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  dropdownItem: { paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  dropdownText: { color: '#374151', fontSize: 13, fontWeight: '600' },
+  dropdownTextActive: { color: '#111827' },
+  fieldRelative: { position: 'relative' },
+  avatarPreview: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: 40, height: 40, borderRadius: 20 },
 });

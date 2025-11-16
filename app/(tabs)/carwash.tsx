@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { carwashApi, CarwashBooking } from '../../services/carwashApi';
 import { useUser } from '../../contexts/UserContext';
+import { useCars } from '../../contexts/CarContext';
 import { useToast } from '../../contexts/ToastContext';
 import AddModal, { AddModalType } from '../../components/ui/AddModal';
 import { carwashLocationApi } from '../../services/carwashLocationApi';
@@ -52,6 +53,7 @@ const CAR_WASH_FEATURES = [
 export default function CarWashScreen() {
   const router = useRouter();
   const { user, isAuthenticated, updateUserRole, addToOwnedCarwashes } = useUser();
+  const { selectedCar, cars, selectCar } = useCars();
   const { success, error, warning } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -78,11 +80,12 @@ export default function CarWashScreen() {
   // My carwashes state
   const [myCarwashes, setMyCarwashes] = useState<any[]>([]);
   const [allCarwashes, setAllCarwashes] = useState<any[]>([]);
+  const [showCarPicker, setShowCarPicker] = useState(false);
   
   // Load my carwashes when user changes
   useEffect(() => {
     const loadMyCarwashes = async () => {
-      if (user?.role === 'owner' && user.ownedCarwashes.length > 0) {
+      if (user?.role === 'owner' && user.ownedCarwashes?.length > 0) {
         try {
           // Load carwashes from backend
           const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);
@@ -291,8 +294,6 @@ export default function CarWashScreen() {
   const loadAllCarwashes = useCallback(async () => {
     try {
       const carwashes = await carwashLocationApi.getAllLocations();
-      console.log('🔍 [CARWASH] Loaded carwashes from backend:', carwashes);
-      console.log('🔍 [CARWASH] First carwash structure:', carwashes[0]);
       setAllCarwashes(carwashes);
     } catch (error) {
       console.error('❌ [CARWASH] Error loading carwashes:', error);
@@ -561,98 +562,141 @@ export default function CarWashScreen() {
   };
 
   const renderLocationCard = (location: any) => (
-    <TouchableOpacity
-      key={location.id}
-      style={styles.locationCard}
-      onPress={() => handleLocationPress(location)}
-      activeOpacity={0.95}
-    >
-      {/* Horizontal Layout: Image Left, Content Right */}
-      <View style={styles.cardHorizontalContainer}>
-        {/* Left Side - Image */}
-        <View style={styles.cardImageContainerHorizontal}>
-          <Image source={{ uri: location.images?.[0] || location.image }} style={styles.cardImageHorizontal} />
-          <View style={styles.cardImageOverlayHorizontal}>
-            {/* Category Badge */}
-            <View style={[styles.cardCategoryBadgeHorizontal, { backgroundColor: getCategoryColor(location.category) }]}>
-              <Text style={styles.cardCategoryTextHorizontal}>{location.category}</Text>
-            </View>
-            
-            {/* Favorite Button */}
-            <TouchableOpacity
-              style={styles.cardFavoriteButtonHorizontal}
-              onPress={() => toggleFavorite(location.id)}
-              activeOpacity={0.8}
-            >
-              <Ionicons 
-                name={isFavorite(location.id) ? "heart" : "heart-outline"} 
-                size={16} 
-                color={isFavorite(location.id) ? "#EF4444" : "#FFFFFF"} 
-              />
-            </TouchableOpacity>
-            
-            {/* Open Status */}
-            {location.isOpen && (
-              <View style={styles.cardOpenBadgeHorizontal}>
-                <View style={styles.cardOpenDotHorizontal} />
-                <Text style={styles.cardOpenTextHorizontal}>ღიაა</Text>
-              </View>
-            )}
-          </View>
-        </View>
-        
-        {/* Right Side - Content */}
-        <View style={styles.cardContentHorizontal}>
+    <View key={location.id} style={styles.modernCardWithBackground}>
+      {/* Background Image */}
+      <ImageBackground 
+        source={{ uri: location.images?.[0] || location.image || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80' }} 
+        style={styles.modernBackgroundImage}
+        resizeMode="cover"
+      >
+        {/* Gradient Overlay */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
+          style={styles.modernGradientOverlay}
+        >
           {/* Header */}
-          <View style={styles.cardHeaderHorizontal}>
-            <Text style={styles.cardTitleHorizontal} numberOfLines={1}>{location.name}</Text>
-            <View style={styles.cardRatingHorizontal}>
-              <Ionicons name="star" size={12} color="#F59E0B" />
-              <Text style={styles.cardRatingTextHorizontal}>{location.rating}</Text>
-              <Text style={styles.cardReviewsTextHorizontal}>({location.reviews})</Text>
+          <View style={styles.modernHeader}>
+            <View style={styles.modernProfileSection}>
+              <View style={styles.modernAvatarPlaceholder}>
+                <Image 
+                  source={{ uri: location.images?.[0] || location.image }} 
+                  style={styles.modernAvatar} 
+                />
+              </View>
+              <Text style={styles.modernUsername}>{location.name}</Text>
             </View>
-          </View>
-
-          {/* Description */}
-          <Text style={styles.cardDescriptionHorizontal} numberOfLines={2}>
-            {location.description}
-          </Text>
-
-          {/* Location & Distance */}
-          <View style={styles.cardLocationHorizontal}>
-            <Ionicons name="location-outline" size={12} color="#6B7280" />
-            <Text style={styles.cardLocationTextHorizontal} numberOfLines={1}>{location.address}</Text>
-            <Text style={styles.cardDistanceHorizontal}>{location.distance}</Text>
+            <TouchableOpacity 
+              style={styles.modernActionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                // Toggle like functionality
+                success('მოწონება', 'მოგეწონათ ეს სამრეცხაო! ❤️');
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="heart" size={16} color="#FFFFFF" />
+              <Text style={styles.modernActionText}>{location.reviews || 200}</Text>
+            </TouchableOpacity>
           </View>
           
-          {/* Price & Time */}
-          <View style={styles.cardPriceTimeHorizontal}>
-            <View style={styles.cardPriceHorizontal}>
-              <Text style={styles.cardPriceLabelHorizontal}>ფასი</Text>
-              <Text style={styles.cardPriceTextHorizontal}>{location.price}</Text>
-            </View>
-            <View style={styles.cardTimeHorizontal}>
-              <Ionicons name="time-outline" size={12} color="#6B7280" />
-              <Text style={styles.cardTimeTextHorizontal}>{location.waitTime}</Text>
-            </View>
-          </View>
-
-
-          {/* Booking Button */}
+          {/* Main Card */}
           <TouchableOpacity 
-            style={styles.bookingButtonHorizontal}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleBooking(location);
-            }}
-            activeOpacity={0.9}
+            style={styles.modernMainCard}
+            onPress={() => handleLocationPress(location)}
+            activeOpacity={0.95}
           >
-            <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
-            <Text style={styles.bookingButtonTextHorizontal}>დაჯავშნა</Text>
+            {/* Location Info */}
+            {/* <View style={styles.modernLocationSection}>
+              <View style={styles.modernLocationRow}>
+                <Ionicons name="location" size={16} color="#EF4444" />
+                <Text style={styles.modernCoordinates}>
+                  {location.latitude || '41.717690'}, {location.longitude || '44.828039'}
+                </Text>
+              </View>
+            </View> */}
+            
+            {/* Separator Line */}
+            <View style={styles.modernSeparator} />
+            
+            {/* Rating Section with Call Button */}
+            <View style={styles.modernRatingSection}>
+              <View style={styles.modernRatingLeft}>
+                {/* <Text style={styles.modernReviewsCount}>{location.reviews || 30}</Text> */}
+                {/* <View style={styles.modernDot} /> */}
+                {/* <View style={styles.modernStarRow}> */}
+                  {/* <Ionicons name="star" size={14} color="#F59E0B" />
+                  <Text style={styles.modernRating}>{location.rating || '4.6'}</Text>
+                </View> */}
+              </View>
+              
+              {/* Call Button */}
+              <TouchableOpacity 
+                style={styles.modernCallButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  // Show phone number from location info
+                  const phoneNumber = location.phone || location.contact || '555-123-456';
+                  success('სამრეცხაოს ნომერი', `📞 ${phoneNumber}`);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="call-outline" size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Actions Footer */}
+            <View style={styles.modernActionsFooter}>
+              <View style={styles.modernActionsLeft}>
+               
+                
+                <TouchableOpacity 
+                  style={styles.modernActionButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    // Navigate to comments
+                    router.push({
+                      pathname: '/details',
+                      params: {
+                        id: location.id,
+                        type: 'carwash',
+                        title: location.name,
+                        scrollToComments: 'true'
+                      }
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.modernActionButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    success('გაზიარება', 'სამრეცხაო წარმატებით გაზიარდა! 📤');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="paper-plane-outline" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.modernBookButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleBooking(location);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.modernBookButtonText}>ჯავშნა</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
+        </LinearGradient>
+      </ImageBackground>
+    </View>
   );
 
   const renderFilterModal = () => (
@@ -849,6 +893,56 @@ export default function CarWashScreen() {
           />
         }
       >
+        {/* Car Selection - AI Style */}
+        <View style={styles.carSection}>
+          <TouchableOpacity 
+            style={styles.carCard}
+            onPress={() => {
+              if ((cars?.length || 0) === 0) {
+                // Show add car modal if no cars
+                Alert.alert('მანქანის დამატება', 'ჯერ დაამატეთ მანქანა გარაჟში');
+              } else {
+                // Show car picker modal
+                setShowCarPicker(true);
+              }
+            }}
+          >
+            <LinearGradient
+              colors={['rgba(55, 65, 81, 0.3)', 'rgba(75, 85, 99, 0.3)']}
+              style={styles.carGradient}
+            >
+              <View style={styles.carContent}>
+                <View style={styles.carInfo}>
+                  <View style={styles.carImageContainer}>
+                    {selectedCar?.imageUri ? (
+                      <Image source={{ uri: selectedCar.imageUri }} style={styles.carImage} />
+                    ) : (
+                      <View style={styles.carPlaceholder}>
+                        <Ionicons name="car" size={24} color="#9CA3AF" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.carDetails}>
+                    <Text style={styles.carTitle}>
+                      {selectedCar
+                        ? `${selectedCar.make} ${selectedCar.model}`
+                        : (cars.length === 0 ? 'დაამატე მანქანა' : 'აირჩიეთ მანქანა')}
+                    </Text>
+                    <Text style={styles.carMeta}>
+                      {selectedCar
+                        ? `${selectedCar.year} • ${selectedCar.plateNumber}`
+                        : (cars.length === 0 ? 'მოდალის გახსნა დამატებისთვის' : 'დააჭირეთ არჩევისთვის')}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.changeButton}>
+                  <Ionicons name="swap-horizontal" size={20} color="#6366F1" />
+                </View>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
@@ -1009,6 +1103,58 @@ export default function CarWashScreen() {
       {/* Filter Modal */}
       {renderFilterModal()}
       
+      {/* Car Picker Modal */}
+      <Modal
+        visible={showCarPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCarPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>აირჩიეთ მანქანა</Text>
+            <ScrollView style={styles.carsList}>
+              {cars.map((car) => (
+                <TouchableOpacity
+                  key={car.id}
+                  style={[
+                    styles.carRow,
+                    selectedCar?.id === car.id && styles.carRowActive
+                  ]}
+                  onPress={() => {
+                    selectCar(car);
+                    setShowCarPicker(false);
+                  }}
+                >
+                  <View style={styles.carRowImage}>
+                    {car.imageUri ? (
+                      <Image source={{ uri: car.imageUri }} style={styles.carRowThumb} />
+                    ) : (
+                      <View style={styles.carRowPlaceholder}>
+                        <Ionicons name="car" size={20} color="#9CA3AF" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.carRowInfo}>
+                    <Text style={styles.carRowTitle}>{car.make} {car.model}</Text>
+                    <Text style={styles.carRowMeta}>{car.year} • {car.plateNumber}</Text>
+                  </View>
+                  {selectedCar?.id === car.id && (
+                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowCarPicker(false)}
+            >
+              <Text style={styles.closeButtonText}>დახურვა</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Add Modal */}
       <AddModal
         visible={showAddModal}
@@ -1030,19 +1176,13 @@ export default function CarWashScreen() {
               }
             }
             
-            // Add carwash to owned carwashes list
-            try {
-              await addToOwnedCarwashes(data.data.id);
-              
-            } catch (error) {
-            }
+            // Add carwash to owned carwashes list (already done in AddModal)
+            // await addToOwnedCarwashes(data.data.id);
             
-            // Reload my carwashes from backend
             if (user?.role === 'owner') {
               try {
                 const ownedCarwashes = await carwashLocationApi.getLocationsByOwner(user.id);
                 setMyCarwashes(ownedCarwashes);
-                // Also reload all carwashes
                 await loadAllCarwashes();
               } catch (error) {
                 // Add the new carwash to the list manually
@@ -1672,6 +1812,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  modalCard: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 24,
+    padding: 24,
+    maxHeight: '80%',
+  },
   modalContent: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
@@ -1691,7 +1837,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontFamily: 'Inter',
-    color: '#1F2937',
+    color: '#FFFFFF',
   },
   modalBody: {
     flex: 1,
@@ -1856,5 +2002,865 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter',
     color: '#FFFFFF',
+  },
+  
+  // სოციალური მედიის ქარდების სტილები
+  socialMediaCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  
+  socialCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingBottom: 12,
+  },
+  
+  socialProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  
+  socialProfileAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  
+  socialProfileInfo: {
+    gap: 2,
+  },
+  
+  socialProfileName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'Inter',
+  },
+  
+  socialPostTime: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Inter',
+  },
+  
+  socialMoreButton: {
+    padding: 4,
+  },
+  
+  socialCardContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  
+  socialPostText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+    fontFamily: 'Inter',
+  },
+  
+  socialPostImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  
+  socialLocationInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+  },
+  
+  socialLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  
+  socialLocationText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Inter',
+    flex: 1,
+  },
+  
+  socialRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  
+  socialRatingText: {
+    fontSize: 12,
+    color: '#111827',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  
+  socialOfferBanner: {
+    height: 60,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  
+  socialOfferGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  
+  socialOfferText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  
+  socialOfferSubtext: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    opacity: 0.9,
+  },
+  
+  socialInteractionsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  
+  socialInteractionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  
+  socialInteractionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  socialInteractionText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+  
+  socialBookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111827',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  
+  socialBookText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  
+  // Instagram-ის ზუსტი სტილის ქარდები
+  instagramCard: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#DBDBDB',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  
+  instagramHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  
+  instagramProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  
+  instagramAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DBDBDB',
+  },
+  
+  instagramProfileInfo: {
+    gap: 1,
+  },
+  
+  instagramUsername: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#262626',
+    fontFamily: 'Inter',
+  },
+  
+  instagramTime: {
+    fontSize: 12,
+    color: '#8E8E8E',
+    fontFamily: 'Inter',
+  },
+  
+  instagramMoreButton: {
+    padding: 4,
+  },
+  
+  instagramMainImage: {
+    width: '100%',
+    height: 375,
+    resizeMode: 'cover',
+  },
+  
+  instagramInteractionsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  
+  instagramInteractionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  
+  instagramInteractionButton: {
+    padding: 2,
+  },
+  
+  instagramLikes: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  
+  instagramLikesText: {
+    fontSize: 14,
+    color: '#262626',
+    fontFamily: 'Inter',
+  },
+  
+  instagramBoldText: {
+    fontWeight: '600',
+  },
+  
+  instagramCaption: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  
+  instagramCaptionText: {
+    fontSize: 14,
+    color: '#262626',
+    fontFamily: 'Inter',
+    lineHeight: 18,
+  },
+  
+  instagramLocationInfo: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  
+  instagramLocationText: {
+    fontSize: 12,
+    color: '#8E8E8E',
+    fontFamily: 'Inter',
+  },
+  
+  instagramComments: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  
+  instagramCommentsText: {
+    fontSize: 14,
+    color: '#262626',
+    fontFamily: 'Inter',
+    lineHeight: 18,
+  },
+  
+  instagramViewComments: {
+    fontSize: 14,
+    color: '#8E8E8E',
+    fontFamily: 'Inter',
+    marginTop: 4,
+  },
+  
+  instagramBookButton: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  
+  instagramBookGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  
+  instagramBookText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  
+  // Story სტილის ქარდები - სამრეცხაოს ფოტო უკან, გამჭირვალე ღილაკები ზედა
+  storyStyleCard: {
+    height: 400,
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  
+  storyBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+  },
+  
+  storyGradientOverlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  
+  storyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 20,
+  },
+  
+  storyProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  
+  storyAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    overflow: 'hidden',
+  },
+  
+  storyAvatar: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  
+  storyProfileInfo: {
+    gap: 2,
+  },
+  
+  storyUsername: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  
+  storyTime: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'Inter',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  
+  storyMoreButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+    backdropFilter: 'blur(10px)',
+  },
+  
+  storyActionsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backdropFilter: 'blur(15px)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 20,
+  },
+  
+  storyActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  
+  storyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  
+  storyActionText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  
+  storyBookButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  
+  storyInfoOverlay: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 12,
+    padding: 12,
+    backdropFilter: 'blur(10px)',
+  },
+  
+  storyLocationText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  
+  storyPriceText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontFamily: 'Inter',
+  },
+  
+  // მოდერნული კარდების სტილები - ინსპირაცია მოცემული იმიჯიდან
+  modernCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 20,
+    paddingBottom: 16,
+  },
+  
+  modernCardWithBackground: {
+    height: 220,
+    marginBottom: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  
+  modernBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+  },
+  
+  modernGradientOverlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  
+  modernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  
+  modernProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  modernAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+    overflow: 'hidden',
+  },
+  
+  modernAvatar: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  
+  modernUsername: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  
+  modernMoreButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  
+  modernMainCard: {
+    // backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 8,
+    padding: 8,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 0, height: 2 },
+    // shadowOpacity: 0.1,
+    // shadowRadius: 4,
+    // elevation: 3,
+    // borderWidth: 1,
+    // borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  
+  modernLocationSection: {
+    marginBottom: 12,
+  },
+  
+  modernLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  
+  modernCoordinates: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+  
+  modernSeparator: {
+    height: 1,
+    // backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: 12,
+  },
+  
+  modernRatingSection: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  
+  modernRatingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  
+  modernReviewsCount: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  
+  modernDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  
+  modernStarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  
+  modernRating: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  
+  modernActionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  
+  modernActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  modernActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+  
+  modernActionText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
+  
+  modernBookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: 'rgba(34, 197, 94, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  modernBookButtonText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '600',
+  },
+  
+  modernCallButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  // Car Section - AI Style
+  carSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  carCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  carGradient: {
+    padding: 16,
+  },
+  carContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  carInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  carImageContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  carImage: {
+    width: '100%',
+    height: '100%',
+  },
+  carPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carDetails: {
+    flex: 1,
+  },
+  carTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  carMeta: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  changeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Car Picker Modal Styles
+  carsList: {
+    maxHeight: 400,
+  },
+  carRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  carRowActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  carRowImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(55, 65, 81, 0.5)',
+  },
+  carRowThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  carRowPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carRowInfo: {
+    flex: 1,
+  },
+  carRowTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  carRowMeta: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  closeButton: {
+    marginTop: 20,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6366F1',
   },
 });

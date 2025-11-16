@@ -1,760 +1,541 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
+  Modal,
   View,
   Text,
-  StyleSheet,
-  Modal,
   TouchableOpacity,
-  TextInput,
   ScrollView,
-  Dimensions,
+  KeyboardAvoidingView,
   Platform,
-  Animated,
-  StatusBar,
+  TextInput,
   Image,
-  Alert,
-  FlatList,
+  ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { Dimensions } from 'react-native';
+import { uploadCarImage } from '../../utils/cloudinaryUpload';
 
 const { height } = Dimensions.get('window');
-
-type CarData = {
-  make: string;
-  model: string;
-  year: string;
-  plateNumber: string;
-  color?: string;
-  fuelType?: string;
-  transmission?: string;
-  photo?: string;
-};
 
 type AddCarModalProps = {
   visible: boolean;
   onClose: () => void;
-  onAddCar: (car: CarData) => void;
+  onAddCar: (car: { make: string; model: string; year: number; plateNumber: string; imageUri?: string }) => Promise<void> | void;
 };
 
-const FUEL_OPTIONS = [
-  { id: 'ბენზინი', icon: '🔥', color: '#FF6B6B' },
-  { id: 'დიზელი', icon: '⛽', color: '#4ECDC4' },
-  { id: 'ჰიბრიდი', icon: '🔋', color: '#45B7D1' },
-  { id: 'ელექტრო', icon: '⚡', color: '#96CEB4' },
-];
-
-const GEARBOX_OPTIONS = [
-  { id: 'ავტომატი', icon: '⚙️', color: '#FFEAA7' },
-  { id: 'მექანიკა', icon: '🔧', color: '#DDA0DD' },
-  { id: 'CVT', icon: '🔄', color: '#98D8C8' },
-];
-
-const CAR_MAKES = [
-  'BMW',
-  'Mercedes-Benz',
-  'Audi',
-  'Toyota',
-  'Honda',
-  'Ford',
-  'Volkswagen',
-  'Nissan',
-  'Hyundai',
-  'Kia',
-  'Mazda',
-  'Subaru',
-  'Lexus',
-  'Infiniti',
-  'Acura',
-  'Volvo',
-  'Saab',
-  'Opel',
-  'Peugeot',
-  'Renault',
-  'Citroën',
-  'Fiat',
-  'Alfa Romeo',
-  'Lancia',
-  'Skoda',
-  'Seat',
-  'Dacia',
-  'Chevrolet',
-  'Cadillac',
-  'Buick',
-  'Chrysler',
-  'Dodge',
-  'Jeep',
-  'Ram',
-  'Lincoln',
-  'Tesla',
-  'Porsche',
-  'Ferrari',
-  'Lamborghini',
-  'Maserati',
-  'Bentley',
-  'Rolls-Royce',
-  'Aston Martin',
-  'McLaren',
-  'Bugatti',
-  'Koenigsegg',
-  'Pagani',
-  'სხვა'
+const CAR_BRANDS = [
+  'BMW', 'Mercedes-Benz', 'Audi', 'Toyota', 'Honda', 'Nissan', 'Hyundai', 'Kia',
+  'Volkswagen', 'Ford', 'Chevrolet', 'Mazda', 'Subaru', 'Lexus', 'Infiniti', 'Acura',
+  'Porsche', 'Jaguar', 'LandRover', 'Volvo', 'Saab', 'Opel', 'Peugeot', 'Renault',
+  'Fiat', 'Alfa Romeo', 'Lancia', 'Skoda', 'Seat', 'Dacia', 'Lada', 'UAZ'
 ];
 
 const CAR_MODELS: { [key: string]: string[] } = {
-  'BMW': ['X5', 'X3', 'X1', '3 Series', '5 Series', '7 Series', 'X7', 'X6', 'i3', 'i8', 'Z4', 'M3', 'M5', 'M8'],
-  'Mercedes-Benz': ['C-Class', 'E-Class', 'S-Class', 'A-Class', 'GLA', 'GLC', 'GLE', 'GLS', 'CLA', 'CLS', 'AMG GT', 'Sprinter', 'Vito'],
-  'Audi': ['A3', 'A4', 'A6', 'A8', 'Q3', 'Q5', 'Q7', 'Q8', 'TT', 'R8', 'e-tron', 'RS3', 'RS4', 'RS6'],
-  'Toyota': ['Camry', 'Corolla', 'RAV4', 'Highlander', 'Prius', 'Avalon', '4Runner', 'Tacoma', 'Tundra', 'Sienna', 'Land Cruiser'],
-  'Honda': ['Civic', 'Accord', 'CR-V', 'Pilot', 'HR-V', 'Passport', 'Odyssey', 'Ridgeline', 'Insight', 'Fit'],
-  'Ford': ['F-150', 'Explorer', 'Escape', 'Edge', 'Expedition', 'Mustang', 'Focus', 'Fiesta', 'Transit', 'Ranger'],
-  'Volkswagen': ['Golf', 'Jetta', 'Passat', 'Tiguan', 'Atlas', 'Beetle', 'Arteon', 'ID.4', 'Touareg'],
-  'Nissan': ['Altima', 'Sentra', 'Rogue', 'Murano', 'Pathfinder', 'Armada', 'Versa', 'Maxima', '370Z', 'GT-R'],
-  'Hyundai': ['Elantra', 'Sonata', 'Tucson', 'Santa Fe', 'Palisade', 'Accent', 'Veloster', 'Genesis', 'Kona'],
-  'Kia': ['Forte', 'Optima', 'Sportage', 'Sorento', 'Telluride', 'Soul', 'Stinger', 'Niro', 'Seltos'],
-  'სხვა': []
+  BMW: ['X1', 'X3', 'X5', 'X7', '1 Series', '2 Series', '3 Series', '4 Series', '5 Series', '6 Series', '7 Series', '8 Series', 'Z4', 'i3', 'i8'],
+  'Mercedes-Benz': ['A-Class', 'B-Class', 'C-Class', 'E-Class', 'S-Class', 'GLA', 'GLB', 'GLC', 'GLE', 'GLS', 'G-Class', 'CLA', 'CLS', 'AMG GT', 'EQC'],
+  Audi: ['A1', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'Q2', 'Q3', 'Q5', 'Q7', 'Q8', 'TT', 'R8', 'e-tron'],
+  Toyota: ['Yaris', 'Corolla', 'Camry', 'Prius', 'RAV4', 'Highlander', '4Runner', 'Sequoia', 'Tacoma', 'Tundra', 'Sienna', 'Avalon', 'C-HR', 'Venza'],
+  Honda: ['Civic', 'Accord', 'Insight', 'CR-V', 'Pilot', 'Passport', 'Ridgeline', 'HR-V', 'Fit', 'Odyssey', 'NSX', 'CR-Z'],
+  Nissan: ['Versa', 'Sentra', 'Altima', 'Maxima', 'Kicks', 'Rogue', 'Murano', 'Pathfinder', 'Armada', 'Frontier', 'Titan', '370Z', 'GT-R', 'Leaf'],
+  Hyundai: ['Accent', 'Elantra', 'Sonata', 'Veloster', 'Tucson', 'Santa Fe', 'Palisade', 'Kona', 'Nexo', 'Genesis', 'Ioniq'],
+  Kia: ['Rio', 'Forte', 'Optima', 'Stinger', 'Soul', 'Sportage', 'Sorento', 'Telluride', 'Niro', 'Cadenza', 'K900'],
+  Volkswagen: ['Jetta', 'Passat', 'Arteon', 'Golf', 'GTI', 'Beetle', 'Tiguan', 'Atlas', 'ID.4', 'Touareg'],
+  Ford: ['Fiesta', 'Focus', 'Fusion', 'Mustang', 'EcoSport', 'Escape', 'Edge', 'Explorer', 'Expedition', 'F-150', 'Ranger', 'Bronco'],
+  Chevrolet: ['Spark', 'Sonic', 'Cruze', 'Malibu', 'Impala', 'Camaro', 'Corvette', 'Trax', 'Equinox', 'Blazer', 'Traverse', 'Tahoe', 'Suburban', 'Silverado'],
+  Mazda: ['Mazda2', 'Mazda3', 'Mazda6', 'MX-5 Miata', 'CX-3', 'CX-30', 'CX-5', 'CX-9'],
+  Subaru: ['Impreza', 'Legacy', 'WRX', 'BRZ', 'Crosstrek', 'Forester', 'Outback', 'Ascent'],
+  Lexus: ['IS', 'ES', 'GS', 'LS', 'UX', 'NX', 'RX', 'GX', 'LX', 'LC', 'RC'],
+  Porsche: ['718', '911', 'Panamera', 'Macan', 'Cayenne', 'Taycan'],
+  LandRover: ['Defender', 'Discovery', 'Range Rover', 'Range Rover Sport', 'Range Rover Velar'],
 };
 
+const CAR_YEARS = Array.from({ length: 25 }, (_, i) => (2024 - i).toString());
+
 export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalProps) {
-  const [car, setCar] = useState<CarData>({
-    make: '',
-    model: '',
-    year: '',
-    plateNumber: '',
-    color: '',
-    fuelType: '',
-    transmission: '',
-    photo: undefined,
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showBrandDropdown, setShowBrandDropdown] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const [showSubmodelDropdown] = useState(false); // kept for parity (not rendered)
+
+  const [newCarData, setNewCarData] = useState<{
+    brand?: string;
+    model?: string;
+    submodel?: string;
+    year?: string;
+    licensePlate?: string;
+    image?: string;
+    mileage?: number;
+    vin?: string;
+    color?: string;
+  }>({
+    color: '#3B82F6',
   });
 
-  const [showMakeDropdown, setShowMakeDropdown] = useState(false);
-  const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [filteredModels, setFilteredModels] = useState<string[]>([]);
-
-  const slideY = useRef(new Animated.Value(height)).current;
-  const bgOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(bgOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, friction: 8, tension: 100 }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(bgOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-        Animated.timing(slideY, { toValue: height, duration: 300, useNativeDriver: true }),
-      ]).start(() => {
-        setCar({ make: '', model: '', year: '', plateNumber: '', color: '', fuelType: '', transmission: '', photo: undefined });
-      });
-    }
-  }, [visible]);
-
-  const handleChange = (key: keyof CarData, value: string) => {
-    setCar(prev => {
-      const newCar = { ...prev, [key]: value };
-      
-      // If make changed, reset model and update available models
-      if (key === 'make') {
-        newCar.model = '';
-        setFilteredModels(CAR_MODELS[value] || []);
-        setShowModelDropdown(false);
-      }
-      
-      return newCar;
-    });
-  };
-
-  const selectMake = (make: string) => {
-    handleChange('make', make);
-    setShowMakeDropdown(false);
-  };
-
-  const selectModel = (model: string) => {
-    handleChange('model', model);
-    setShowModelDropdown(false);
+  const getAvailableModels = () => {
+    const key = (newCarData.brand || '').trim();
+    return key ? (CAR_MODELS[key] || []) : [];
   };
 
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('შეცდომა', 'გამოყენების უფლება საჭიროა ფოტოების ასარჩევად');
-      return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      if (!result.canceled) {
+        const localUri = result.assets[0].uri;
+        setNewCarData({ ...newCarData, image: localUri });
+        setIsUploadingImage(true);
+        const uploadResult = await uploadCarImage(localUri);
+        if (uploadResult.success && uploadResult.url) {
+          setNewCarData({ ...newCarData, image: uploadResult.url });
+        }
+      }
+    } finally {
+      setIsUploadingImage(false);
     }
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
+  const selectBrand = (brand: string) => {
+    setNewCarData({ ...newCarData, brand, model: '', submodel: '' });
+    setShowBrandDropdown(false);
+  };
+
+  const selectModel = (model: string) => {
+    setNewCarData({ ...newCarData, model, submodel: '' });
+    setShowModelDropdown(false);
+  };
+
+  const selectYear = (year: string) => {
+    setNewCarData({ ...newCarData, year });
+    setShowYearDropdown(false);
+  };
+
+  const submit = async () => {
+    if (!newCarData.brand || !newCarData.model || !newCarData.year || !newCarData.licensePlate) return;
+    await onAddCar({
+      make: newCarData.brand,
+      model: newCarData.model,
+      year: parseInt(newCarData.year),
+      plateNumber: newCarData.licensePlate,
+      imageUri: newCarData.image,
     });
-
-    if (!result.canceled && result.assets[0]) {
-      handleChange('photo', result.assets[0].uri);
-    }
-  };
-
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('შეცდომა', 'კამერის გამოყენების უფლება საჭიროა');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      handleChange('photo', result.assets[0].uri);
-    }
-  };
-
-  const showImageOptions = () => {
-    Alert.alert(
-      'ფოტოს არჩევა',
-      'როგორ გინდათ ფოტოს ატვირთვა?',
-      [
-        { text: 'გაუქმება', style: 'cancel' },
-        { text: 'კამერა', onPress: takePhoto },
-        { text: 'გალერეა', onPress: pickImage },
-      ]
-    );
-  };
-
-  const removePhoto = () => {
-    handleChange('photo', '');
-  };
-
-  const isValid = () => {
-    return car.make && car.model && car.year && car.plateNumber;
-  };
-
-  const submit = () => {
-    if (!isValid()) return;
-    onAddCar(car);
     onClose();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <StatusBar backgroundColor="rgba(0,0,0,0.5)" barStyle="light-content" />
-      <Animated.View style={[styles.overlay, { opacity: bgOpacity }]} />
-
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="car-outline" size={24} color="#1F2937" />
-              </View>
-              <View style={styles.titleContainer}>
-                <Text style={styles.title}>ახალი მანქანა</Text>
-                <Text style={styles.subtitle}>შეიყვანეთ ინფორმაცია</Text>
-              </View>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView 
+        style={styles.modal}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>ახალი მანქანა</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color="#E5E7EB" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>ფოტო</Text>
+              <TouchableOpacity 
+                style={[styles.imagePickerButton, isUploadingImage && { opacity: 0.7 }]} 
+                onPress={pickImage}
+                disabled={isUploadingImage}
+              >
+                {newCarData.image ? (
+                  <View style={{ position: 'relative', width: '100%', height: '100%' }}>
+                    <Image source={{ uri: newCarData.image }} style={styles.selectedImage} />
+                    {isUploadingImage && (
+                      <View style={styles.uploadOverlay}>
+                        <ActivityIndicator size="large" color="#6366F1" />
+                        <Text style={styles.uploadText}>ავტვირთვა...</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <>
+                    {isUploadingImage ? (
+                      <>
+                        <ActivityIndicator size="large" color="#6366F1" />
+                        <Text style={{ color: '#6366F1', marginTop: 8, fontWeight: '600' }}>ავტვირთვა...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
+                        <Text style={{ color: '#9CA3AF', marginTop: 8 }}>ფოტოს დამატება</Text>
+                      </>
+                    )}
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Photo Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ფოტო</Text>
-            <TouchableOpacity style={styles.photoContainer} onPress={showImageOptions}>
-              {car.photo ? (
-                <View style={styles.photoPreview}>
-                  <Image source={{ uri: car.photo }} style={styles.photoImage} />
-                  <TouchableOpacity style={styles.removePhotoButton} onPress={removePhoto}>
-                    <Ionicons name="close-circle" size={24} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
-                  <Text style={styles.photoPlaceholderText}>ფოტოს დამატება</Text>
-                  <Text style={styles.photoPlaceholderSubtext}>შეეხეთ ასარჩევად</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Basic Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ძირითადი ინფორმაცია</Text>
             
-            <View style={styles.inputRow}>
-              <View style={styles.inputGroupHalf}>
-                <Text style={styles.inputLabel}>მარკა *</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>ბრენდი</Text>
+              <View style={styles.dropdownContainer}>
                 <TouchableOpacity 
                   style={styles.dropdownButton}
-                  onPress={() => setShowMakeDropdown(!showMakeDropdown)}
+                  onPress={() => setShowBrandDropdown(!showBrandDropdown)}
                 >
-                  <Text style={[styles.dropdownText, !car.make && styles.placeholderText]}>
-                    {car.make || 'აირჩიეთ მარკა'}
+                  <Text style={[styles.dropdownText, !newCarData.brand && styles.dropdownPlaceholder]}>
+                    {newCarData.brand || 'აირჩიეთ ბრენდი'}
                   </Text>
-                  <Ionicons 
-                    name={showMakeDropdown ? 'chevron-up' : 'chevron-down'} 
-                    size={20} 
-                    color="#6B7280" 
-                  />
+                  <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
                 </TouchableOpacity>
-                {showMakeDropdown && (
-                  <View style={styles.dropdown}>
-                    <FlatList
-                      data={CAR_MAKES}
-                      keyExtractor={(item) => item}
-                      style={styles.dropdownList}
-                      showsVerticalScrollIndicator={false}
-                      renderItem={({ item }) => (
+                
+                {showBrandDropdown && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
+                      {CAR_BRANDS.map((brand) => (
                         <TouchableOpacity
+                          key={brand}
                           style={styles.dropdownItem}
-                          onPress={() => selectMake(item)}
+                          onPress={() => selectBrand(brand)}
                         >
-                          <Text style={styles.dropdownItemText}>{item}</Text>
+                          <Text style={styles.dropdownItemText}>{brand}</Text>
                         </TouchableOpacity>
-                      )}
-                    />
+                      ))}
+                    </ScrollView>
                   </View>
                 )}
               </View>
-              <View style={styles.inputGroupHalf}>
-                <Text style={styles.inputLabel}>მოდელი *</Text>
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>მოდელი</Text>
+              <View style={styles.dropdownContainer}>
                 <TouchableOpacity 
-                  style={[styles.dropdownButton, !car.make && styles.dropdownButtonDisabled]}
-                  onPress={() => car.make && setShowModelDropdown(!showModelDropdown)}
-                  disabled={!car.make}
+                  style={[styles.dropdownButton, !newCarData.brand && styles.dropdownDisabled]}
+                  onPress={() => newCarData.brand && setShowModelDropdown(!showModelDropdown)}
+                  disabled={!newCarData.brand}
                 >
-                  <Text style={[styles.dropdownText, !car.model && styles.placeholderText]}>
-                    {car.model || (car.make ? 'აირჩიეთ მოდელი' : 'ჯერ აირჩიეთ მარკა')}
+                  <Text style={[styles.dropdownText, !newCarData.model && styles.dropdownPlaceholder]}>
+                    {newCarData.model || (newCarData.brand ? 'აირჩიეთ მოდელი' : 'ჯერ აირჩიეთ ბრენდი')}
                   </Text>
-                  <Ionicons 
-                    name={showModelDropdown ? 'chevron-up' : 'chevron-down'} 
-                    size={20} 
-                    color={car.make ? "#6B7280" : "#D1D5DB"} 
-                  />
+                  <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
                 </TouchableOpacity>
-                {showModelDropdown && car.make && (
-                  <View style={styles.dropdown}>
-                    <FlatList
-                      data={filteredModels}
-                      keyExtractor={(item) => item}
-                      style={styles.dropdownList}
-                      showsVerticalScrollIndicator={false}
-                      renderItem={({ item }) => (
+                
+                {showModelDropdown && newCarData.brand && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
+                      {getAvailableModels().map((model) => (
                         <TouchableOpacity
+                          key={model}
                           style={styles.dropdownItem}
-                          onPress={() => selectModel(item)}
+                          onPress={() => selectModel(model)}
                         >
-                          <Text style={styles.dropdownItemText}>{item}</Text>
+                          <Text style={styles.dropdownItemText}>{model}</Text>
                         </TouchableOpacity>
-                      )}
-                    />
+                      ))}
+                    </ScrollView>
                   </View>
                 )}
               </View>
             </View>
 
-            <View style={styles.inputRow}>
-              <View style={styles.inputGroupHalf}>
-                <Text style={styles.inputLabel}>წელი *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="2020"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                  maxLength={4}
-                  value={car.year}
-                  onChangeText={(text) => handleChange('year', text)}
-                />
-              </View>
-              <View style={styles.inputGroupHalf}>
-                <Text style={styles.inputLabel}>ნომერი *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="AB-123-CD"
-                  placeholderTextColor="#9CA3AF"
-                  value={car.plateNumber}
-                  onChangeText={(text) => handleChange('plateNumber', text)}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Fuel Type */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>საწვავის ტიპი</Text>
-            <View style={styles.optionsContainer}>
-              {FUEL_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
-                    styles.optionButton,
-                    car.fuelType === option.id && styles.optionButtonSelected
-                  ]}
-                  onPress={() => handleChange('fuelType', option.id)}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>წელი</Text>
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity 
+                  style={styles.dropdownButton}
+                  onPress={() => setShowYearDropdown(!showYearDropdown)}
                 >
-                  <Text style={styles.optionEmoji}>{option.icon}</Text>
-                  <Text style={[
-                    styles.optionButtonText,
-                    car.fuelType === option.id && styles.optionButtonTextSelected
-                  ]}>
-                    {option.id}
+                  <Text style={[styles.dropdownText, !newCarData.year && styles.dropdownPlaceholder]}>
+                    {newCarData.year || 'აირჩიეთ წელი'}
                   </Text>
+                  <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
                 </TouchableOpacity>
-              ))}
+                
+                {showYearDropdown && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
+                      {CAR_YEARS.map((year) => (
+                        <TouchableOpacity
+                          key={year}
+                          style={styles.dropdownItem}
+                          onPress={() => selectYear(year)}
+                        >
+                          <Text style={styles.dropdownItemText}>{year}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
-
-          {/* Transmission */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>პრიორიტეტი</Text>
-            <View style={styles.optionsContainer}>
-              {GEARBOX_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
-                    styles.optionButton,
-                    car.transmission === option.id && styles.optionButtonSelected
-                  ]}
-                  onPress={() => handleChange('transmission', option.id)}
-                >
-                  <Text style={styles.optionEmoji}>{option.icon}</Text>
-                  <Text style={[
-                    styles.optionButtonText,
-                    car.transmission === option.id && styles.optionButtonTextSelected
-                  ]}>
-                    {option.id}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>სახელმწიფო ნომერი</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="ABC-123"
+                placeholderTextColor="#6B7280"
+                value={newCarData.licensePlate}
+                onChangeText={(text) => setNewCarData({...newCarData, licensePlate: text})}
+              />
             </View>
-          </View>
-
-          {/* Color */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ფერი</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="მაგ: თეთრი, შავი, ლურჯი..."
-              placeholderTextColor="#9CA3AF"
-              value={car.color}
-              onChangeText={(text) => handleChange('color', text)}
-            />
-          </View>
-        </ScrollView>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonText}>გაუქმება</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.submitButton, !isValid() && styles.submitButtonDisabled]} 
-            onPress={submit}
-            disabled={!isValid()}
-          >
-            <Text style={[styles.submitButtonText, !isValid() && styles.submitButtonTextDisabled]}>
-              დამატება
-            </Text>
-          </TouchableOpacity>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>გარბენი (კმ)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="50000"
+                placeholderTextColor="#6B7280"
+                keyboardType="numeric"
+                value={newCarData.mileage?.toString()}
+                onChangeText={(text) => setNewCarData({...newCarData, mileage: parseInt(text) || 0})}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>VIN კოდი (არასავალდებულო)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="VIN კოდი"
+                placeholderTextColor="#6B7280"
+                value={newCarData.vin}
+                onChangeText={(text) => setNewCarData({...newCarData, vin: text})}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>ფერი</Text>
+              <View style={styles.colorPicker}>
+                {['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#1E40AF'].map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: color },
+                      newCarData.color === color && styles.selectedColor
+                    ]}
+                    onPress={() => setNewCarData({...newCarData, color})}
+                  />
+                ))}
+              </View>
+            </View>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelModalButton} onPress={onClose}>
+                <Text style={styles.cancelModalButtonText}>გაუქმება</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveModalButton} onPress={submit}>
+                <Text style={styles.saveModalButtonText}>დამატება</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
-      </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  modal: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'flex-end',
   },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.9,
-    backgroundColor: '#FFFFFF',
+  modalContent: {
+    backgroundColor: '#1A1A1A',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 20,
+    paddingTop: 8,
+    maxHeight: height * 0.9,
   },
-  header: {
-    paddingTop: 20,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  iconContainer: {
+  modalHandle: {
     width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    height: 4,
+    backgroundColor: '#4B5563',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
-  titleContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: '#1F2937',
-    fontFamily: 'Inter',
-    marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontFamily: 'Inter',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    fontFamily: 'Inter',
-    marginBottom: 12,
-  },
-  photoContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-  },
-  photoPreview: {
-    position: 'relative',
-    height: 160,
-  },
-  photoImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  removePhotoButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-    padding: 4,
-  },
-  photoPlaceholder: {
-    height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  photoPlaceholderText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    fontFamily: 'Inter',
-    marginTop: 8,
-  },
-  photoPlaceholderSubtext: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-  inputRow: {
+  modalHeader: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 24,
   },
-  inputGroupHalf: {
-    flex: 1,
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  inputGroup: {
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
-    fontFamily: 'Inter',
-    marginBottom: 6,
+    color: '#E5E7EB',
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: 'rgba(55, 65, 81, 0.4)',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    fontFamily: 'Inter',
-    color: '#111827',
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.2)',
+    color: '#FFFFFF',
+  },
+  colorPicker: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  colorOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  selectedColor: {
+    borderColor: '#6366F1',
+  },
+  imagePickerButton: {
+    backgroundColor: 'rgba(55, 65, 81, 0.3)',
+    borderRadius: 12,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(156, 163, 175, 0.3)',
+  },
+  selectedImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+  },
+  uploadOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  uploadText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownContainer: {
+    marginBottom: 16,
+    position: 'relative',
   },
   dropdownButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  dropdownButtonDisabled: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#D1D5DB',
+    backgroundColor: '#374151',
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 50,
   },
   dropdownText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    fontFamily: 'Inter',
-    color: '#111827',
+    fontWeight: '500',
     flex: 1,
   },
-  placeholderText: {
+  dropdownPlaceholder: {
     color: '#9CA3AF',
   },
-  dropdown: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    marginTop: 4,
-    maxHeight: 200,
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+  dropdownDisabled: {
+    opacity: 0.5,
   },
   dropdownList: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    backgroundColor: '#374151',
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    borderRadius: 12,
+    maxHeight: 200,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  dropdownScroll: {
     maxHeight: 200,
   },
   dropdownItem: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#4B5563',
   },
   dropdownItemText: {
-    fontSize: 16,
-    fontFamily: 'Inter',
-    color: '#374151',
-  },
-  optionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  optionButtonSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  optionEmoji: {
-    fontSize: 16,
-  },
-  optionButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-    fontFamily: 'Inter',
-  },
-  optionButtonTextSelected: {
-    color: '#6366F1',
-  },
-  footer: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  cancelButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6B7280',
-    fontFamily: 'Inter',
-  },
-  submitButton: {
-    flex: 2,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#E5E7EB',
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontSize: 16,
+    fontWeight: '500',
   },
-  submitButtonTextDisabled: {
-    color: '#9CA3AF',
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  cancelModalButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelModalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveModalButton: {
+    flex: 1,
+    backgroundColor: '#10B981',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveModalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
+

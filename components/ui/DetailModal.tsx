@@ -21,7 +21,7 @@ export type DetailItem = {
   description?: string;
   price?: string;
   image: string;
-  type: 'part' | 'store' | 'dismantler';
+  type: 'part' | 'store' | 'dismantler' | 'mechanic';
   // Part specific
   seller?: string;
   location?: string;
@@ -64,16 +64,16 @@ export default function DetailModal({
       case 'part':
         return {
           icon: 'cog' as const,
-          color: '#3B82F6',
-          backgroundColor: '#EFF6FF',
+          color: '#111827',
+          backgroundColor: '#F9FAFB',
           title: 'ნაწილის დეტალები',
           actionText: 'დაკავშირება',
         };
       case 'store':
         return {
           icon: 'storefront' as const,
-          color: '#3B82F6',
-          backgroundColor: '#EFF6FF',
+          color: '#111827',
+          backgroundColor: '#F9FAFB',
           title: 'მაღაზიის დეტალები',
           actionText: 'ვიზიტი',
         };
@@ -84,6 +84,14 @@ export default function DetailModal({
           backgroundColor: '#F9FAFB',
           title: 'დაშლილების დეტალები',
           actionText: 'მოძებნა',
+        };
+      case 'mechanic':
+        return {
+          icon: 'construct' as const,
+          color: '#111827',
+          backgroundColor: '#F9FAFB',
+          title: 'ხელოსნის დეტალები',
+          actionText: 'დაკავშირება',
         };
     }
   };
@@ -100,8 +108,8 @@ export default function DetailModal({
           </TouchableOpacity>
           
           <View style={styles.headerCenter}>
-            <View style={[styles.typeIconBadge, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name={config.icon} size={20} color="#3B82F6" />
+            <View style={[styles.typeIconBadge, { backgroundColor: '#F9FAFB' }]}>
+              <Ionicons name={config.icon} size={20} color="#111827" />
             </View>
             <Text style={styles.headerTitle}>{config.title}</Text>
           </View>
@@ -207,7 +215,7 @@ export default function DetailModal({
                 <View style={styles.servicesList}>
                   {item.services.map((service, index) => (
                     <View key={index} style={styles.serviceItem}>
-                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                      <Ionicons name="checkmark-circle" size={16} color="#111827" />
                       <Text style={styles.serviceText}>{service}</Text>
                     </View>
                   ))}
@@ -221,8 +229,8 @@ export default function DetailModal({
                 <Text style={styles.sectionTitle}>თავისებურებები</Text>
                 <View style={styles.featuresList}>
                   {item.features.map((feature, index) => (
-                    <View key={index} style={[styles.featureChip, { borderColor: '#3B82F6' }]}>
-                      <Text style={[styles.featureText, { color: '#3B82F6' }]}>{feature}</Text>
+                    <View key={index} style={[styles.featureChip, { borderColor: '#111827' }]}>
+                      <Text style={[styles.featureText, { color: '#111827' }]}>{feature}</Text>
                     </View>
                   ))}
                 </View>
@@ -267,7 +275,7 @@ export default function DetailModal({
         {/* Bottom Actions */}
         <View style={styles.bottomActions}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#3B82F6' }]}
+            style={[styles.actionButton, { backgroundColor: '#111827' }]}
             onPress={onContact}
           >
             <Ionicons name="call" size={20} color="#FFFFFF" />
@@ -292,17 +300,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: 'rgba(229, 231, 235, 0.5)',
+    backdropFilter: 'blur(10px)',
   },
   closeButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(249, 250, 251, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
   },
   headerCenter: {
     flexDirection: 'row',
@@ -315,6 +327,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(17, 24, 39, 0.2)',
+    backdropFilter: 'blur(10px)',
   },
   headerTitle: {
     fontSize: 16,
@@ -325,9 +340,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(249, 250, 251, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
   },
   favoriteButtonActive: {
     backgroundColor: '#FEF2F2',
@@ -369,12 +387,15 @@ const styles = StyleSheet.create({
 
   // Main Info
   mainInfo: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     marginTop: -20,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 24,
     paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
   },
   title: {
     fontSize: 18,
@@ -395,11 +416,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(249, 250, 251, 0.8)',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
   },
   priceLabel: {
     fontSize: 14,
@@ -473,7 +497,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+    backgroundColor: 'rgba(17, 24, 39, 0.05)',
   },
   featureText: {
     fontSize: 11,
@@ -485,9 +509,12 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   specsList: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(249, 250, 251, 0.8)',
     borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(10px)',
   },
   specRow: {
     flexDirection: 'row',
@@ -535,11 +562,12 @@ const styles = StyleSheet.create({
 
   // Bottom Actions
   bottomActions: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: 'rgba(229, 231, 235, 0.5)',
+    backdropFilter: 'blur(10px)',
   },
   actionButton: {
     flexDirection: 'row',

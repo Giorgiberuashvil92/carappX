@@ -97,7 +97,7 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
           <Ionicons name="people" size={20} color="#111827" />
           <Text style={styles.sectionTitle}>კომუნიტი</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/community')}>
+        <TouchableOpacity onPress={() => router.push('/all-community')}>
           <Text style={styles.sectionAction}>ყველა</Text>
         </TouchableOpacity>
       </View>
@@ -116,7 +116,14 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
           </View>
         ) : (
           posts.map((post) => (
-          <View key={post.id} style={styles.communityPost}>
+          <TouchableOpacity 
+            key={post.id} 
+            style={styles.communityPost}
+            onPress={() => router.push({
+              pathname: '/(tabs)/community',
+              params: { highlightPostId: post.id }
+            })}
+          >
             <View style={styles.postHeader}>
               <View style={styles.userInfo}>
                 <View style={styles.avatar}>
@@ -177,7 +184,7 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
                 <Text style={styles.actionText}>გაზიარება</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
           ))
         )}
       </ScrollView>

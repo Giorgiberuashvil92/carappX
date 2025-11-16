@@ -19,7 +19,8 @@ import { useUser } from '../../contexts/UserContext';
 import { useToast } from '../../contexts/ToastContext';
 import { communityApi, CommunityPost, CreatePostData } from '../../services/communityApi';
 import { communityRealtime } from '../../services/communityRealtime';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { photoService } from '../../services/photoService';
 
 // Helper function to format time
 const formatTime = (dateString: string): string => {
@@ -44,17 +45,42 @@ export default function CommunityScreen() {
   const { user } = useUser();
   const { success, error, info } = useToast();
   const router = useRouter();
+  const { highlightPostId } = useLocalSearchParams();
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newPostText, setNewPostText] = useState('');
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<Map<string, () => void>>(new Map());
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
+  const scrollViewRef = React.useRef<ScrollView>(null);
 
   // Load posts on component mount
   useEffect(() => {
     loadPosts();
   }, []);
+
+  useEffect(() => {
+    if (highlightPostId && posts.length > 0) {
+      setHighlightedPostId(highlightPostId as string);
+      
+      setTimeout(() => {
+        const postIndex = posts.findIndex(post => post.id === highlightPostId);
+        if (postIndex !== -1 && scrollViewRef.current) {
+          // Calculate approximate scroll position
+          const scrollY = 300 + (postIndex * 220);
+          scrollViewRef.current.scrollTo({ y: scrollY, animated: true });
+        }
+      }, 500);
+
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        setHighlightedPostId(null);
+      }, 3000);
+    }
+  }, [highlightPostId, posts]);
 
   // Reload posts when screen comes into focus (e.g., returning from comments)
   // Note: useFocusEffect is from @react-navigation/native, but we're using Expo Router
@@ -158,6 +184,40 @@ export default function CommunityScreen() {
     }
   };
 
+  const handleImagePicker = () => {
+    photoService.showPhotoPickerOptions(async (result) => {
+      if (result.success && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        
+        // ავტვირთავთ cloudinary-ზე
+        setIsUploadingImage(true);
+        try {
+          const uploadResult = await photoService.uploadPhoto(imageUri, 'community');
+          if (uploadResult.success && uploadResult.url) {
+            setSelectedImage(uploadResult.url);
+            success('✅ ფოტო ავტვირთულია', 'ფოტო წარმატებით ავტვირთულია');
+          } else {
+            error('შეცდომა', uploadResult.error || 'ფოტოს ატვირთვა ვერ მოხერხდა');
+            setSelectedImage(null);
+          }
+        } catch (err) {
+          console.error('Image upload error:', err);
+          error('შეცდომა', 'ფოტოს ატვირთვისას მოხდა შეცდომა');
+          setSelectedImage(null);
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else if (result.error) {
+        error('შეცდომა', result.error);
+      }
+    });
+  };
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
+  };
+
   const createPost = async () => {
     if (!user?.id || !newPostText.trim()) {
       error('შეცდომა', 'პოსტის ტექსტი აუცილებელია');
@@ -171,11 +231,13 @@ export default function CommunityScreen() {
         userName: user.name || 'უცნობი მომხმარებელი',
         userInitial: user.name ? user.name.charAt(0).toUpperCase() : '?',
         postText: newPostText.trim(),
+        postImage: selectedImage || undefined,
       };
 
       const newPost = await communityApi.createPost(postData);
       setPosts(prevPosts => [newPost, ...prevPosts]);
       setNewPostText('');
+      setSelectedImage(null);
       success('წარმატება!', 'პოსტი გამოქვეყნდა');
     } catch (err) {
       console.error('Error creating post:', err);
@@ -224,8 +286,11 @@ export default function CommunityScreen() {
     );
   };
 
-  const renderPost = (post: CommunityPost) => (
-    <View key={post.id} style={styles.post}>
+  const renderPost = (post: CommunityPost) => {
+    const isHighlighted = highlightedPostId === post.id;
+    
+    return (
+    <View style={[styles.post, isHighlighted && styles.highlightedPost]}>
       <View style={styles.postHeader}>
         <View style={styles.userInfo}>
           <View style={styles.avatar}>
@@ -287,7 +352,8 @@ export default function CommunityScreen() {
         </TouchableOpacity>
       </View>
     </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -312,6 +378,7 @@ export default function CommunityScreen() {
       </LinearGradient>
 
       <ScrollView 
+        ref={scrollViewRef}
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -339,8 +406,32 @@ export default function CommunityScreen() {
               multiline
             />
           </View>
+          
+          {/* Selected Image Preview */}
+          {selectedImage && (
+            <View style={styles.selectedImageContainer}>
+              <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+              <TouchableOpacity 
+                style={styles.removeImageButton}
+                onPress={removeSelectedImage}
+              >
+                <Ionicons name="close-circle" size={24} color="#EF4444" />
+              </TouchableOpacity>
+              {isUploadingImage && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.uploadingText}>ავტვირთვა...</Text>
+                </View>
+              )}
+            </View>
+          )}
+          
           <View style={styles.createPostActions}>
-            <TouchableOpacity style={styles.createPostAction}>
+            <TouchableOpacity 
+              style={styles.createPostAction}
+              onPress={handleImagePicker}
+              disabled={isUploadingImage}
+            >
               <Ionicons name="image-outline" size={20} color="#6B7280" />
               <Text style={styles.createPostActionText}>ფოტო</Text>
             </TouchableOpacity>
@@ -349,8 +440,8 @@ export default function CommunityScreen() {
               <Text style={styles.createPostActionText}>ლოკაცია</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.createPostButton, styles.publishButton, (!newPostText.trim() || isCreatingPost) && styles.disabledButton]}
-              disabled={!newPostText.trim() || isCreatingPost}
+              style={[styles.createPostButton, styles.publishButton, (!newPostText.trim() || isCreatingPost || isUploadingImage) && styles.disabledButton]}
+              disabled={!newPostText.trim() || isCreatingPost || isUploadingImage}
               onPress={createPost}
             >
               {isCreatingPost ? (
@@ -376,7 +467,11 @@ export default function CommunityScreen() {
               <Text style={styles.emptySubtitle}>იყავი პირველი, ვინც გამოაქვეყნებს პოსტს!</Text>
             </View>
           ) : (
-            posts.map(renderPost)
+            posts.map((post) => (
+              <View key={post.id}>
+                {renderPost(post)}
+              </View>
+            ))
           )}
         </View>
 
@@ -624,5 +719,50 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  selectedImageContainer: {
+    position: 'relative',
+    marginVertical: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  selectedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 2,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  uploadingText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  highlightedPost: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });

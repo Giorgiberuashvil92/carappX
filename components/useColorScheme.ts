@@ -6,8 +6,10 @@ import { ColorSchemeName, useColorScheme as _useColorScheme } from 'react-native
 let globalSetColorScheme: React.Dispatch<React.SetStateAction<NonNullable<ColorSchemeName>>> | null = null;
 
 export function useColorScheme(): NonNullable<ColorSchemeName> {
-  const systemColorScheme = _useColorScheme() as NonNullable<ColorSchemeName>;
-  const [colorScheme, setColorScheme] = useState<NonNullable<ColorSchemeName>>(systemColorScheme);
+  const systemColorScheme = _useColorScheme();
+  const [colorScheme, setColorScheme] = useState<NonNullable<ColorSchemeName>>(
+    systemColorScheme || 'light' // fallback to 'light' if null
+  );
   
   // შევინახოთ setColorScheme გლობალურად
   globalSetColorScheme = setColorScheme;

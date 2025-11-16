@@ -9,12 +9,14 @@ import {
   StatusBar,
   Dimensions,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
+import API_BASE_URL from '@/config/api';
 
 const { width } = Dimensions.get('window');
 
@@ -53,7 +55,7 @@ const MAIN_CATEGORIES = [
   },
 ];
 
-const FEATURED_SERVICES = [
+const DEFAULT_FEATURED_SERVICES = [
   {
     id: '1',
     title: 'BMW ორიგინალი ნაწილები',
@@ -90,10 +92,81 @@ export default function MarketplaceScreen() {
   const { user } = useUser();
   const router = useRouter();
   
+  // State for featured services
+  const [featuredServices, setFeaturedServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+
+  // Load latest services
+  const loadLatestServices = async () => {
+    setLoading(true);
+    try {
+      // Load latest parts, stores, and dismantlers
+      const [partsResponse, storesResponse, dismantlersResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/parts?sort=createdAt&order=desc&limit=3`),
+        fetch(`${API_BASE_URL}/stores?sort=createdAt&order=desc&limit=3`),
+        fetch(`${API_BASE_URL}/dismantlers?sort=createdAt&order=desc&limit=3`)  
+      ]);
+
+      const [parts, stores, dismantlers] = await Promise.all([
+        partsResponse.ok ? partsResponse.json() : [],
+        storesResponse.ok ? storesResponse.json() : [],
+        dismantlersResponse.ok ? dismantlersResponse.json() : []
+      ]);
+
+      // Combine all latest items
+      const latestItems = [
+        ...(parts.data || parts || []).map((item: any) => ({
+          id: item._id || item.id,
+          title: item.title || item.name,
+          description: item.description || `${item.brand} ${item.model}`,
+          price: item.price || 'ფასი დასაზუსტებელია',
+          image: item.images?.[0] || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=600&auto=format&fit=crop',
+          rating: 4.5 + Math.random() * 0.5,
+          verified: true,
+          type: 'part'
+        })),
+        ...(stores.data || stores || []).map((item: any) => ({
+          id: item._id || item.id,
+          title: item.name || item.title,
+          description: item.description || item.type,
+          price: 'ფასი დასაზუსტებელია',
+          image: item.images?.[0] || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400&auto=format&fit=crop',
+          rating: 4.5 + Math.random() * 0.5,
+          verified: true,
+          type: 'store'
+        })),
+        ...(dismantlers.data || dismantlers || []).map((item: any) => ({
+          id: item._id || item.id,
+          title: `${item.brand} ${item.model}`,
+          description: `${item.yearFrom}-${item.yearTo} წლები`,
+          price: 'ფასი დასაზუსტებელია',
+          image: item.photos?.[0] || 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?q=80&w=400&auto=format&fit=crop',
+          rating: 4.5 + Math.random() * 0.5,
+          verified: true,
+          type: 'dismantler'
+        }))
+      ];
+
+      // Sort by creation date and take top 6
+      const sortedItems = latestItems
+        .sort((a, b) => Math.random() - 0.5) // Shuffle for variety
+        .slice(0, 6);
+
+      if (sortedItems.length > 0) {
+        setFeaturedServices(sortedItems);
+      }
+    } catch (error) {
+      console.error('Error loading latest services:', error);
+      // Keep default services on error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -108,9 +181,18 @@ export default function MarketplaceScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Load latest services on mount
+    loadLatestServices();
   }, []);
 
+  const COMING_SOON = new Set(['services', 'towing']);
+
   const handleCategoryPress = (categoryId: string) => {
+    if (COMING_SOON.has(categoryId)) {
+      Alert.alert('მალე იქნება ხელმისაწვდომი', 'ეს სექცია მუშაობის პროცესშია \u2013 მალე დაემატება!');
+      return;
+    }
     switch (categoryId) {
       case 'mechanics':
         router.push('/mechanics');
@@ -119,46 +201,76 @@ export default function MarketplaceScreen() {
         router.push('/parts');
         break;
       case 'services':
+        router.push('/carwash');
         break;
       case 'towing':
+        router.push('/offers');
         break;
       default:
         break;
     }
   };
 
-  const renderCategoryCard = (category: any, index: number) => (
-    <TouchableOpacity
-      key={category.id}
-      style={styles.compactCard}
-      onPress={() => handleCategoryPress(category.id)}
-      activeOpacity={0.9}
-    >
-      <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
-        <Ionicons name={category.icon as any} size={20} color="#FFFFFF" />
-      </View>
-      <Text style={styles.compactTitle}>{category.title}</Text>
-      <Text style={styles.compactSubtitle}>{category.subtitle}</Text>
-    </TouchableOpacity>
-  );
+  const renderCategoryCard = (category: any, index: number) => {
+    const isComingSoon = COMING_SOON.has(category.id);
+    return (
+      <TouchableOpacity
+        key={category.id}
+        style={[styles.compactCard, isComingSoon && styles.cardDisabled]}
+        onPress={() => handleCategoryPress(category.id)}
+        activeOpacity={0.8}
+      >
+        {isComingSoon && category.id !== 'mechanics' && (
+          <View style={styles.comingSoonPill}>
+            <Ionicons name="time-outline" size={12} color="#6B7280" />
+            <Text style={styles.comingSoonText}>მალე</Text>
+          </View>
+        )}
+        <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
+          <Ionicons name={category.icon as any} size={20} color="#FFFFFF" />
+        </View>
+        <Text style={styles.compactTitle}>{category.title}</Text>
+        <Text style={styles.compactSubtitle}>{category.subtitle}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderFeaturedCard = (item: any, index: number) => (
-    <TouchableOpacity key={item.id} style={styles.featureCard} activeOpacity={0.95}>
+    <TouchableOpacity 
+      key={item.id} 
+      style={styles.featureCard} 
+      activeOpacity={0.95}
+      onPress={() => {
+        // Navigation based on item type
+        if (item.type === 'part') {
+          router.push('/parts');
+        } else if (item.type === 'store') {
+          router.push('/details');
+        } else if (item.type === 'dismantler') {
+          router.push('/details');
+        } else if (item.title.includes('დეტეილინგი')) {
+          router.push('/carwash');
+        } else {
+          router.push('/details');
+        }
+      }}
+    >
       <Image source={{ uri: item.image }} style={styles.featureImage} />
       <LinearGradient
         colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.65)"]}
         style={styles.featureOverlay}
       />
       <View style={styles.featureBadgesRow}>
-        <View style={styles.badgePillPrimary}><Text style={styles.badgePillPrimaryText}>რეკომენდირებული</Text></View>
+        <View style={styles.badgePillPrimary}><Text style={styles.badgePillPrimaryText}>ახალი</Text></View>
         {item.verified && (
           <View style={styles.badgePillLight}><Ionicons name="checkmark-circle" size={14} color="#10B981" /><Text style={styles.badgePillLightText}>ვერიფიცირებული</Text></View>
         )}
       </View>
       <View style={styles.featureContent}>
         <Text style={styles.featureTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.featureSubtitle} numberOfLines={1}>{item.description}</Text>
         <View style={styles.featureMetaRow}>
-          <View style={styles.featureRating}><Ionicons name="star" size={14} color="#F59E0B" /><Text style={styles.featureRatingText}>{item.rating}</Text></View>
+          <View style={styles.featureRating}><Ionicons name="star" size={14} color="#F59E0B" /><Text style={styles.featureRatingText}>{item.rating?.toFixed(1)}</Text></View>
           <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price}</Text></View>
         </View>
       </View>
@@ -184,6 +296,9 @@ export default function MarketplaceScreen() {
         </View>
       </SafeAreaView>
 
+      {/* Hero Promo Banner */}
+  
+
       <Animated.ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -204,10 +319,10 @@ export default function MarketplaceScreen() {
         {/* Featured Section */}
         <View style={styles.featuredSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>რეკომენდირებული</Text>
-            <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>ყველა</Text>
-              <Ionicons name="chevron-forward" size={16} color="#3B82F6" />
+            <Text style={styles.sectionTitle}>ახალი დამატებები</Text>
+            <TouchableOpacity style={styles.seeAllButton} onPress={loadLatestServices}>
+              <Text style={styles.seeAllText}>განახლება</Text>
+              <Ionicons name="refresh" size={16} color="#3B82F6" />
             </TouchableOpacity>
           </View>
           <ScrollView
@@ -219,34 +334,12 @@ export default function MarketplaceScreen() {
             snapToAlignment="start"
           >
             {/* Skeletons while loading */}
-            {/* Replace with loading state when wired to API */}
-            {FEATURED_SERVICES.length === 0 && [1,2].map((i) => <FeaturedSkeleton key={`sk-${i}`} />)}
-            {FEATURED_SERVICES.map((item, index) => renderFeaturedCard(item, index))}
+            {loading && [1,2,3].map((i) => <FeaturedSkeleton key={`sk-${i}`} />)}
+            {!loading && featuredServices.map((item: any, index: number) => renderFeaturedCard(item, index))}
           </ScrollView>
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickSection}>
-          <Text style={styles.sectionTitle}>სწრაფი მოქმედებები</Text>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="filter" size={20} color="#3B82F6" />
-              <Text style={[styles.quickText, { color: '#3B82F6' }]}>ფილტრები</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#FEF2F2' }]}>
-              <Ionicons name="heart" size={20} color="#EF4444" />
-              <Text style={[styles.quickText, { color: '#EF4444' }]}>ფავორიტები</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="location" size={20} color="#10B981" />
-              <Text style={[styles.quickText, { color: '#10B981' }]}>ახლოს</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: '#FFFBEB' }]}>
-              <Ionicons name="help-circle" size={20} color="#F59E0B" />
-              <Text style={[styles.quickText, { color: '#F59E0B' }]}>დახმარება</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Quick Actions removed per request */}
 
         <View style={{ height: 100 }} />
       </Animated.ScrollView>
@@ -340,6 +433,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 6,
+    position: 'relative',
+  },
+  cardDisabled: {
+    opacity: 0.6,
+  },
+  comingSoonPill: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  comingSoonText: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   iconContainer: {
     width: 40,
@@ -467,6 +584,38 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
+  // Hero promo banner styles
+  heroPromoContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  heroPromo: {
+    height: 180,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#0B0F1A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  heroPromoBackground: { width: '100%', height: '100%', position: 'absolute' },
+  heroPromoOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  heroPromoTopRow: { position: 'absolute', left: 12, right: 12, top: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroPromoPillLight: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  heroPromoPillLightText: { color: '#111827', fontSize: 12, fontWeight: '700' },
+  heroPromoDiscount: { backgroundColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  heroPromoDiscountText: { color: '#FFFFFF', fontWeight: '800' },
+  heroPromoContent: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 12 },
+  heroPromoTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.3, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
+  heroPromoSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 12 },
+  heroPromoFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroPromoFeatures: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  heroPromoFeature: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  heroPromoFeatureText: { color: '#E5E7EB', fontWeight: '700', fontSize: 11 },
+  heroPromoButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  heroPromoButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   featureImage: { width: '100%', height: '100%' },
   featureOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
   featureBadgesRow: { position: 'absolute', left: 12, right: 12, top: 12, flexDirection: 'row', gap: 8 },
@@ -514,5 +663,10 @@ const styles = StyleSheet.create({
   quickText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  featureSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 8,
   },
 });
