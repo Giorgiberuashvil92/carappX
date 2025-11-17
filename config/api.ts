@@ -16,18 +16,23 @@ const getLanIpFromHost = (): string | undefined => {
 };
 
 const getApiUrl = () => {
+  const override = process.env.EXPO_PUBLIC_API_URL;
+  if (override) {
+    return override;
+  }
+
   if (__DEV__) {
     const ip = getLanIpFromHost();
     console.log('🌐 IP:', ip);
-    // backend-v2 default port
     if (ip) {
       console.log('🌐 Using IP:', ip);
-      return `http://${ip}:4000`;
+      return `https://marte-backend-production.up.railway.app`;
     }
-    console.log('🌐 Using localhost');
-    return 'http://localhost:4000';
+    console.log('🌐 Using localhost fallback');
+    return 'https://marte-backend-production.up.railway.app';
   }
-  return 'https://carappx.onrender.com';
+
+  return 'https://marte-backend-production.up.railway.app';
 };
 
 const API_BASE_URL = getApiUrl();

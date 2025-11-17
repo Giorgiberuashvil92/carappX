@@ -15,6 +15,7 @@ import {
   Keyboard,
   BackHandler,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -42,6 +43,8 @@ export default function LoginScreen() {
   const [role, setRole] = useState<'user' | 'partner' | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showOtpDisabledModal, setShowOtpDisabledModal] = useState(false);
+  const [manualOtpCode, setManualOtpCode] = useState<string | null>(null);
   // Firebase removed - using backend OTP only
   
   const colorScheme = useColorScheme();
@@ -76,19 +79,15 @@ export default function LoginScreen() {
   const { success, error, warning, info } = useToast();
   const { subscription, updateSubscription } = useSubscription();
 
-  // Show subscription modal after successful login
   const showSubscriptionModalAfterLogin = () => {
-    // Show modal after a short delay to allow navigation to complete
     setTimeout(() => {
       setShowSubscriptionModal(true);
     }, 1000);
   };
 
   const formatPhoneNumber = (text: string) => {
-    // მხოლოდ ციფრების დატოვება
     const cleaned = text.replace(/\D/g, '');
     
-    // ფორმატირება: XXX-XX-XX-XX
     let formatted = cleaned;
     if (cleaned.length >= 3) {
       formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3);
@@ -224,8 +223,12 @@ export default function LoginScreen() {
       setPendingIntent(data?.intent || null);
       setShowOTP(true);
       success('SMS გაიგზავნა!', `კოდი გაიგზავნა ნომერზე ${phone}`);
-      if (__DEV__ && data?.mockCode) {
-        info('DEV', `კოდი: ${data.mockCode}`);
+      const otpCode = data?.code ?? data?.mockCode ?? data?.otp;
+      if (otpCode) {
+        setManualOtpCode(String(otpCode));
+        setShowOtpDisabledModal(true);
+      } else {
+        setManualOtpCode(null);
       }
     } catch (err: any) {
       error('შეცდომა', err?.message || 'SMS-ის გაგზავნა ვერ მოხერხდა');
@@ -588,6 +591,73 @@ export default function LoginScreen() {
       alignItems: 'center',
       marginTop: 14,
     },
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+    },
+    disabledCard: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      padding: 24,
+      alignItems: 'center',
+      gap: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.2,
+      shadowRadius: 30,
+      elevation: 24,
+    },
+    disabledTitle: {
+      fontSize: 18,
+      fontFamily: 'Inter',
+      fontWeight: '700',
+      color: '#111827',
+      textAlign: 'center',
+    },
+    disabledText: {
+      fontSize: 15,
+      fontFamily: 'Inter',
+      color: '#4B5563',
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    disabledButton: {
+      marginTop: 4,
+      width: '100%',
+      backgroundColor: '#111827',
+      paddingVertical: 14,
+      borderRadius: 16,
+      alignItems: 'center',
+    },
+    disabledButtonText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+    },
+    codeBox: {
+      marginTop: 8,
+      marginBottom: 4,
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      backgroundColor: '#F3F4F6',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    codeText: {
+      fontSize: 28,
+      fontFamily: 'Inter',
+      fontWeight: '700',
+      letterSpacing: 10,
+      textAlign: 'center',
+      color: '#111827',
+    },
   });
 
   return (
@@ -801,7 +871,39 @@ export default function LoginScreen() {
       </KeyboardAvoidingView>
 
       {/* Subscription Modal */}
-      
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+      />
+
+      {/* Manual OTP Modal */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showOtpDisabledModal}
+        onRequestClose={() => setShowOtpDisabledModal(false)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.disabledCard}>
+            <Ionicons name="alert-circle" size={48} color="#F97316" />
+            <Text style={styles.disabledTitle}>ავტორიზაციის კოდი</Text>
+            {manualOtpCode && (
+              <View style={styles.codeBox}>
+                <Text style={styles.codeText}>{manualOtpCode}</Text>
+              </View>
+            )}
+            <Text style={styles.disabledText}>
+              SMS უკვე გაგზავნილია, მაგრამ ტესტ რეჟიმში კოდი აქაც ჩანს. გადააკოპირე და შეიყვანე OTP ველში.
+            </Text>
+            <TouchableOpacity
+              style={styles.disabledButton}
+              onPress={() => setShowOtpDisabledModal(false)}
+            >
+              <Text style={styles.disabledButtonText}>კოდის შეყვანა</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ImageBackground>
   );
 }

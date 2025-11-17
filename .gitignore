@@ -2,7 +2,7 @@
 
 # dependencies
 node_modules/
-
+!android/app/google-services.json
 # Expo
 .expo/
 dist/
@@ -38,6 +38,7 @@ yarn-error.*
 !tsconfig.json
 !app.json
 !eas.json
+!data/**/*.json
 
 # typescript
 *.tsbuildinfo

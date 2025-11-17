@@ -107,9 +107,15 @@ export class AuthService {
         ownedCarwashes: [],
       });
       await user.save();
+      intent = 'register';
+    } else {
+      intent = 'login';
     }
 
-    return { user, intent: 'login' };
+    otp.isUsed = true;
+    await otp.save();
+
+    return { user, intent };
   }
 
   async complete(
