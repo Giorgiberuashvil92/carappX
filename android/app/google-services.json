@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "882393624281",
+    "project_id": "marte-3c965",
+    "storage_bucket": "marte-3c965.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:882393624281:android:c7a171ac9e371d5b29d8c8",
+        "android_client_info": {
+          "package_name": "com.gio.marte"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeBg-WIA4d_j9moZX_l7_2SBU0OHpzdqc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
