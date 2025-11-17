@@ -3,7 +3,9 @@
 # dependencies
 node_modules/
 !android/
+!android/app/
 !android/app/google-services.json
+!android/local.properties
 # Expo
 .expo/
 dist/
