@@ -1,4 +1,4 @@
-package com.gioberuashvili15.carappx
+package com.marte.marte
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
