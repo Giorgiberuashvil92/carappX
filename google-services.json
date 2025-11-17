@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "491939504700",
+    "project_id": "carapp-65738",
+    "storage_bucket": "carapp-65738.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:491939504700:android:d679a1a48ec2381ac71939",
+        "android_client_info": {
+          "package_name": "com.marte.marte"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1nw-adSxxw-TxRXm-HOsD5t_LuvLsCSQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

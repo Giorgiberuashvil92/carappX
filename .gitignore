@@ -6,6 +6,7 @@ node_modules/
 !android/app/
 !android/app/google-services.json
 !android/local.properties
+
 # Expo
 .expo/
 dist/
@@ -42,6 +43,8 @@ yarn-error.*
 !app.json
 !eas.json
 !data/**/*.json
+!google-services.json
+!GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
