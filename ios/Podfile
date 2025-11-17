@@ -13,11 +13,30 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
+# Force modular headers for Firebase and Google pods
+$RNFirebaseAsStaticFramework = true
+$static_framework = ['Firebase', 'FirebaseCore', 'FirebaseCoreDiagnostics', 'FirebaseCoreInternal',
+                     'GoogleUtilities', 'GoogleDataTransport', 'nanopb', 'BoringSSL-GRPC',
+                     'FirebaseCoreExtension', 'FirebaseInstallations', 'FirebaseMessaging',
+                     'GoogleAppMeasurement', 'PromisesObjC']
+
+# Configure Firebase pods to use static frameworks with modular headers
+pre_install do |installer|
+  Pod::Installer::Xcode::TargetValidator.send(:define_method, :verify_no_static_framework_transitive_dependencies) {}
+  installer.pod_targets.each do |pod|
+    if $static_framework.include?(pod.name)
+      def pod.static_framework?
+        true
+      end
+      def pod.build_type
+        Pod::BuildType.static_library
+      end
+    end
+  end
+end
+
 target 'Marte' do
   use_expo_modules!
-  
-  # Force modular headers for Firebase and Google pods
-  $RNFirebaseAsStaticFramework = true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
