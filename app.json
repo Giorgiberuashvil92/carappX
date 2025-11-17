@@ -84,8 +84,9 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "dynamic",
-            "deploymentTarget": "15.1"
+            "useFrameworks": "static",
+            "deploymentTarget": "15.1",
+            "flipper": false
           },
           "android": {
             "compileSdkVersion": 35,

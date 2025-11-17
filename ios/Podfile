@@ -15,6 +15,9 @@ prepare_react_native_project!
 
 target 'Marte' do
   use_expo_modules!
+  
+  # Force modular headers for Firebase and Google pods
+  $RNFirebaseAsStaticFramework = true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -66,12 +69,18 @@ target 'Marte' do
     
     # Fix for Firebase pods requiring modular headers
     installer.pods_project.targets.each do |target|
-      if target.name.include?('Firebase') || target.name.include?('Google')
+      if target.name.include?('Firebase') || target.name.include?('Google') || target.name.include?('BoringSSL')
         target.build_configurations.each do |config|
           config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
           config.build_settings['DEFINES_MODULE'] = 'YES'
+          config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(inherited) $(PODS_CONFIGURATION_BUILD_DIR)'
         end
       end
+    end
+    
+    # Ensure all pods have proper module map configuration
+    installer.pods_project.build_configurations.each do |config|
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
   end
 end
