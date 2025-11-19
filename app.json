@@ -95,7 +95,7 @@
           }
         }
       ],
-      
+      "./app.plugin.js",
       "expo-asset",
       "expo-web-browser"
     ],
