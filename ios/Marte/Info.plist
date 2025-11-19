@@ -42,6 +42,18 @@
     <string>1</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
+    <key>CFBundleIcons</key>
+    <dict>
+      <key>CFBundlePrimaryIcon</key>
+      <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+          <string>Icon@2x</string>
+        </array>
+        <key>CFBundleIconName</key>
+        <string>AppIcon</string>
+      </dict>
+    </dict>
     <key>GMSApiKey</key>
     <string>AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4</string>
     <key>LSMinimumSystemVersion</key>
