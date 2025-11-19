@@ -42,35 +42,6 @@
     <string>1</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
-    <key>CFBundleIcons</key>
-    <dict>
-      <key>CFBundlePrimaryIcon</key>
-      <dict>
-        <key>CFBundleIconFiles</key>
-        <array>
-          <string>Icon</string>
-          <string>Icon@2x</string>
-          <string>Icon@3x</string>
-          <string>Icon-60@2x</string>
-          <string>Icon-60@3x</string>
-        </array>
-        <key>CFBundleIconName</key>
-        <string>AppIcon</string>
-      </dict>
-    </dict>
-    <key>CFBundleIcons~ipad</key>
-    <dict>
-      <key>CFBundlePrimaryIcon</key>
-      <dict>
-        <key>CFBundleIconFiles</key>
-        <array>
-          <string>Icon-76@2x</string>
-          <string>Icon-83.5@2x</string>
-        </array>
-        <key>CFBundleIconName</key>
-        <string>AppIcon</string>
-      </dict>
-    </dict>
     <key>GMSApiKey</key>
     <string>AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4</string>
     <key>LSMinimumSystemVersion</key>
