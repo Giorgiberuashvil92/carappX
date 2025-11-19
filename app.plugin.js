@@ -37,7 +37,7 @@ const withLegacyIcons = (config) => {
       plist.CFBundleIcons.CFBundlePrimaryIcon.UIPrerenderedIcon = false;
     }
     
-    // Ensure CFBundleIcons~ipad exists
+    // Ensure CFBundleIcons~ipad exists (Apple Developer Forums approach)
     if (!plist['CFBundleIcons~ipad']) {
       plist['CFBundleIcons~ipad'] = {};
     }
@@ -48,13 +48,14 @@ const withLegacyIcons = (config) => {
       plist['CFBundleIcons~ipad'].CFBundlePrimaryIcon.CFBundleIconFiles = [];
     }
     
-    // Add iPad icon files if not present
+    // Add iPad icon files if not present (use base name "Icon" for ~ipad variants)
     const ipadIconFiles = plist['CFBundleIcons~ipad'].CFBundlePrimaryIcon.CFBundleIconFiles;
-    if (!ipadIconFiles.includes('Icon-76@2x')) {
-      ipadIconFiles.push('Icon-76@2x');
+    if (!ipadIconFiles.includes('Icon')) {
+      ipadIconFiles.push('Icon');
     }
-    if (!ipadIconFiles.includes('Icon-83.5@2x')) {
-      ipadIconFiles.push('Icon-83.5@2x');
+    // Also ensure UIPrerenderedIcon is set for iPad
+    if (plist['CFBundleIcons~ipad'].CFBundlePrimaryIcon.UIPrerenderedIcon === undefined) {
+      plist['CFBundleIcons~ipad'].CFBundlePrimaryIcon.UIPrerenderedIcon = false;
     }
     
     return config;
@@ -64,15 +65,15 @@ const withLegacyIcons = (config) => {
   config = withXcodeProject(config, (config) => {
     const project = config.modResults;
     
-    // Icon files to add (both legacy and modern naming)
+    // Icon files to add (Apple Developer Forums 2022 approach)
+    // iPhone: Icon@2x.png (120x120), Icon@3x.png (180x180)
+    // iPad: Icon@2x~ipad.png (152x152), Icon@3x~ipad.png (167x167)
     const icons = [
       'Icon.png',
       'Icon@2x.png',
       'Icon@3x.png',
-      'Icon-60@2x.png',
-      'Icon-60@3x.png',
-      'Icon-76@2x.png',
-      'Icon-83.5@2x.png',
+      'Icon@2x~ipad.png',
+      'Icon@3x~ipad.png',
     ];
 
     // Find the main group
