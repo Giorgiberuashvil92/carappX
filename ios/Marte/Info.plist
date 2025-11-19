@@ -40,32 +40,6 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
-    <key>CFBundleIconName</key>
-    <string>AppIcon</string>
-    <key>CFBundleIcons</key>
-    <dict>
-      <key>CFBundlePrimaryIcon</key>
-      <dict>
-        <key>CFBundleIconFiles</key>
-        <array>
-          <string>Icon</string>
-        </array>
-        <key>UIPrerenderedIcon</key>
-        <false/>
-      </dict>
-    </dict>
-    <key>CFBundleIcons~ipad</key>
-    <dict>
-      <key>CFBundlePrimaryIcon</key>
-      <dict>
-        <key>CFBundleIconFiles</key>
-        <array>
-          <string>Icon</string>
-        </array>
-        <key>UIPrerenderedIcon</key>
-        <false/>
-      </dict>
-    </dict>
     <key>GMSApiKey</key>
     <string>AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4</string>
     <key>LSMinimumSystemVersion</key>
@@ -113,13 +87,6 @@
     <array>
       <string>UIInterfaceOrientationPortrait</string>
       <string>UIInterfaceOrientationPortraitUpsideDown</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-      <string>UIInterfaceOrientationPortrait</string>
-      <string>UIInterfaceOrientationPortraitUpsideDown</string>
-      <string>UIInterfaceOrientationLandscapeLeft</string>
-      <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
     <string>Automatic</string>

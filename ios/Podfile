@@ -11,9 +11,7 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 install! 'cocoapods',
   :deterministic_uuids => false
 
-prepare_react_native_project!
-
-# Force modular headers for Firebase and Google pods
+prepare_react_native_project!# Force modular headers for Firebase and Google pods
 $RNFirebaseAsStaticFramework = true
 $static_framework = ['Firebase', 'FirebaseCore', 'FirebaseCoreDiagnostics', 'FirebaseCoreInternal',
                      'GoogleUtilities', 'GoogleDataTransport', 'nanopb', 'BoringSSL-GRPC',
@@ -34,7 +32,6 @@ pre_install do |installer|
     end
   end
 end
-
 target 'Marte' do
   use_expo_modules!
 
@@ -54,14 +51,6 @@ target 'Marte' do
 # @generated begin react-native-maps - expo prebuild (DO NOT MODIFY) sync-e9cc66c360abe50bc66d89fffb3c55b034d7d369
   pod 'react-native-google-maps', path: File.dirname(`node --print "require.resolve('react-native-maps/package.json')"`)
 # @generated end react-native-maps
-  
-  # Force modular headers for Firebase dependencies
-  pod 'GoogleUtilities', :modular_headers => true
-  pod 'FirebaseCore', :modular_headers => true
-  pod 'FirebaseCoreInternal', :modular_headers => true
-  pod 'GoogleDataTransport', :modular_headers => true
-  pod 'nanopb', :modular_headers => true
-  
   config = use_native_modules!(config_command)
 
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
@@ -109,5 +98,5 @@ target 'Marte' do
     installer.pods_project.build_configurations.each do |config|
       config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
-  end
+    end
 end
