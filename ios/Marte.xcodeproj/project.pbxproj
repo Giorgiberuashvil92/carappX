@@ -28,10 +28,10 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Marte/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Marte-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Marte-Bridging-Header.h"; path = "Marte/Marte-Bridging-Header.h"; sourceTree = "<group>"; };
 		73FFA43CCBF04E509E9ECE5D /* GoogleService-Info.plist */ = {isa = PBXFileReference; name = "GoogleService-Info.plist"; path = "Marte/GoogleService-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; };
-		A1B2C3D4E5F6A7B8C9D0E1F3 /* Icon-60@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-60@2x.png"; path = "Marte/Resources/Icon-60@2x.png"; sourceTree = "<group>"; };
-		B2C3D4E5F6A7B8C9D0E1F2A4 /* Icon-60@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-60@3x.png"; path = "Marte/Resources/Icon-60@3x.png"; sourceTree = "<group>"; };
-		C3D4E5F6A7B8C9D0E1F2A3B5 /* Icon-76@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-76@2x.png"; path = "Marte/Resources/Icon-76@2x.png"; sourceTree = "<group>"; };
-		D4E5F6A7B8C9D0E1F2A3B4C6 /* Icon-83.5@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-83.5@2x.png"; path = "Marte/Resources/Icon-83.5@2x.png"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* Icon-60@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-60@2x.png"; path = "Marte/Icon-60@2x.png"; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A4 /* Icon-60@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-60@3x.png"; path = "Marte/Icon-60@3x.png"; sourceTree = "<group>"; };
+		C3D4E5F6A7B8C9D0E1F2A3B5 /* Icon-76@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-76@2x.png"; path = "Marte/Icon-76@2x.png"; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C6 /* Icon-83.5@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-83.5@2x.png"; path = "Marte/Icon-83.5@2x.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
