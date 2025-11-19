@@ -12,6 +12,10 @@
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		BFEBD8FD525B4CFAACA481BF /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 73FFA43CCBF04E509E9ECE5D /* GoogleService-Info.plist */; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* Icon-60@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* Icon-60@2x.png */; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* Icon-60@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A4 /* Icon-60@3x.png */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* Icon-76@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A3B5 /* Icon-76@2x.png */; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* Icon-83.5@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C6 /* Icon-83.5@2x.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +28,10 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Marte/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Marte-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Marte-Bridging-Header.h"; path = "Marte/Marte-Bridging-Header.h"; sourceTree = "<group>"; };
 		73FFA43CCBF04E509E9ECE5D /* GoogleService-Info.plist */ = {isa = PBXFileReference; name = "GoogleService-Info.plist"; path = "Marte/GoogleService-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* Icon-60@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-60@2x.png"; path = "Marte/Resources/Icon-60@2x.png"; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A4 /* Icon-60@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-60@3x.png"; path = "Marte/Resources/Icon-60@3x.png"; sourceTree = "<group>"; };
+		C3D4E5F6A7B8C9D0E1F2A3B5 /* Icon-76@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-76@2x.png"; path = "Marte/Resources/Icon-76@2x.png"; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C6 /* Icon-83.5@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Icon-83.5@2x.png"; path = "Marte/Resources/Icon-83.5@2x.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +55,10 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				73FFA43CCBF04E509E9ECE5D /* GoogleService-Info.plist */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* Icon-60@2x.png */,
+				B2C3D4E5F6A7B8C9D0E1F2A4 /* Icon-60@3x.png */,
+				C3D4E5F6A7B8C9D0E1F2A3B5 /* Icon-76@2x.png */,
+				D4E5F6A7B8C9D0E1F2A3B4C6 /* Icon-83.5@2x.png */,
 			);
 			name = Marte;
 			sourceTree = "<group>";
@@ -159,6 +171,10 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				BFEBD8FD525B4CFAACA481BF /* GoogleService-Info.plist in Resources */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* Icon-60@2x.png in Resources */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* Icon-60@3x.png in Resources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* Icon-76@2x.png in Resources */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* Icon-83.5@2x.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

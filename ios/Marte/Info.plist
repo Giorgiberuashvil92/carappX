@@ -48,8 +48,8 @@
       <dict>
         <key>CFBundleIconFiles</key>
         <array>
-          <string>AppIcon-60x60@2x</string>
-          <string>AppIcon-60x60@3x</string>
+          <string>Icon-60@2x</string>
+          <string>Icon-60@3x</string>
         </array>
         <key>CFBundleIconName</key>
         <string>AppIcon</string>
@@ -61,8 +61,8 @@
       <dict>
         <key>CFBundleIconFiles</key>
         <array>
-          <string>AppIcon-76x76@2x-iPad</string>
-          <string>AppIcon-83.5x83.5@2x-iPad</string>
+          <string>Icon-76@2x</string>
+          <string>Icon-83.5@2x</string>
         </array>
         <key>CFBundleIconName</key>
         <string>AppIcon</string>
