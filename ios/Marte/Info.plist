@@ -42,6 +42,32 @@
     <string>1</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
+    <key>CFBundleIcons</key>
+    <dict>
+      <key>CFBundlePrimaryIcon</key>
+      <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+          <string>AppIcon-60x60@2x</string>
+          <string>AppIcon-60x60@3x</string>
+        </array>
+        <key>CFBundleIconName</key>
+        <string>AppIcon</string>
+      </dict>
+    </dict>
+    <key>CFBundleIcons~ipad</key>
+    <dict>
+      <key>CFBundlePrimaryIcon</key>
+      <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+          <string>AppIcon-76x76@2x-iPad</string>
+          <string>AppIcon-83.5x83.5@2x-iPad</string>
+        </array>
+        <key>CFBundleIconName</key>
+        <string>AppIcon</string>
+      </dict>
+    </dict>
     <key>GMSApiKey</key>
     <string>AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4</string>
     <key>LSMinimumSystemVersion</key>
