@@ -48,10 +48,10 @@
       <dict>
         <key>CFBundleIconFiles</key>
         <array>
-          <string>Icon@2x</string>
+          <string>Icon</string>
         </array>
-        <key>CFBundleIconName</key>
-        <string>AppIcon</string>
+        <key>UIPrerenderedIcon</key>
+        <false/>
       </dict>
     </dict>
     <key>GMSApiKey</key>

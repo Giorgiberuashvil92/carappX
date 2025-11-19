@@ -26,22 +26,15 @@ const withLegacyIcons = (config) => {
       plist.CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles = [];
     }
     
-    // Add legacy icon files if not present (both naming conventions)
+    // Add legacy icon files if not present (Hacking with Swift approach)
+    // Note: CFBundleIconFiles should contain only the base name without @2x/@3x or extension
     const iconFiles = plist.CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles;
     if (!iconFiles.includes('Icon')) {
       iconFiles.push('Icon');
     }
-    if (!iconFiles.includes('Icon@2x')) {
-      iconFiles.push('Icon@2x');
-    }
-    if (!iconFiles.includes('Icon@3x')) {
-      iconFiles.push('Icon@3x');
-    }
-    if (!iconFiles.includes('Icon-60@2x')) {
-      iconFiles.push('Icon-60@2x');
-    }
-    if (!iconFiles.includes('Icon-60@3x')) {
-      iconFiles.push('Icon-60@3x');
+    // Also ensure UIPrerenderedIcon is set
+    if (plist.CFBundleIcons.CFBundlePrimaryIcon.UIPrerenderedIcon === undefined) {
+      plist.CFBundleIcons.CFBundlePrimaryIcon.UIPrerenderedIcon = false;
     }
     
     // Ensure CFBundleIcons~ipad exists
