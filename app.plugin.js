@@ -26,8 +26,17 @@ const withLegacyIcons = (config) => {
       plist.CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles = [];
     }
     
-    // Add legacy icon files if not present
+    // Add legacy icon files if not present (both naming conventions)
     const iconFiles = plist.CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles;
+    if (!iconFiles.includes('Icon')) {
+      iconFiles.push('Icon');
+    }
+    if (!iconFiles.includes('Icon@2x')) {
+      iconFiles.push('Icon@2x');
+    }
+    if (!iconFiles.includes('Icon@3x')) {
+      iconFiles.push('Icon@3x');
+    }
     if (!iconFiles.includes('Icon-60@2x')) {
       iconFiles.push('Icon-60@2x');
     }
@@ -62,8 +71,11 @@ const withLegacyIcons = (config) => {
   config = withXcodeProject(config, (config) => {
     const project = config.modResults;
     
-    // Icon files to add
+    // Icon files to add (both legacy and modern naming)
     const icons = [
+      'Icon.png',
+      'Icon@2x.png',
+      'Icon@3x.png',
       'Icon-60@2x.png',
       'Icon-60@3x.png',
       'Icon-76@2x.png',

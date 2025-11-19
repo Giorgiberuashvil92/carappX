@@ -48,6 +48,9 @@
       <dict>
         <key>CFBundleIconFiles</key>
         <array>
+          <string>Icon</string>
+          <string>Icon@2x</string>
+          <string>Icon@3x</string>
           <string>Icon-60@2x</string>
           <string>Icon-60@3x</string>
         </array>
