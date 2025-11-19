@@ -82,21 +82,25 @@ const withLegacyIcons = (config) => {
     icons.forEach((iconName) => {
       const iconPath = `Marte/${iconName}`;
       
+      // Always add/update file reference to ensure it's in the project
       // Check if file already exists in project
-      const fileExists = project.hasFile(iconPath);
+      let fileRef = project.findFirst('fileRef', (ref) => {
+        const file = project.getPBXFileByKey(ref);
+        return file && file.path === iconName;
+      });
       
-      if (!fileExists) {
+      if (!fileRef) {
         // Add file reference
-        const fileRef = project.addFile(iconPath, mainGroup, {
+        fileRef = project.addFile(iconPath, mainGroup, {
           lastKnownFileType: 'image.png',
           name: iconName,
         });
+      }
 
-        if (fileRef) {
-          // Add to Resources build phase
-          const targetUuid = project.getFirstTarget().uuid;
-          project.addToPbxResourcesBuildPhase(fileRef, targetUuid);
-        }
+      if (fileRef) {
+        // Always add to Resources build phase (even if already exists, this is idempotent)
+        const targetUuid = project.getFirstTarget().uuid;
+        project.addToPbxResourcesBuildPhase(fileRef, targetUuid);
       }
     });
 
