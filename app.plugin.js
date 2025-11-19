@@ -68,8 +68,8 @@ const withLegacyIcons = (config) => {
     // Icon files to add (Apple Developer Forums 2022 approach)
     // iPhone: Icon@2x.png (120x120), Icon@3x.png (180x180)
     // iPad: Icon@2x~ipad.png (152x152), Icon@3x~ipad.png (167x167)
+    // Note: Icon.png (1x) is not needed for iOS 10+
     const icons = [
-      'Icon.png',
       'Icon@2x.png',
       'Icon@3x.png',
       'Icon@2x~ipad.png',
