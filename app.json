@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "carappx",
     "userInterfaceStyle": "automatic",
-    "description": "CarAppX - ყველაფერი მანქანისთვის ერთ ადგილზე",
+    "description": "MARTE - ყველაფერი მანქანისთვის ერთ ადგილზე",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
@@ -18,6 +18,7 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "icon": "./assets/images/icon.png",
       "config": {
         "googleMapsApiKey": "AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4"
       },
