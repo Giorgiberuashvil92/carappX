@@ -13,6 +13,39 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
+# Force modular headers for Firebase და Google pods
+$RNFirebaseAsStaticFramework = true
+$static_framework = [
+  'Firebase',
+  'FirebaseCore',
+  'FirebaseCoreDiagnostics',
+  'FirebaseCoreInternal',
+  'GoogleUtilities',
+  'GoogleDataTransport',
+  'nanopb',
+  'BoringSSL-GRPC',
+  'FirebaseCoreExtension',
+  'FirebaseInstallations',
+  'FirebaseMessaging',
+  'GoogleAppMeasurement',
+  'PromisesObjC'
+]
+
+# Configure Firebase pods to use static frameworks with modular headers
+pre_install do |installer|
+  Pod::Installer::Xcode::TargetValidator.send(:define_method, :verify_no_static_framework_transitive_dependencies) {}
+  installer.pod_targets.each do |pod|
+    if $static_framework.include?(pod.name)
+      def pod.static_framework?
+        true
+      end
+      def pod.build_type
+        Pod::BuildType.static_library
+      end
+    end
+  end
+end
+
 target 'Marte' do
   use_expo_modules!
 
@@ -32,6 +65,14 @@ target 'Marte' do
 # @generated begin react-native-maps - expo prebuild (DO NOT MODIFY) sync-e9cc66c360abe50bc66d89fffb3c55b034d7d369
   pod 'react-native-google-maps', path: File.dirname(`node --print "require.resolve('react-native-maps/package.json')"`)
 # @generated end react-native-maps
+  
+  # Force modular headers for Firebase dependencies
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'GoogleDataTransport', :modular_headers => true
+  pod 'nanopb', :modular_headers => true
+  
   config = use_native_modules!(config_command)
 
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
@@ -62,6 +103,22 @@ target 'Marte' do
           config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
         end
       end
+    end
+    
+    # Fix for Firebase pods requiring modular headers
+    installer.pods_project.targets.each do |target|
+      if target.name.include?('Firebase') || target.name.include?('Google') || target.name.include?('BoringSSL')
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+          config.build_settings['DEFINES_MODULE'] = 'YES'
+          config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(inherited) $(PODS_CONFIGURATION_BUILD_DIR)'
+        end
+      end
+    end
+    
+    # Ensure all pods have proper module map configuration
+    installer.pods_project.build_configurations.each do |config|
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
   end
 end
