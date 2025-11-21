@@ -26,6 +26,9 @@
       },
       "ios": {
         "autoIncrement": true
+      },
+      "cache": {
+        "disabled": false
       }
     },
     "production-apk": {

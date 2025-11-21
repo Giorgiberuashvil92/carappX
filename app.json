@@ -22,19 +22,25 @@
       "config": {
         "googleMapsApiKey": "AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4"
       },
+      "useFrameworks": "dynamic",
       "entitlements": {
         "aps-environment": "production"
       },
       "bundleIdentifier": "com.marte.marte",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
+        "CFBundleIconName": "AppIcon",
         "NSCameraUsageDescription": "აპს სჭირდება კამერაზე წვდომა პროფილის ფოტოს გადასაღებად და ასატვირთად.",
         "NSPhotoLibraryUsageDescription": "აპს სჭირდება ფოტოების ბიბლიოთეკაზე წვდომა პროფილის ფოტოს ასატვირთად.",
         "NSPhotoLibraryAddUsageDescription": "აპს სჭირდება ფოტოების ბიბლიოთეკაში შენახვის ნებართვა.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification",
+          "remote-notification"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -97,7 +103,8 @@
         }
       ],
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      "./plugins/withAppIconName.js"
     ],
     "experiments": {
       "typedRoutes": true

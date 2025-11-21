@@ -8,7 +8,11 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
-    "dev:all": "./start-dev.sh"
+    "dev:all": "./start-dev.sh",
+    "eas-build-pre-install": "node scripts/preserve-podfile.js preserve && node scripts/fix-ios-icons.js || true",
+    "eas-build-post-install": "node scripts/fix-ios-icons.js || true",
+    "eas-build-pre-build": "node scripts/preserve-podfile.js restore && node scripts/fix-ios-icons.js || true",
+    "eas-build-post-build": "node scripts/fix-ios-icons.js || true"
   },
   "jest": {
     "preset": "jest-expo"
@@ -60,6 +64,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@expo/config-plugins": "^54.0.2",
     "@react-native-community/cli": "^20.0.1",
     "@react-native-community/cli-platform-ios": "^20.0.1",
     "@types/react": "~19.0.10",

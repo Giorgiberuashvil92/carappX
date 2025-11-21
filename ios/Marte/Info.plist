@@ -10,6 +10,8 @@
     <string>Marte</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -42,6 +44,8 @@
     <string>1</string>
     <key>GMSApiKey</key>
     <string>AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -71,6 +75,7 @@
     </array>
     <key>UIBackgroundModes</key>
     <array>
+      <string>remote-notification</string>
       <string>remote-notification</string>
     </array>
     <key>UILaunchStoryboardName</key>
