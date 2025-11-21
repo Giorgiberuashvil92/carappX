@@ -28,7 +28,7 @@
         "autoIncrement": true
       },
       "cache": {
-        "disabled": false
+        "disabled": true
       }
     },
     "production-apk": {

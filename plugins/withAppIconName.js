@@ -1,5 +1,4 @@
-const { withInfoPlist, withDangerousMod, withXcodeProject } = require('@expo/config-plugins');
-const fs = require('fs');
+const { withInfoPlist, withDangerousMod, withXcodeProject } = require('expo/config-plugins')
 const path = require('path');
 
 const withAppIconName = (config) => {

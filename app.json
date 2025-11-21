@@ -91,7 +91,6 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static",
             "deploymentTarget": "15.1",
             "flipper": false
           },
