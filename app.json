@@ -13,12 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "icon": "./assets/images/icon.png",
       "config": {
         "googleMapsApiKey": "AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4"
       },
@@ -36,16 +33,13 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "UIBackgroundModes": [
-          "remote-notification",
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification", "remote-notification"],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
       },
       "config": {
@@ -92,18 +86,26 @@
         {
           "ios": {
             "deploymentTarget": "15.1",
-            "flipper": false
+            "flipper": false,
+            "useFrameworks": "static",
+            "modular_headers": true,
+            "forceStaticLinking": ["RNFBApp"]
           },
           "android": {
             "compileSdkVersion": 35,
+            "enableProguardInReleaseBuilds": true,
             "targetSdkVersion": 35,
-            "minSdkVersion": 24
+            "minSdkVersion": 24,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraMavenRepos": [
+              "../../../../node_modules/@notifee/react-native/android/libs"
+            ]
           }
         }
       ],
       "expo-asset",
-      "expo-web-browser",
-      "./plugins/withAppIconName.js"
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

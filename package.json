@@ -3,16 +3,13 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "prebuild": "expo prebuild --clean",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
-    "dev:all": "./start-dev.sh",
-    "eas-build-pre-install": "node scripts/preserve-podfile.js preserve && node scripts/fix-ios-icons.js || true",
-    "eas-build-post-install": "node scripts/fix-ios-icons.js || true",
-    "eas-build-pre-build": "node scripts/preserve-podfile.js restore && node scripts/fix-ios-icons.js || true",
-    "eas-build-post-build": "node scripts/fix-ios-icons.js || true"
+    "dev:all": "./start-dev.sh"
   },
   "jest": {
     "preset": "jest-expo"
