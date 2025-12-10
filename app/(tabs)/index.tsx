@@ -31,11 +31,13 @@ import StoryOverlay from '../../components/ui/StoryOverlay';
 import NotificationsModal from '../../components/ui/NotificationsModal';
 import RacingBanner from '../../components/ui/RacingBanner';
 import { useEffect } from 'react';
+import { getResponsiveDimensions, getResponsiveCardWidth } from '../../utils/responsive';
 
-const { width } = Dimensions.get('window');
+// Get responsive dimensions
+const { screenWidth, contentWidth, horizontalMargin, isTablet } = getResponsiveDimensions();
 const H_MARGIN = 20;
 const H_GAP = 16;
-const POPULAR_CARD_WIDTH = width - (H_MARGIN * 2);
+const POPULAR_CARD_WIDTH = contentWidth - (H_MARGIN * 2);
 
 
 // Popular services are now fetched from API
@@ -72,11 +74,11 @@ export default function TabOneScreen() {
         highlight: !!s.highlight,
         category: s.category,
         seen: !!s.isSeen,
+        internalImage: s.internalImage || undefined,
       })));
     } catch {}
   }, [user?.id]);
   
-  // Dynamic services
   const [popularServices, setPopularServices] = useState<any[]>([]);
   const [nearbyServices, setNearbyServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,7 @@ export default function TabOneScreen() {
   
   const handleScroll = (event: any) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
-    const index = Math.round(scrollPosition / (width - 60));
+    const index = Math.round(scrollPosition / (screenWidth - 60));
     setCurrentBannerIndex(index);
   };
 
@@ -242,6 +244,11 @@ export default function TabOneScreen() {
     container: {
       flex: 1,
       backgroundColor: '#F8FAFC',
+    },
+    contentWrapper: {
+      flex: 1,
+      maxWidth: isTablet ? contentWidth : undefined,
+      alignSelf: isTablet ? 'center' : 'stretch',
     },
     header: {
       paddingHorizontal: 20,
@@ -1156,6 +1163,7 @@ export default function TabOneScreen() {
         colors={['#F8FAFC', '#F1F5F9', '#E2E8F0']}
         style={StyleSheet.absoluteFillObject}
       />
+      <View style={[styles.contentWrapper, { marginHorizontal: horizontalMargin }]}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={{ paddingBottom: 120 }}
@@ -1197,8 +1205,9 @@ export default function TabOneScreen() {
               </View>
 
               {/* Modern Subscription CTA */}
+              {/* დროებით არ გვჭირდება პრემიუმ ღილაკი */}
               {/* {!hasActiveSubscription && ( */}
-                <TouchableOpacity
+              {/*   <TouchableOpacity
                   onPress={() => setShowSubscriptionModal(true)}
                   activeOpacity={0.9}
                   style={styles.subscriptionCTA}
@@ -1212,7 +1221,7 @@ export default function TabOneScreen() {
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={colors.secondary} />
                 </TouchableOpacity>
-              {/* )} */}
+              )} */}
               
             </View>
           </TouchableOpacity>
@@ -1294,18 +1303,10 @@ export default function TabOneScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: '#3B82F6' }]}>
                 <Ionicons name="car" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>MARTE</Text>
+              <Text style={styles.quickActionText} numberOfLines={2} adjustsFontSizeToFit>MARTE</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/ai')}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#6366F1' }]}>
-                <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit>AI</Text>
-            </TouchableOpacity>
+            
             
             <TouchableOpacity 
               style={styles.quickActionButton}
@@ -1314,7 +1315,7 @@ export default function TabOneScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: '#22C55E' }]}>
                 <Ionicons name="water" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >სამრეცხაო</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >CARWASH</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -1324,7 +1325,7 @@ export default function TabOneScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: '#F59E0B' }]}>
                 <Ionicons name="star" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>ლოიალობა</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >LOYALTY</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -1334,7 +1335,7 @@ export default function TabOneScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: '#374151' }]}>
                 <Ionicons name="document-text" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>CarFAX</Text>
+              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >CARFAX</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1426,6 +1427,7 @@ export default function TabOneScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </View>
 
       {/* Story Overlay */}
       <StoryOverlay

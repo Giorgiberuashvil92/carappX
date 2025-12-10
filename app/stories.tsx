@@ -26,6 +26,7 @@ export default function StoriesScreen() {
           items: Array.isArray(s.items) ? s.items.map((it: any) => ({ id: String(it.id || Math.random()), type: it.type || 'image', uri: it.uri, durationMs: it.durationMs, caption: it.caption, poll: it.poll })) : [],
           highlight: !!s.highlight,
           category: s.category,
+          internalImage: s.internalImage || undefined,
         }));
         setStories(mapped);
       } catch {}
@@ -73,7 +74,7 @@ export default function StoriesScreen() {
         renderItem={({ item, index }) => (
           <TouchableOpacity onPress={() => onOpen(index)} activeOpacity={0.8}>
             <View style={styles.storyBubble}>
-              <Image source={{ uri: item.author.avatar || 'https://i.pravatar.cc/100' }} style={styles.storyAvatar} />
+              <Image source={{ uri: item.internalImage || item.author.avatar || 'https://i.pravatar.cc/100' }} style={styles.storyAvatar} />
             </View>
             <Text numberOfLines={1} style={styles.storyName}>{item.author.name}</Text>
           </TouchableOpacity>

@@ -45,6 +45,8 @@ export default function LoginScreen() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showOtpDisabledModal, setShowOtpDisabledModal] = useState(false);
   const [manualOtpCode, setManualOtpCode] = useState<string | null>(null);
+  // Test account password for App Store Review (phone: 557422634, password: 1234)
+  const [testPassword, setTestPassword] = useState('');
   // Firebase removed - using backend OTP only
   
   const colorScheme = useColorScheme();
@@ -61,49 +63,40 @@ export default function LoginScreen() {
 
   // No Firebase init required
 
-  function resolveApiBase(): string {
-    const envUrl = process.env.EXPO_PUBLIC_API_URL as string | undefined;
-    if (envUrl) return envUrl;
-    const hostUri = (Constants as any).expoConfig?.hostUri || (Constants as any).manifest?.hostUri;
-    if (typeof hostUri === 'string') {
-      const host = hostUri.split(':')[0];
-      if (host && /\d+\.\d+\.\d+\.\d+/.test(host)) {
-        return `http://${host}:4000`;
-      }
-    }
-    return API_BASE_URL;
-  }
-
-  const API_URL = resolveApiBase();
+  // Use API_BASE_URL from config (which is already set to Railway backend)
+  const API_URL = API_BASE_URL;
+  
+  console.log('🌐 API URL:', API_URL);
   const { login } = useUser();
   const { success, error, warning, info } = useToast();
   const { subscription, updateSubscription } = useSubscription();
 
+  // Subscription modal disabled per request
   const showSubscriptionModalAfterLogin = () => {
-    setTimeout(() => {
-      setShowSubscriptionModal(true);
-    }, 1000);
+    // setTimeout(() => {
+    //   setShowSubscriptionModal(true);
+    // }, 1000);
   };
 
   const formatPhoneNumber = (text: string) => {
     const cleaned = text.replace(/\D/g, '');
-    
-    let formatted = cleaned;
-    if (cleaned.length >= 3) {
-      formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3);
-      if (cleaned.length >= 5) {
-        formatted = formatted.slice(0, 6) + '-' + formatted.slice(6);
-        if (cleaned.length >= 7) {
-          formatted = formatted.slice(0, 9) + '-' + formatted.slice(9);
-        }
-      }
-    }
-    return formatted;
+    const len = cleaned.length;
+
+    if (len <= 3) return cleaned;
+    if (len <= 5) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+    if (len <= 7) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 5)}-${cleaned.slice(5)}`;
+    // len >= 8
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 5)}-${cleaned.slice(5, 7)}-${cleaned.slice(7, 11)}`;
   };
 
   const handlePhoneChange = (text: string) => {
     const formatted = formatPhoneNumber(text.replace(/[^0-9]/g, ''));
     setPhone(formatted);
+    // Clear password if phone number changes away from test account
+    const cleanedPhone = formatted.replace(/[^0-9]/g, '');
+    if (cleanedPhone !== '557422634') {
+      setTestPassword('');
+    }
   };
 
   const handleOTPChange = (text: string, index: number) => {
@@ -169,12 +162,26 @@ export default function LoginScreen() {
         return;
       }
       if (data?.user) {
-        if (data?.intent === 'register') {
+        // Check both data.intent from verify endpoint and pendingIntent from start endpoint
+        const isRegisterIntent = data?.intent === 'register' || pendingIntent === 'register';
+        
+        console.log('🔍 OTP Verification Result:', {
+          hasUser: !!data.user,
+          dataIntent: data?.intent,
+          pendingIntent: pendingIntent,
+          isRegisterIntent: isRegisterIntent,
+          userId: data.user.id,
+        });
+        
+        if (isRegisterIntent) {
+          console.log('✅ Showing registration form');
           setPendingUserId(data.user.id);
           setShowOTP(false);
           setShowRegister(true);
+          setPendingIntent(null); // Reset after using
           success('კოდი დადასტურებულია', 'დასრულეთ რეგისტრაცია');
         } else {
+          console.log('✅ Proceeding with login');
           await login(data.user);
           
           // Save subscription info if available
@@ -186,6 +193,7 @@ export default function LoginScreen() {
           success('წარმატება!', 'წარმატებით შეხვედით სისტემაში');
           setShowOTP(false);
           setVerificationId(null);
+          setPendingIntent(null); // Reset after using
           router.replace('/(tabs)');
           // Show subscription modal after login
           showSubscriptionModalAfterLogin();
@@ -199,7 +207,6 @@ export default function LoginScreen() {
 
   // Firebase OTP helper აღარ გვჭირდება ცალკე
 
-  // Start OTP via backend
   const handleStartOtp = async () => {
     const cleanPhone = phone.replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 9) {
@@ -219,6 +226,13 @@ export default function LoginScreen() {
         const msg = typeof data === 'object' && data?.message ? String(data.message) : 'SMS-ის გაგზავნა ვერ მოხერხდა';
         throw new Error(msg);
       }
+      
+      console.log('📞 OTP Start Response:', {
+        id: data?.id,
+        intent: data?.intent,
+        hasCode: !!(data?.code ?? data?.mockCode ?? data?.otp),
+      });
+      
       setVerificationId(data?.id || null);
       setPendingIntent(data?.intent || null);
       setShowOTP(true);
@@ -239,8 +253,67 @@ export default function LoginScreen() {
 
 
   const handleLogin = async () => {
+    // App Store Review test account: phone 557422634, password 1234
+    const TEST_PHONE = '557422634';
+    const TEST_PASSWORD = '1234';
+    
+    // Remove dashes from phone for comparison (formatPhoneNumber adds dashes)
+    const cleanedPhone = phone.replace(/[^0-9]/g, '');
+    
+    console.log('🔍 Login attempt:', {
+      phone: phone,
+      cleanedPhone: cleanedPhone,
+      testPhone: TEST_PHONE,
+      isTestAccount: cleanedPhone === TEST_PHONE,
+      hasPassword: !!testPassword.trim()
+    });
+    
+    if (cleanedPhone === TEST_PHONE) {
+      // Test account - require password
+      if (!testPassword.trim()) {
+        console.log('❌ Test account - password required');
+        error('შეცდომა', 'გთხოვთ შეიყვანოთ password');
+        return;
+      }
+      
+      if (testPassword.trim() !== TEST_PASSWORD) {
+        console.log('❌ Test account - wrong password:', testPassword.trim());
+        error('შეცდომა', 'არასწორი password');
+        return;
+      }
+      
+      // Test account login without OTP
+      try {
+        setLoading(true);
+        const testUser = {
+          id: 'test_user_' + Date.now(),
+          phone: TEST_PHONE,
+          firstName: 'Test',
+          email: 'test@example.com',
+          role: 'customer',
+          ownedCarwashes: [],
+        };
+        
+        console.log('✅ Test Login - Using static test user:', testUser);
+        setShowOTP(false); // Ensure OTP modal doesn't show for test account
+        await login(testUser);
+        success('წარმატება!', 'ტესტ რეჟიმში შეხვედით სისტემაში');
+        setTestPassword('');
+        router.replace('/(tabs)');
+        showSubscriptionModalAfterLogin();
+      } catch (err: any) {
+        console.error('❌ Test login error:', err);
+        error('შეცდომა', 'ტესტ რეჟიმში შესვლა ვერ მოხერხდა');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    
+    // Regular OTP flow for other users
     await handleStartOtp();
   };
+
 
   const styles = StyleSheet.create({
     container: {
@@ -381,6 +454,36 @@ export default function LoginScreen() {
     },
     loadingText: {
       marginLeft: 8,
+    },
+    testLoginToggle: {
+      alignItems: 'center',
+      marginBottom: 16,
+      paddingVertical: 8,
+    },
+    testLoginToggleText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontFamily: 'Inter_600SemiBold',
+      textDecorationLine: 'underline',
+    },
+    testCredentialsInfo: {
+      backgroundColor: '#F3F4F6',
+      borderRadius: 12,
+      padding: 12,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    testCredentialsText: {
+      fontSize: 13,
+      fontFamily: 'Inter',
+      color: '#4B5563',
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    testCredentialsBold: {
+      fontFamily: 'Inter_700Bold',
+      color: '#111827',
     },
     otpModal: {
       position: 'absolute',
@@ -679,9 +782,11 @@ export default function LoginScreen() {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.content}>            
               <View style={styles.modal}>
-                <Text style={styles.subtitle}>შეიყვანეთ თქვენი ტელეფონის ნომერი</Text>
+                <Text style={styles.subtitle}>
+                  შეიყვანეთ თქვენი ტელეფონის ნომერი
+                </Text>
                 
-                {/* Form */}
+                {/* Phone Login Form */}
                 <View style={styles.form}>
                   <View style={styles.inputContainer}>
                     <View style={styles.phoneInputContainer}>
@@ -699,9 +804,26 @@ export default function LoginScreen() {
                       />
                     </View>
                   </View>
+                  
+                  {/* Password field for test account (557422634) */}
+                  {phone.replace(/[^0-9]/g, '') === '557422634' && (
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.label}>Password</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="password"
+                        placeholderTextColor={colors.placeholder}
+                        value={testPassword}
+                        onChangeText={setTestPassword}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                    </View>
+                  )}
                 </View>
 
-                {/* Login Button */}
+                {/* Phone Login Button */}
                 <TouchableOpacity
                   style={[styles.loginButton, loading && styles.loginButtonDisabled]}
                   onPress={handleLogin}

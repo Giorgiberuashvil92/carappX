@@ -3505,7 +3505,7 @@
 
   modernAIBackground: {
     flex: 1,
-    backgroundColor: 'rgba(17, 25, 70, 0.6)',
+    backgroundColor: 'black',
     padding: 12,
     justifyContent: 'center',
   },

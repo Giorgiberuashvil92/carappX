@@ -36,6 +36,7 @@ export type Story = {
   items: StoryItem[];
   highlight?: boolean;
   category?: 'my-car' | 'friends' | 'services';
+  internalImage?: string; // Internal image for story bubble display
 };
 
 

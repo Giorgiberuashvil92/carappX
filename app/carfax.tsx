@@ -15,20 +15,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
+import { useUser } from '../contexts/UserContext';
 import { useCarFAXAccess } from '../hooks/useSubscriptionModal';
 import SubscriptionModal from '../components/ui/SubscriptionModal';
+import CarFAXSuccess from '../components/CarFAXSuccess';
 import { carfaxApi, CarFAXReport } from '../services/carfaxApi';
 
 const { width } = Dimensions.get('window');
 
 export default function CarFAXScreen() {
   const router = useRouter();
+  const { user } = useUser();
   const [vinNumber, setVinNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<any>(null);
+  
+  // CarFAX Success Modal
+  const [showCarFAXSuccess, setShowCarFAXSuccess] = useState(false);
+  const [carfaxResult, setCarfaxResult] = useState<any>(null);
   
   // Subscription modal
   const { canAccessCarFAX, checkCarFAXAccess } = useCarFAXAccess();
@@ -86,41 +93,56 @@ export default function CarFAXScreen() {
       return;
     }
 
-    // Check subscription access first (temporarily disabled for testing)
-    // if (!checkCarFAXAccess()) {
-    //   setShowSubscriptionModal(true);
-    //   return;
-    // }
+    const trimmedVin = vinNumber.trim().toUpperCase();
+    setLoading(true);
 
-    // Check if user has credits (temporarily disabled for testing)
-    const totalCredits = userCredits.singleReports + userCredits.tripleReports + userCredits.fiveReports;
-    
-    // Temporarily allow all users to access CarFAX
-    if (true) { // totalCredits > 0
-      // User has credits, proceed with search - go to simulation first
-      setLoading(true);
+    try {
+      console.log('🔍 CarFAX API-სთან დაკავშირება VIN:', trimmedVin);
       
-      // Go directly to simulation without calling API
-      // The simulation will show the animation and then generate mock data
-      setTimeout(() => {
-        setLoading(false);
-        router.push({
-          pathname: '/carfax-simulation',
-          params: { 
-            vinCode: vinNumber
-          }
-        });
-      }, 500);
-    } else {
-      // No credits, show payment options
-      Alert.alert(
-        'CarFAX მოხსენება',
-        'CarFAX მოხსენება ვერ მოიძებნა!\n\nთქვენ არ გაქვთ CarFAX პაკეტი.\n\nგსურთ პაკეტის შეძენა?',
-        [
-          { text: 'არა', style: 'cancel' },
-          { text: 'კი', onPress: () => handlePayment() }
-        ]
-      );
+      // Call API directly
+      const response = await carfaxApi.getCarFAXReport(trimmedVin);
+      
+      console.log('📥 CarFAX API Response:', {
+        success: response?.success,
+        hasHtmlContent: !!response?.htmlContent,
+        htmlContentLength: response?.htmlContent?.length || 0,
+        hasData: !!response?.data,
+      });
+      
+      // Check if API returned HTML content
+      if (response && response.htmlContent && response.htmlContent.length > 0) {
+        console.log('✅ HTML content received, showing CarFAXSuccess screen');
+        
+        // API returned HTML - show success screen with download button
+        const carData = {
+          vin: trimmedVin,
+          make: response.data?.make || 'უცნობი',
+          model: response.data?.model || 'უცნობი',
+          year: response.data?.year || new Date().getFullYear(),
+          mileage: response.data?.mileage,
+          accidents: response.data?.accidents || 0,
+          owners: response.data?.owners || 1,
+          serviceRecords: response.data?.serviceRecords || 0,
+          titleStatus: response.data?.titleStatus || 'უცნობი',
+          lastServiceDate: response.data?.lastServiceDate,
+          reportId: response.data?.reportId || 'CF' + Date.now(),
+          htmlContent: response.htmlContent, // Store HTML for PDF generation
+        };
+        
+        console.log('📋 Setting carfaxResult and showing success screen');
+        setCarfaxResult(carData);
+        setShowCarFAXSuccess(true);
+      } else {
+        // API returned error or no HTML
+        const errorMsg = response?.error || response?.message || 'CarFAX მოხსენება ვერ მოიძებნა';
+        console.warn('⚠️ CarFAX API error or no HTML:', errorMsg);
+        Alert.alert('შეცდომა', errorMsg);
+      }
+    } catch (error) {
+      console.error('❌ CarFAX API შეცდომა:', error);
+      Alert.alert('შეცდომა', 'CarFAX მოხსენების მიღებისას მოხდა შეცდომა');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -207,7 +229,9 @@ export default function CarFAXScreen() {
   }));
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
       <ScrollView 
@@ -539,7 +563,20 @@ export default function CarFAXScreen() {
           handleCheckVIN();
         }}
       />
+
+      {/* CarFAX Success Modal */}
+      {showCarFAXSuccess && carfaxResult && (
+        <CarFAXSuccess
+          vinCode={vinNumber.trim().toUpperCase()}
+          carData={carfaxResult}
+          onClose={() => {
+            setShowCarFAXSuccess(false);
+            setCarfaxResult(null);
+          }}
+        />
+      )}
     </SafeAreaView>
+    </>
   );
 }
 

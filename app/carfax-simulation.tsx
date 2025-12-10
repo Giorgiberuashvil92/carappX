@@ -7,11 +7,15 @@ import {
   Animated,
   Dimensions,
   StatusBar,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
 import CarFAXSuccess from '../components/CarFAXSuccess';
+import { carfaxApi } from '../services/carfaxApi';
 
 const { width } = Dimensions.get('window');
 
@@ -51,12 +55,12 @@ export default function CarFAXSimulationScreen() {
       }),
     ]).start();
 
-    // Always start simulation - no API calls, just mock data
+    // Start simulation - API will be called after animation completes
     setTimeout(() => setIsSearching(true), 500);
   }, []);
 
   useEffect(() => {
-    if (isSearching) {
+    if (isSearching && vinCode) {
       // Pulse animation
       Animated.loop(
         Animated.sequence([
@@ -82,19 +86,15 @@ export default function CarFAXSimulationScreen() {
         })
       ).start();
 
-      // Step progression - simulation only, no API calls
+      // Step progression with API call
       const stepInterval = setInterval(() => {
         setCurrentStep(prev => {
           if (prev < steps.length - 1) {
             return prev + 1;
           } else {
             clearInterval(stepInterval);
-            // Generate mock data after simulation completes
-            setTimeout(() => {
-              const mockCarData = generateMockCarData(vinCode || '');
-              setCarData(mockCarData);
-              setShowSuccess(true);
-            }, 1000);
+            // Call real API after simulation completes
+            fetchCarFAXReport(vinCode);
             return prev;
           }
         });
@@ -102,7 +102,87 @@ export default function CarFAXSimulationScreen() {
 
       return () => clearInterval(stepInterval);
     }
-  }, [isSearching]);
+  }, [isSearching, vinCode]);
+
+  const fetchCarFAXReport = async (vin: string) => {
+    try {
+      console.log('🔍 CarFAX API-სთან დაკავშირება VIN:', vin);
+      const response = await carfaxApi.getCarFAXReport(vin);
+      
+      if (response && response.success && response.data) {
+        // Map API response to carData format
+        const carData = {
+          vin: response.data.vin || vin,
+          make: response.data.make || 'უცნობი',
+          model: response.data.model || 'უცნობი',
+          year: response.data.year || new Date().getFullYear(),
+          mileage: response.data.mileage,
+          accidents: response.data.accidents || 0,
+          owners: response.data.owners || 1,
+          serviceRecords: response.data.serviceRecords || 0,
+          titleStatus: response.data.titleStatus || 'უცნობი',
+          lastServiceDate: response.data.lastServiceDate,
+          reportId: response.data.reportId || 'CF' + Date.now(),
+          reportData: response.data.reportData,
+          htmlContent: response.htmlContent, // Store HTML for file saving
+        };
+        
+        // Save HTML to file if it exists
+        if (response.htmlContent) {
+          await saveHtmlToFile(response.htmlContent, vin);
+        }
+        
+        setCarData(carData);
+        setShowSuccess(true);
+      } else {
+        // If API returns error, use mock data as fallback
+        const errorMsg = response?.error || response?.message || 'Unknown error';
+        console.warn('⚠️ CarFAX API-დან მოხსენება ვერ მოიძებნა:', errorMsg, '- გამოიყენება mock data');
+        const mockCarData = generateMockCarData(vin);
+        setCarData(mockCarData);
+        setShowSuccess(true);
+      }
+    } catch (error: unknown) {
+      // Additional safety catch - though API should not throw anymore
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn('⚠️ CarFAX API catch block (unexpected):', errorMessage);
+      
+      // On error, use mock data as fallback
+      const mockCarData = generateMockCarData(vin);
+      setCarData(mockCarData);
+      setShowSuccess(true);
+    }
+  };
+
+  const saveHtmlToFile = async (htmlContent: string, vin: string) => {
+    try {
+      if (!FileSystem.documentDirectory) {
+        console.error('❌ FileSystem.documentDirectory არ არის ხელმისაწვდომი');
+        return;
+      }
+      
+      // Save HTML file
+      const htmlFileName = `carfax-report-${vin}-${Date.now()}.html`;
+      const htmlFileUri = `${FileSystem.documentDirectory}${htmlFileName}`;
+      
+      console.log('💾 HTML-ის შენახვა ფაილში:', htmlFileUri);
+      
+      await FileSystem.writeAsStringAsync(htmlFileUri, htmlContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      console.log('✅ HTML-ი წარმატებით შეინახა:', htmlFileUri);
+      
+      Alert.alert(
+        'წარმატება',
+        `HTML ფაილი წარმატებით შეინახა:\n${htmlFileName}`,
+        [{ text: 'კარგი' }]
+      );
+      
+    } catch (error) {
+      console.error('❌ HTML-ის შენახვის შეცდომა:', error);
+    }
+  };
 
   const generateMockCarData = (vin: string) => {
     const makes = ['BMW', 'Mercedes-Benz', 'Audi', 'Toyota', 'Honda', 'Ford', 'Chevrolet'];
@@ -125,21 +205,27 @@ export default function CarFAXSimulationScreen() {
       titleStatus: 'Clean',
       lastServiceDate: '2024-01-15',
       reportId: 'CF' + Date.now(),
+      htmlContent: undefined, // Mock data doesn't have HTML
     };
   };
 
   if (showSuccess && carData) {
     return (
-      <CarFAXSuccess
-        vinCode={vinCode || ''}
-        carData={carData}
-        onClose={() => router.back()}
-      />
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <CarFAXSuccess
+          vinCode={vinCode || ''}
+          carData={carData}
+          onClose={() => router.back()}
+        />
+      </>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" translucent />
       
       <SafeAreaView style={styles.safeArea}>
@@ -243,6 +329,7 @@ export default function CarFAXSimulationScreen() {
         </Animated.ScrollView>
       </SafeAreaView>
     </View>
+    </>
   );
 }
 

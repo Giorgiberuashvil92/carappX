@@ -28,6 +28,7 @@ import { SubscriptionProvider } from '../contexts/SubscriptionContext';
 import API_BASE_URL from '../config/api';
 import  {requestPermission, getToken, AuthorizationStatus } from '@react-native-firebase/messaging';
 import messaging from '@react-native-firebase/messaging';
+import * as TrackingTransparency from 'expo-tracking-transparency';
 
 
 export {
@@ -103,7 +104,27 @@ function RootLayoutNav() {
       }
     };
 
+    // Request App Tracking Transparency permission (iOS only)
+    const requestTrackingPermission = async () => {
+      if (Platform.OS === 'ios') {
+        try {
+          // Small delay to ensure app is fully initialized
+          setTimeout(async () => {
+            const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
+            if (status === 'granted') {
+              console.log('✅ User granted tracking permission');
+            } else {
+              console.log('❌ User denied or restricted tracking permission');
+            }
+          }, 500);
+        } catch (error) {
+          console.log('Error requesting tracking permission:', error);
+        }
+      }
+    };
+
     requestUserPermission();
+    requestTrackingPermission();
     const onMessageReceived = (message: any) => {
       console.log('Message:', message);
     };

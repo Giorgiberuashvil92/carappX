@@ -13,9 +13,11 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "config": {
         "googleMapsApiKey": "AIzaSyDKfuHFeirbXsr_dLGMvpKR7ZoZcZhbes4"
       },
@@ -30,10 +32,14 @@
         "NSCameraUsageDescription": "აპს სჭირდება კამერაზე წვდომა პროფილის ფოტოს გადასაღებად და ასატვირთად.",
         "NSPhotoLibraryUsageDescription": "აპს სჭირდება ფოტოების ბიბლიოთეკაზე წვდომა პროფილის ფოტოს ასატვირთად.",
         "NSPhotoLibraryAddUsageDescription": "აპს სჭირდება ფოტოების ბიბლიოთეკაში შენახვის ნებართვა.",
+        "NSUserTrackingUsageDescription": "აპს სჭირდება tracking permission გამოცდილების გასაუმჯობესებლად და პერსონალიზებული კონტენტის მისაწოდებლად.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "UIBackgroundModes": ["remote-notification", "remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification",
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -89,7 +95,9 @@
             "flipper": false,
             "useFrameworks": "static",
             "modular_headers": true,
-            "forceStaticLinking": ["RNFBApp"]
+            "forceStaticLinking": [
+              "RNFBApp"
+            ]
           },
           "android": {
             "compileSdkVersion": 35,
@@ -105,7 +113,13 @@
         }
       ],
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "აპს სჭირდება tracking permission გამოცდილების გასაუმჯობესებლად და პერსონალიზებული კონტენტის მისაწოდებლად."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

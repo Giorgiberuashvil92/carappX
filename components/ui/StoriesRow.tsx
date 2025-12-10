@@ -3,7 +3,7 @@ import { View, FlatList, TouchableOpacity, Image, Text, StyleSheet } from 'react
 import { LinearGradient } from 'expo-linear-gradient';
 
 type Props = {
-  stories: Array<{ id: string; author: { avatar?: string; name: string }; seen?: boolean }>;
+  stories: Array<{ id: string; author: { avatar?: string; name: string }; internalImage?: string; seen?: boolean }>;
   onOpen: (index: number) => void;
   onCreate?: () => void;
   title?: string;
@@ -37,7 +37,7 @@ export default function StoriesRow({ stories, onOpen, onCreate, title = 'ის�
               item.seen ? styles.storyBubbleSeen : styles.storyBubbleNew
             ]}>
               <Image 
-                source={{ uri: item.author.avatar || 'https://i.pravatar.cc/100' }} 
+                source={{ uri: item.internalImage || item.author.avatar || 'https://i.pravatar.cc/100' }} 
                 style={styles.storyAvatar} 
               />
             </View>
