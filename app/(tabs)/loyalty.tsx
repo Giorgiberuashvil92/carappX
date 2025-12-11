@@ -21,6 +21,7 @@ import { loyaltyApi, type LoyaltySummary, type LoyaltyTransaction, type LoyaltyR
 import QRCode from 'react-native-qrcode-svg';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
@@ -285,6 +286,7 @@ export default function LoyaltyScreen() {
   const { user, loading } = useUser();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const router = useRouter();
   
   // All hooks must be called before any early returns
   const [refreshing, setRefreshing] = useState(false);
@@ -811,6 +813,13 @@ export default function LoyaltyScreen() {
           <SafeAreaView>
             <View style={styles.headerContent}>
               <View style={styles.headerTop}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => router.back()}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
                 <View>
                   <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>სულ ქულები</Text>
                   <Text style={[styles.headerSubtitle, { color: '#9CA3AF' }]}>ლოიალობის პროგრამა</Text>
@@ -1284,8 +1293,19 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 24,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 15,

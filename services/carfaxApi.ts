@@ -45,15 +45,44 @@ export interface CarFAXReport {
 }
 
 class CarFAXApi {
-  private baseUrl = 'https://cai.autoimports.ge/report';
+  private baseUrl = 'https://cai.autoimports.ge/api/report';
   private apiKey = '21f47811-7a21-4be4-9ade-a311f7c016c9';
+  private backendBase = API_BASE_URL;
+
+  async generatePdfFromHtml(
+    html: string,
+    fileName?: string,
+    baseUrl = 'https://cai.autoimports.ge/',
+  ): Promise<{
+    buffer: ArrayBuffer;
+    fileName: string;
+  }> {
+    const targetName = fileName || `carfax-report-${Date.now()}.pdf`;
+    const response = await fetch(`${this.backendBase}/carfax/pdf`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ html, fileName: targetName, baseUrl }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(
+        `PDF გენერაცია ჩაიშალა (${response.status}): ${text || response.statusText}`,
+      );
+    }
+
+    const buffer = await response.arrayBuffer();
+    return { buffer, fileName: targetName };
+  }
 
   async getCarFAXReport(vin: string): Promise<CarFAXResponse> {
     try {
       const url = `${this.baseUrl}/carfax?vin=${encodeURIComponent(vin)}`;
       const headers = {
-        'Content-Type': 'application/json',
         'api-key': this.apiKey,
+        Accept: 'text/html',
       };
       
       console.log('🔍 CarFAX მოხსენების მოთხოვნა:');
@@ -63,7 +92,7 @@ class CarFAXApi {
       
       const response = await fetch(url, {
         method: 'GET',
-        headers: headers,
+        headers,
       });
       
       console.log('📡 Response status:', response.status, response.statusText);
@@ -161,6 +190,23 @@ class CarFAXApi {
           } as CarFAXResponse;
         }
         
+        // თუ JSON-ში html ველი გვაქვს, ვანორმალიზებთ htmlContent-ზე
+        if (typeof data.html === 'string' && data.html.length > 0) {
+          const htmlContent = data.html;
+          return {
+            success: true,
+            data: {
+              vin,
+              make: 'უცნობი',
+              model: 'უცნობი',
+              year: new Date().getFullYear(),
+              reportId: 'CF' + Date.now(),
+              reportData: { htmlContent, contentType: 'text/html' },
+            },
+            htmlContent,
+          } as CarFAXResponse;
+        }
+
         // Normal JSON response (not Blob)
         // Normalize response format - handle different response structures
         if (data.success === undefined) {
@@ -267,31 +313,8 @@ class CarFAXApi {
   }
 
   async getUserCarFAXReports(): Promise<CarFAXReport[]> {
-    try {
-      console.log('📋 მომხმარებლის CarFAX მოხსენებების მოთხოვნა');
-      
-      const response = await fetch(`${API_BASE_URL}/carfax/reports`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'demo-user', // TODO: რეალური user ID-სთან შეცვლა
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ CarFAX reports API შეცდომა:', errorData);
-        throw new Error(errorData.message || 'CarFAX მოხსენებების მიღებისას მოხდა შეცდომა');
-      }
-
-      const data = await response.json();
-      console.log('✅ CarFAX მოხსენებები მიღებულია:', data);
-      
-      return data;
-    } catch (error) {
-      console.error('❌ CarFAX reports API-სთან დაკავშირების შეცდომა:', error);
-      throw error;
-    }
+    // ბაზის ლოდინი აღარ გვჭირდება — ვაბრუნებთ ცარიელ სიას
+    return [];
   }
 
   async getCarFAXReportById(reportId: string): Promise<CarFAXReport> {

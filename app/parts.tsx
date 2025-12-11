@@ -1,17 +1,18 @@
   import React, { useMemo, useState, useRef, useEffect } from 'react';
-  import { 
-    View, 
-    Text, 
-    StyleSheet, 
-    ScrollView, 
-    TouchableOpacity, 
-    Image, 
-    StatusBar, 
-    Animated,
-    Modal,
-    TextInput,
-    ImageBackground
-  } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Image, 
+  StatusBar, 
+  Animated,
+  Modal,
+  TextInput,
+  ImageBackground,
+  Linking,
+} from 'react-native';
   import { SafeAreaView } from 'react-native-safe-area-context';
   import { Ionicons } from '@expo/vector-icons';
   import { LinearGradient } from 'expo-linear-gradient';
@@ -43,7 +44,7 @@
 
     const [partsFilters, setPartsFilters] = useState({
       brand: '',
-      category: '',
+      model: '',
       condition: '',
       priceMin: '',
       priceMax: '',
@@ -353,7 +354,8 @@
         dismantler: 'დაშლილების განცხადება',
         part: 'ნაწილი',
         store: 'მაღაზია',
-        carwash: 'სამართ-დასახურებელი'
+        carwash: 'სამართ-დასახურებელი',
+        mechanic: 'ხელოსანი',
       };
       
       console.log(`${typeNames[type]} წარმატებით დაემატა!`);
@@ -374,15 +376,40 @@
 
     // Filtered data for parts (filtering is now done on backend, but we can add client-side search)
     const filteredParts = useMemo(() => {
+      const q = (searchQuery || '').toLowerCase();
+      const brandFilter = (partsFilters.brand || '').toLowerCase();
+      const modelFilter = (partsFilters.model || '').toLowerCase();
+      const conditionFilter = (partsFilters.condition || '').toLowerCase();
+      const locationFilter = (partsFilters.location || '').toLowerCase();
+      const priceMin = partsFilters.priceMin ? Number(partsFilters.priceMin) : undefined;
+      const priceMax = partsFilters.priceMax ? Number(partsFilters.priceMax) : undefined;
+
       return parts.filter(part => {
-        // Client-side search filtering if needed
-        if (searchQuery && !part.title?.toLowerCase().includes(searchQuery.toLowerCase()) && 
-            !part.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
-          return false;
-        }
+        const title = (part.title || '').toLowerCase();
+        const desc = (part.description || '').toLowerCase();
+        const brand = (part.brand || part.make || '').toLowerCase();
+        const model = (part.model || '').toLowerCase();
+        const condition = (part.condition || '').toLowerCase();
+        const location = (part.location || '').toLowerCase();
+        const priceVal = part.price ? Number(String(part.price).replace(/[^0-9.]/g, '')) : undefined;
+
+        // search
+        if (q && !title.includes(q) && !desc.includes(q)) return false;
+        // brand
+        if (brandFilter && !brand.includes(brandFilter)) return false;
+        // model
+        if (modelFilter && !model.includes(modelFilter)) return false;
+        // condition
+        if (conditionFilter && !condition.includes(conditionFilter)) return false;
+        // location
+        if (locationFilter && !location.includes(locationFilter)) return false;
+        // price range
+        if (priceMin !== undefined && (priceVal === undefined || priceVal < priceMin)) return false;
+        if (priceMax !== undefined && (priceVal === undefined || priceVal > priceMax)) return false;
+
         return true;
       });
-    }, [parts, searchQuery]);
+    }, [parts, searchQuery, partsFilters]);
 
     // Filtered data for stores (filtering mostly done on backend)
     const filteredStores = useMemo(() => {
@@ -524,7 +551,6 @@
               {/* AI Search Banner */}
               <TouchableOpacity 
                 style={styles.modernAICard}
-                onPress={() => router.push('/ai-chat')}
                 activeOpacity={0.95}
               >
                 <View style={styles.modernAIBackground}>
@@ -862,9 +888,8 @@
                                     style={styles.modernPartCallButton}
                                     onPress={(e) => {
                                       e.stopPropagation();
-                                      // Show phone number from part info
                                       const phoneNumber = part.phone || '555-123-456';
-                                      console.log('Part phone:', phoneNumber);
+                                      Linking.openURL(`tel:${phoneNumber}`).catch(() => {});
                                     }}
                                     activeOpacity={0.7}
                                   >
@@ -875,18 +900,6 @@
                                 {/* Actions Footer */}
                                 <View style={styles.modernPartActionsFooter}>
                                   <View style={styles.modernPartActionsLeft}>
-                                    <TouchableOpacity 
-                                      style={styles.modernPartActionButton}
-                                      onPress={(e) => {
-                                        e.stopPropagation();
-                                        // Navigate to part details/comments
-                                        console.log('Part comments:', part.name);
-                                      }}
-                                      activeOpacity={0.7}
-                                    >
-                                      <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
-                                    </TouchableOpacity>
-                                    
                                     <View style={styles.modernPartLocationButton}>
                                       <Ionicons name="location-outline" size={16} color="#FFFFFF" />
                                       <Text style={styles.modernPartLocationButtonText}>
@@ -1109,7 +1122,7 @@
                     });
                     setPartsFilters({
                       brand: '',
-                      category: '',
+                    model: '',
                       condition: '',
                       priceMin: '',
                       priceMax: '',
@@ -1223,16 +1236,6 @@
                         filteredBrands,
                         (value) => setPartsFilters(prev => ({ ...prev, brand: value }))
                       )}
-                    </View>
-
-                    <View style={styles.filterSection}>
-                      <Text style={styles.filterSectionTitle}>კატეგორია</Text>
-                      <TouchableOpacity style={styles.dropdownButton}>
-                        <Text style={styles.dropdownText}>
-                          {partsFilters.category || 'ნაწილის ტიპი'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6B7280" />
-                      </TouchableOpacity>
                     </View>
 
                     <View style={styles.filterSection}>

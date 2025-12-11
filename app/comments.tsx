@@ -34,6 +34,7 @@ export default function CommentsScreen() {
   }>();
   
   const [comments, setComments] = useState<(CommunityComment & { likesCount: number; isLiked: boolean })[]>([]);
+  const [commentsTotal, setCommentsTotal] = useState<number>(Number(commentsCount || 0));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [newComment, setNewComment] = useState('');
@@ -48,7 +49,9 @@ export default function CommentsScreen() {
       setLoading(true);
       const fetchedComments = await communityApi.getPostComments(postId, user?.id);
       // Backend now returns comments with likes data
-      setComments(fetchedComments as (CommunityComment & { likesCount: number; isLiked: boolean })[]);
+      const list = fetchedComments as (CommunityComment & { likesCount: number; isLiked: boolean })[];
+      setComments(list);
+      setCommentsTotal(list.length);
     } catch (err) {
       console.error('Error loading comments:', err);
       error('შეცდომა', 'კომენტარების ჩატვირთვა ვერ მოხერხდა');
@@ -61,8 +64,9 @@ export default function CommentsScreen() {
     setRefreshing(true);
     try {
       const fetchedComments = await communityApi.getPostComments(postId, user?.id);
-      // Backend now returns comments with likes data
-      setComments(fetchedComments as (CommunityComment & { likesCount: number; isLiked: boolean })[]);
+      const list = fetchedComments as (CommunityComment & { likesCount: number; isLiked: boolean })[];
+      setComments(list);
+      setCommentsTotal(list.length);
     } catch (err) {
       console.error('Error refreshing comments:', err);
       error('შეცდომა', 'კომენტარების განახლება ვერ მოხერხდა');
@@ -95,6 +99,7 @@ export default function CommentsScreen() {
         isLiked: false,
       };
       setComments(prevComments => [...prevComments, newCommentWithLikes]);
+      setCommentsTotal(prev => prev + 1);
       setNewComment('');
       success('წარმატება!', 'კომენტარი დაემატა');
       
@@ -122,6 +127,7 @@ export default function CommentsScreen() {
               await communityApi.deleteComment(commentId);
               setComments(prevComments => prevComments.filter(comment => comment.id !== commentId));
               await communityRealtime.decrementComments(postId);
+              setCommentsTotal(prev => Math.max(0, prev - 1));
               success('წარმატება!', 'კომენტარი წაიშალა');
             } catch (err) {
               console.error('Error deleting comment:', err);
@@ -216,8 +222,11 @@ export default function CommentsScreen() {
       
       {/* Comment Actions */}
       <View style={styles.commentActions}>
-        <TouchableOpacity 
-          style={styles.commentActionButton}
+        <TouchableOpacity
+          style={[
+            styles.commentActionButton,
+            comment.isLiked && styles.commentActionButtonLiked
+          ]}
           onPress={() => toggleCommentLike(comment.id)}
         >
           <Ionicons 
@@ -252,7 +261,7 @@ export default function CommentsScreen() {
           <View style={styles.headerInfo}>
             <Text style={styles.headerTitle}>კომენტარები</Text>
             <Text style={styles.headerSubtitle}>
-              {commentsCount || '0'} კომენტარი
+              {commentsTotal} კომენტარი
             </Text>
           </View>
           <View style={styles.headerActions}>
@@ -545,6 +554,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  commentActionButtonLiked: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: '#FCA5A5',
   },
   commentActionText: {
     fontSize: 12,

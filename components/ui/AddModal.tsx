@@ -352,9 +352,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
     <>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.iconBadge}>
-            <Ionicons name="add" size={24} color="#3B82F6" />
-          </View>
+        
           <View>
             <Text style={styles.headerTitle}>ახალი დამატება</Text>
             <Text style={styles.headerSubtitle}>აირჩიეთ რას ამატებთ</Text>

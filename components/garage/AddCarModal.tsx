@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { uploadCarImage } from '../../utils/cloudinaryUpload';
 
 const { height } = Dimensions.get('window');
@@ -54,11 +55,12 @@ const CAR_MODELS: { [key: string]: string[] } = {
 const CAR_YEARS = Array.from({ length: 25 }, (_, i) => (2024 - i).toString());
 
 export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalProps) {
+  const insets = useSafeAreaInsets();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showYearDropdown, setShowYearDropdown] = useState(false);
-  const [showSubmodelDropdown] = useState(false); // kept for parity (not rendered)
+  const [showSubmodelDropdown] = useState(false);
 
   const [newCarData, setNewCarData] = useState<{
     brand?: string;
@@ -136,10 +138,10 @@ export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalP
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView 
-        style={styles.modal}
+        style={[styles.modal, { paddingBottom: insets.bottom, paddingTop: insets.top }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { paddingBottom: 24 + insets.bottom }]}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>ახალი მანქანა</Text>
@@ -147,7 +149,7 @@ export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalP
               <Ionicons name="close" size={24} color="#E5E7EB" />
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalBody}>
+          <ScrollView style={[styles.modalBody, { paddingBottom: 32 + insets.bottom }]}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>ფოტო</Text>
               <TouchableOpacity 
@@ -328,7 +330,7 @@ export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalP
               </View>
             </View>
             
-            <View style={styles.modalActions}>
+            <View style={[styles.modalActions, { paddingBottom: insets.bottom ? insets.bottom : 12 }]}>
               <TouchableOpacity style={styles.cancelModalButton} onPress={onClose}>
                 <Text style={styles.cancelModalButtonText}>გაუქმება</Text>
               </TouchableOpacity>

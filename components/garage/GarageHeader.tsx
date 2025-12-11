@@ -15,7 +15,7 @@ export default function GarageHeader({ totalCars, totalReminders, onAddCar, onAd
     <View style={styles.header}>
       <View style={styles.headerContent}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>გარაჟი</Text>
+          <Text style={styles.headerTitle}>ფარეხი</Text>
           <Text style={styles.headerSubtitle}>{totalCars} მანქანა • {totalReminders} შეხსენება</Text>
         </View>
         <View style={styles.headerActions}>

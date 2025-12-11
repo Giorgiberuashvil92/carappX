@@ -171,16 +171,17 @@ export default function BookingScreen() {
   const styles = StyleSheet.create({
     safeArea: { 
       flex: 1, 
-      backgroundColor: '#FFFFFF' 
+      backgroundColor: '#F7F9FC' 
     },
     container: {
       flex: 1,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: '#F7F9FC',
     },
     header: {
       paddingTop: 10,
       paddingBottom: 20,
       paddingHorizontal: 20,
+      backgroundColor: '#F7F9FC',
     },
     headerContent: {
       flexDirection: 'row',
@@ -219,17 +220,19 @@ export default function BookingScreen() {
     // Location Card Styles
     locationCard: {
       backgroundColor: '#FFFFFF',
-      borderRadius: 12,
+      borderRadius: 18,
       overflow: 'hidden',
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 6,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
     },
     locationImageContainer: {
       position: 'relative',
-      height: 80,
+      height: 140,
     },
     locationImage: {
       width: '100%',
@@ -241,8 +244,8 @@ export default function BookingScreen() {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.2)',
-      padding: 12,
+      backgroundColor: 'rgba(0, 0, 0, 0.25)',
+      padding: 14,
     },
     locationBadges: {
       flexDirection: 'row',
@@ -279,16 +282,18 @@ export default function BookingScreen() {
       fontFamily: 'NotoSans_600SemiBold',
     },
     locationInfo: {
-      padding: 12,
+      padding: 16,
+      gap: 4,
     },
     locationName: {
-      fontSize: 16,
+      fontSize: 18,
       fontFamily: 'NotoSans_700Bold',
       color: '#111827',
-      marginBottom: 3,
+      marginBottom: 2,
+      letterSpacing: -0.3,
     },
     locationAddress: {
-      fontSize: 12,
+      fontSize: 13,
       fontFamily: 'NotoSans_500Medium',
       color: '#6B7280',
       marginBottom: 6,
@@ -366,26 +371,45 @@ export default function BookingScreen() {
       letterSpacing: -0.3,
     },
     serviceCard: {
+      flexDirection: 'row',
+      gap: 12,
       backgroundColor: '#FFFFFF',
-      borderRadius: 12,
-      padding: 12,
-      marginBottom: 8,
-      borderWidth: 1.5,
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1.2,
       borderColor: '#E5E7EB',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 3,
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 2,
     },
     selectedServiceCard: {
       borderColor: '#3B82F6',
-      backgroundColor: '#F0F9FF',
+      backgroundColor: '#F0F7FF',
       shadowColor: '#3B82F6',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 6,
+      shadowOpacity: 0.12,
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    serviceIconContainer: {
+      width: 46,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: '#EFF6FF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#DBEAFE',
+    },
+    serviceIconContainerActive: {
+      backgroundColor: '#3B82F6',
+      borderColor: '#2563EB',
+    },
+    serviceContent: {
+      flex: 1,
     },
     serviceHeader: {
       flexDirection: 'row',
@@ -395,34 +419,69 @@ export default function BookingScreen() {
     },
     serviceName: {
       fontFamily: 'NotoSans_700Bold',
-      fontSize: 14,
+      fontSize: 15,
       color: '#111827',
       flex: 1,
       marginRight: 8,
+      letterSpacing: -0.2,
+    },
+    serviceNameActive: {
+      color: '#0F172A',
+    },
+    servicePriceContainer: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+      backgroundColor: '#EEF2FF',
     },
     servicePrice: {
       fontFamily: 'NotoSans_700Bold',
-      fontSize: 16,
-      color: '#3B82F6',
+      fontSize: 14,
+      color: '#4338CA',
     },
     serviceDescription: {
       fontFamily: 'NotoSans_500Medium',
       fontSize: 12,
       color: '#6B7280',
-      marginBottom: 8,
-      lineHeight: 16,
+      marginBottom: 10,
+      lineHeight: 17,
+    },
+    serviceFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    serviceDurationBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: '#ECFDF5',
+      borderColor: '#D1FAE5',
+      borderWidth: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
     },
     serviceDuration: {
       fontFamily: 'NotoSans_600SemiBold',
-      fontSize: 10,
-      color: '#10B981',
-      backgroundColor: '#ECFDF5',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-      alignSelf: 'flex-start',
+      fontSize: 11,
+      color: '#047857',
+    },
+    selectedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: '#E0F2FE',
+      borderColor: '#BFDBFE',
       borderWidth: 1,
-      borderColor: '#D1FAE5',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+    },
+    selectedBadgeText: {
+      fontFamily: 'NotoSans_600SemiBold',
+      fontSize: 12,
+      color: '#1D4ED8',
     },
     dateContainer: {
       flexDirection: 'row',
@@ -430,28 +489,28 @@ export default function BookingScreen() {
       gap: 8,
     },
     dateCard: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 12,
-      borderWidth: 1.5,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 14,
+      borderWidth: 1.2,
       borderColor: '#E5E7EB',
       backgroundColor: '#FFFFFF',
       alignItems: 'center',
-      minWidth: 70,
+      minWidth: 78,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 6,
-      elevation: 3,
+      shadowOpacity: 0.05,
+      shadowRadius: 5,
+      elevation: 2,
     },
     selectedDateCard: {
       borderColor: '#3B82F6',
-      backgroundColor: '#F0F9FF',
+      backgroundColor: '#EFF6FF',
       shadowColor: '#3B82F6',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
+      shadowOpacity: 0.12,
       shadowRadius: 8,
-      elevation: 5,
+      elevation: 4,
     },
     dateText: {
       fontFamily: 'NotoSans_700Bold',
@@ -473,25 +532,25 @@ export default function BookingScreen() {
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: 12,
-      borderWidth: 1.5,
+      borderWidth: 1.2,
       borderColor: '#E5E7EB',
       backgroundColor: '#FFFFFF',
       alignItems: 'center',
-      minWidth: 65,
+      minWidth: 68,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 6,
-      elevation: 3,
+      shadowOpacity: 0.05,
+      shadowRadius: 5,
+      elevation: 2,
     },
     selectedTimeSlot: {
       borderColor: '#3B82F6',
-      backgroundColor: '#F0F9FF',
+      backgroundColor: '#EFF6FF',
       shadowColor: '#3B82F6',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
+      shadowOpacity: 0.12,
       shadowRadius: 8,
-      elevation: 5,
+      elevation: 4,
     },
     timeText: {
       fontFamily: 'NotoSans_600SemiBold',
@@ -544,23 +603,23 @@ export default function BookingScreen() {
       color: '#3B82F6',
     },
     nextButton: {
-      backgroundColor: '#3B82F6',
+      backgroundColor: '#0F172A',
       marginHorizontal: 20,
       marginBottom: 20,
       paddingVertical: 18,
       borderRadius: 14,
       alignItems: 'center',
-      shadowColor: '#3B82F6',
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.25,
-      shadowRadius: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 8,
       elevation: 3,
     },
     nextButtonText: {
       fontFamily: 'NotoSans_700Bold',
-      fontSize: 14,
+      fontSize: 15,
       color: '#FFFFFF',
-      letterSpacing: -0.2,
+      letterSpacing: -0.1,
     },
     disabledButton: {
       backgroundColor: '#9CA3AF',
@@ -680,7 +739,7 @@ export default function BookingScreen() {
       letterSpacing: -0.2,
     },
     bogPaymentButton: {
-      backgroundColor: '#22C55E',
+      backgroundColor: '#0F172A',
       marginHorizontal: 20,
       marginBottom: 12,
       paddingVertical: 18,
@@ -689,9 +748,9 @@ export default function BookingScreen() {
       flexDirection: 'row',
       justifyContent: 'center',
       gap: 8,
-      shadowColor: '#22C55E',
+      shadowColor: '#2563EB',
       shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.25,
+      shadowOpacity: 0.2,
       shadowRadius: 6,
       elevation: 3,
     },
@@ -967,12 +1026,18 @@ export default function BookingScreen() {
   };
 
   const renderStep1 = () => {
+    const serviceIcons: { [key: string]: string } = {
+      '1': 'car-wash',
+      '2': 'diamond',
+      '3': 'flash',
+      '4': 'sparkles',
+    };
   
     return (
-    <ScrollView showsVerticalScrollIndicator={false}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>აირჩიეთ სერვისი</Text>
-        {dynamicServices.map((service) => (
+        {dynamicServices.map((service, index) => (
           <TouchableOpacity
             key={service.id}
             style={[
@@ -980,13 +1045,45 @@ export default function BookingScreen() {
               selectedService === service.id && styles.selectedServiceCard
             ]}
             onPress={() => setSelectedService(service.id)}
+            activeOpacity={0.9}
           >
-            <View style={styles.serviceHeader}>
-              <Text style={styles.serviceName}>{service.name}</Text>
-              <Text style={styles.servicePrice}>{service.price}</Text>
+            {/* Left Icon */}
+            <View style={[
+              styles.serviceIconContainer,
+              selectedService === service.id && styles.serviceIconContainerActive
+            ]}>
+              <Ionicons 
+                name={index === 0 ? 'water' : index === 1 ? 'diamond' : index === 2 ? 'flash' : 'sparkles'} 
+                size={24} 
+                color={selectedService === service.id ? '#FFFFFF' : '#3B82F6'} 
+              />
             </View>
-            <Text style={styles.serviceDescription}>{service.description}</Text>
-            <Text style={styles.serviceDuration}>{service.duration}</Text>
+            
+            {/* Content */}
+            <View style={styles.serviceContent}>
+              <View style={styles.serviceHeader}>
+                <Text style={[
+                  styles.serviceName,
+                  selectedService === service.id && styles.serviceNameActive
+                ]}>{service.name}</Text>
+                <View style={styles.servicePriceContainer}>
+                  <Text style={styles.servicePrice}>{service.price}</Text>
+                </View>
+              </View>
+              <Text style={styles.serviceDescription}>{service.description}</Text>
+              <View style={styles.serviceFooter}>
+                <View style={styles.serviceDurationBadge}>
+                  <Ionicons name="time-outline" size={12} color="#10B981" />
+                  <Text style={styles.serviceDuration}>{service.duration}</Text>
+                </View>
+                {selectedService === service.id && (
+                  <View style={styles.selectedBadge}>
+                    <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                    <Text style={styles.selectedBadgeText}>არჩეული</Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -1270,7 +1367,7 @@ export default function BookingScreen() {
             >
               <Ionicons name="card" size={16} color="#FFFFFF" />
               <Text style={styles.bogPaymentButtonText}>
-                BOG გადახდა ({selectedService ? getSelectedService()?.price : '0₾'})
+                 გადახდა ({selectedService ? getSelectedService()?.price : '0₾'})
               </Text>
             </TouchableOpacity>
           )}
@@ -1290,18 +1387,7 @@ export default function BookingScreen() {
             </View>
           )}
           
-          <TouchableOpacity
-            style={[
-              styles.nextButton,
-              (!selectedDate || !selectedTime) && styles.disabledButton
-            ]}
-            onPress={handleNextStep}
-            disabled={!selectedDate || !selectedTime}
-          >
-            <Text style={styles.nextButtonText}>
-              უფასო დადასტურება
-            </Text>
-          </TouchableOpacity>
+         
         </View>
       )}
       </View>

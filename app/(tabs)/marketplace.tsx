@@ -204,7 +204,7 @@ export default function MarketplaceScreen() {
         router.push('/carwash');
         break;
       case 'towing':
-        router.push('/offers');
+        router.push('/ai');
         break;
       default:
         break;
@@ -290,9 +290,7 @@ export default function MarketplaceScreen() {
               ყველაფერი რაც თქვენს ავტომობილს სჭირდება
             </Text>
           </View>
-          <TouchableOpacity style={styles.searchButton}>
-            <Ionicons name="search" size={24} color="#111827" />
-          </TouchableOpacity>
+          
         </View>
       </SafeAreaView>
 

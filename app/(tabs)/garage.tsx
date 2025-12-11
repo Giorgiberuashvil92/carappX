@@ -202,7 +202,7 @@ const CAR_SUBMODELS: { [key: string]: { [key: string]: string[] } } = {
 const CAR_YEARS = Array.from({ length: 25 }, (_, i) => (2024 - i).toString());
 
 export default function GarageScreen() {
-  const { cars: apiCars, selectedCar: apiSelectedCar, reminders: apiReminders, addCar: apiAddCar, removeCar: apiRemoveCar, selectCar: apiSelectCar, addReminder: apiAddReminder } = useCars();
+  const { cars: apiCars, selectedCar: apiSelectedCar, reminders: apiReminders, addCar: apiAddCar, removeCar: apiRemoveCar, selectCar: apiSelectCar, addReminder: apiAddReminder, updateCar: apiUpdateCar } = useCars();
   const { success, error, warning, info } = useToast();
 
   const [cars, setCars] = useState<UICar[]>([]);
@@ -501,12 +501,40 @@ export default function GarageScreen() {
     if (!editingCarId) return;
     
     try {
-      // TODO: API call to update car
-      setCars(prev => prev.map(car => 
-        car.id === editingCarId 
-          ? { ...car, ...editingCarData }
-          : car
-      ));
+      await apiUpdateCar(editingCarId, {
+        make: editingCarData.brand,
+        model: editingCarData.model,
+        year: editingCarData.year ? Number(editingCarData.year) : undefined,
+        plateNumber: editingCarData.licensePlate,
+        imageUri: editingCarData.image,
+      });
+
+      setCars(prev =>
+        prev.map(car =>
+          car.id === editingCarId
+            ? {
+                ...car,
+                brand: editingCarData.brand ?? car.brand,
+                model: editingCarData.model ?? car.model,
+                year: editingCarData.year ?? car.year,
+                licensePlate: editingCarData.licensePlate ?? car.licensePlate,
+                image: editingCarData.image ?? car.image,
+              }
+            : car,
+        ),
+      );
+      setSelectedCar(prev =>
+        prev && prev.id === editingCarId
+          ? {
+              ...prev,
+              brand: editingCarData.brand ?? prev.brand,
+              model: editingCarData.model ?? prev.model,
+              year: editingCarData.year ?? prev.year,
+              licensePlate: editingCarData.licensePlate ?? prev.licensePlate,
+              image: editingCarData.image ?? prev.image,
+            }
+          : prev,
+      );
       setEditingCarId(null);
       setEditingCarData({});
       setEditCarModalVisible(false);
@@ -724,7 +752,7 @@ const styles = StyleSheet.create({
       marginBottom: 12,
     },
     emptyTitle: {
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: '800',
       color: '#FFFFFF',
       marginTop: 4,
@@ -1794,7 +1822,7 @@ const styles = StyleSheet.create({
           />
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.headerTitle}>ჩემი გარაჟი</Text>
+              <Text style={styles.headerTitle}>ჩემი ფარეხი</Text>
               <Text style={styles.headerSubtitle}>GARAGE MANAGEMENT</Text>
             </View>
             <View style={styles.headerButtons}>

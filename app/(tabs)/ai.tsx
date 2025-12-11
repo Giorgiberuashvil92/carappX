@@ -24,6 +24,9 @@ import { aiApi } from '@/services/aiApi';
 
 const { width } = Dimensions.get('window');
 
+// Temporary push-token fetcher placeholder to satisfy linting
+const getPushToken = async (): Promise<string | null> => null;
+
 export default function AILandingScreen() {
   const { selectedCar, cars, addCar, selectCar } = useCars();
   const { user } = useUser();
@@ -32,6 +35,7 @@ export default function AILandingScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
   const insets = useSafeAreaInsets();
+  const [sellerError, setSellerError] = useState<string | null>(null);
 
   useEffect(() => {
     Animated.parallel([
@@ -68,14 +72,18 @@ export default function AILandingScreen() {
   const [sellerLoading, setSellerLoading] = useState(false);
   const [sellerStatus, setSellerStatus] = useState<{
     showSellerPanel: boolean;
-    counts: { stores: number; parts: number; dismantlers: number };
-    matchingRequests: any[];
+    counts?: { stores?: number; parts?: number; dismantlers?: number };
+    matchingRequests?: any[];
+    ownedStores?: any[];
+    ownedParts?: any[];
+    ownedDismantlers?: any[];
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadSellerStatus = async () => {
     if (!user?.id) return;
     try {
+      setSellerError(null);
       setSellerLoading(true);
       console.log('[AI] calling getSellerStatus with', {
         userId: user.id,
@@ -99,6 +107,7 @@ export default function AILandingScreen() {
       setSellerStatus(res.data);
     } catch (e) {
       console.warn('[AI] seller-status error', e);
+      setSellerError('ვერ ჩატვირთა სტატუსი, სცადე განახლება');
     } finally {
       setSellerLoading(false);
     }
@@ -124,6 +133,13 @@ export default function AILandingScreen() {
     }
     router.push(`/service-form?service=${service}`);
   };
+
+  const hasStore =
+    !!(sellerStatus?.counts?.stores && sellerStatus.counts.stores > 0) ||
+    !!(sellerStatus?.ownedStores && sellerStatus.ownedStores.length > 0);
+  const chatUnread =
+    (sellerStatus?.matchingRequests && sellerStatus.matchingRequests.length) || 0;
+  const hasCar = !!selectedCar;
 
   const services = [
     {
@@ -186,44 +202,7 @@ export default function AILandingScreen() {
           ]}
         >
           {/* Hero Section */}
-          <View style={styles.heroSection}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.06)']}
-              style={styles.heroGradient}
-            >
-              <View style={styles.heroContent}>
-                <Text style={styles.heroTitle}>მოგესალმებით</Text>
-                <Text style={styles.heroSubtitle}>
-                  აირჩიეთ საჭირო სერვისი
-                </Text>
-              </View>
-            </LinearGradient>
-          </View>
-
-          {/* Finance Banner */}
-          <Animated.View style={styles.financeBannerSection}>
-            <LinearGradient
-              colors={['#10B981', '#059669']}
-              style={styles.financeBannerGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.financeBannerContent}>
-                <View style={styles.financeBannerIcon}>
-                  <Ionicons name="card" size={24} color="#FFFFFF" />
-                </View>
-                <View style={styles.financeBannerText}>
-                  <Text style={styles.financeBannerTitle}>განვადება 0% პროცენტით</Text>
-                  <Text style={styles.financeBannerSubtitle}>
-                    ყველა სერვისზე ხელმისაწვდომია
-                  </Text>
-                </View>
-                <View style={styles.financeBannerBadge}>
-                  <Text style={styles.financeBannerBadgeText}>0%</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </Animated.View>
+          
 
           {/* Car Selection */}
           <Animated.View style={styles.carSection}>
@@ -275,32 +254,84 @@ export default function AILandingScreen() {
 
           {/* Quick Links */}
           <View style={styles.quickLinksContainer}>
-            <Pressable
-              style={styles.quickLink}
-              onPress={() => router.push('/all-requests')}
-            >
-              <LinearGradient
-                colors={['rgba(99, 102, 241, 0.2)', 'rgba(79, 70, 229, 0.2)']}
-                style={styles.quickLinkGradient}
+            {hasStore && (
+              <Pressable
+                style={styles.quickLink}
+                onPress={() => router.push('/partner-dashboard?partnerType=store')}
               >
-                <Ionicons name="list" size={18} color="#FFFFFF" />
-                <Text style={styles.quickLinkText}>ჩემი მოთხოვნები</Text>
-              </LinearGradient>
-            </Pressable>
-
-            <Pressable
-              style={styles.quickLink}
-              onPress={() => router.push('/partner-dashboard?partnerType=store')}
-            >
-              <LinearGradient
-                colors={['rgba(16, 185, 129, 0.2)', 'rgba(5, 150, 105, 0.2)']}
-                style={styles.quickLinkGradient}
-              >
-                <Ionicons name="business" size={18} color="#FFFFFF" />
-                <Text style={styles.quickLinkText}>მაღაზიის პანელი</Text>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={['rgba(16, 185, 129, 0.2)', 'rgba(5, 150, 105, 0.2)']}
+                  style={styles.quickLinkGradient}
+                >
+                  <Ionicons name="business" size={18} color="#FFFFFF" />
+                  <Text style={styles.quickLinkText}>მაღაზიის პანელი</Text>
+                </LinearGradient>
+              </Pressable>
+            )}
           </View>
+
+          {/* AI Helper */}
+          <Pressable style={styles.aiCard} onPress={() => router.push('/service-form?service=parts')}>
+            <View style={styles.aiLeft}>
+              <View style={styles.aiIcon}>
+                <Ionicons name="sparkles" size={20} color="#111827" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.aiTitle}>AI დამხმარე</Text>
+                <Text style={styles.aiSubtitle}>მოძებნის ნაწილებს და გამოგიგზავნის შეთავაზებებს</Text>
+                {!hasCar && (
+                  <Text style={styles.aiHint}>ჯერ დაამატე ან აირჩიე მანქანა ზემოთ</Text>
+                )}
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#111827" />
+          </Pressable>
+
+          {/* Chat entry */}
+          <Pressable
+            style={styles.chatCard}
+            onPress={() => router.push('/all-requests')}
+          >
+            <View style={styles.chatLeft}>
+              <View style={styles.chatIcon}>
+                <Ionicons name="chatbubbles" size={20} color="#0F172A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chatTitle}>ჩატი / პასუხები</Text>
+                <Text style={styles.chatSubtitle}>
+                  ნახე მაღაზიების პასუხები და შეთავაზებები
+                </Text>
+              </View>
+            </View>
+            <View style={styles.chatBadge}>
+              <Text style={styles.chatBadgeText}>{chatUnread}</Text>
+            </View>
+          </Pressable>
+
+          {/* Finance Banner */}
+          <Animated.View style={styles.financeBannerSection}>
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.financeBannerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.financeBannerContent}>
+                <View style={styles.financeBannerIcon}>
+                  <Ionicons name="card" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.financeBannerText}>
+                  <Text style={styles.financeBannerTitle}>განვადება 0% პროცენტით</Text>
+                  <Text style={styles.financeBannerSubtitle}>
+                    ყველა სერვისზე ხელმისაწვდომია
+                  </Text>
+                </View>
+                <View style={styles.financeBannerBadge}>
+                  <Text style={styles.financeBannerBadgeText}>0%</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </Animated.View>
 
         {/* Seller Panel */}
 
@@ -394,7 +425,6 @@ export default function AILandingScreen() {
         </View>
       </Modal>
 
-      {/* Add Car Modal (identical to garage) */}
       <AddCarModal
         visible={showAddCarModal}
         onClose={() => setShowAddCarModal(false)}
@@ -430,7 +460,6 @@ const styles = StyleSheet.create({
     gap: 24,
   },
 
-  // Hero Section
   heroSection: {
     marginTop: 10,
   },
@@ -456,6 +485,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  heroMeta: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 12,
+    color: '#CBD5E1',
+    marginTop: 6,
+  },
+  heroError: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 12,
+    color: '#FCA5A5',
+    marginTop: 6,
   },
 
   // Finance Banner
@@ -636,7 +677,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 4,
-    marginBottom: 16,
+
   },
   quickLink: {
     flex: 1,
@@ -657,6 +698,99 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
     textAlign: 'center',
+  },
+
+  // AI helper
+  aiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.3)',
+    gap: 12,
+  },
+  aiLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  aiIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(17,24,39,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#0F172A',
+  },
+  aiSubtitle: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 13,
+    color: '#475569',
+  },
+  aiHint: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 12,
+    color: '#EA580C',
+    marginTop: 2,
+  },
+
+  // Chat card
+  chatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
+  },
+  chatLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  chatIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  chatSubtitle: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 13,
+    color: '#CBD5E1',
+  },
+  chatBadge: {
+    backgroundColor: '#22C55E',
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  chatBadgeText: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 13,
+    color: '#FFFFFF',
   },
 
   // Modal Styles

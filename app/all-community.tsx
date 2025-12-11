@@ -106,7 +106,7 @@ export default function AllCommunityScreen() {
               </BlurView>
             </TouchableOpacity>
             
-            <Text style={styles.headerText}>კომუნიტი</Text>
+            <Text style={styles.headerText}>ჯგუფი</Text>
             
             <TouchableOpacity style={styles.headerButton}>
               <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>

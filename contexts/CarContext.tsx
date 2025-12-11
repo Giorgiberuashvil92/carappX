@@ -133,14 +133,17 @@ export function CarProvider({ children }: { children: ReactNode }) {
   };
 
   // API ფუნქციები
-  const addCar = async (carData: Omit<Car, 'id' | 'imageUri' | 'lastService' | 'nextService'>) => {
+  const addCar = async (carData: Omit<Car, 'id' | 'lastService' | 'nextService'>) => {
     try {
       const createCarData: CreateCarData = {
         make: carData.make,
         model: carData.model,
         year: carData.year,
         plateNumber: carData.plateNumber,
-        imageUri: getCarImage(carData.make),
+        imageUri: carData.imageUri || getCarImage(carData.make),
+        mileage: (carData as any).mileage,
+        color: (carData as any).color,
+        vin: (carData as any).vin,
       };
 
       const newApiCar = await garageApi.createCar(createCarData);
@@ -151,7 +154,7 @@ export function CarProvider({ children }: { children: ReactNode }) {
         model: newApiCar.model,
         year: newApiCar.year,
         plateNumber: newApiCar.plateNumber,
-        imageUri: newApiCar.imageUri || getCarImage(newApiCar.make),
+        imageUri: newApiCar.imageUri || carData.imageUri || getCarImage(newApiCar.make),
         lastService: newApiCar.lastService ? new Date(newApiCar.lastService) : undefined,
         nextService: newApiCar.nextService ? new Date(newApiCar.nextService) : undefined,
       };

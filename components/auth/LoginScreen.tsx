@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../useColorScheme';
 import { useUser } from '../../contexts/UserContext';
@@ -41,6 +42,7 @@ export default function LoginScreen() {
   const [showRegister, setShowRegister] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [role, setRole] = useState<'user' | 'partner' | null>(null);
+  const [nameInputFocused, setNameInputFocused] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showOtpDisabledModal, setShowOtpDisabledModal] = useState(false);
@@ -507,23 +509,253 @@ export default function LoginScreen() {
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: 'rgba(0,0,0,0.35)',
+      backgroundColor: 'rgba(17, 24, 39, 0.82)',
       justifyContent: 'center',
       alignItems: 'center',
+      paddingHorizontal: 18,
+      paddingVertical: 24,
     },
-    registerCentered: {
+    registerModal: {
       width: '100%',
-      alignItems: 'center',
-    },
-    registerCard: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 24,
+      maxWidth: 520,
+      // maxHeight: '90%',
+      backgroundColor: 'rgba(255, 255, 255, 0.98)',
+      borderRadius: 28,
       padding: 22,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 16 },
-      shadowOpacity: 0.2,
+      shadowOffset: { width: 0, height: 22 },
+      shadowOpacity: 0.26,
       shadowRadius: 32,
       elevation: 24,
+      gap: 12,
+      overflow: 'hidden',
+    },
+    registerHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    registerHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    registerBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#EEF2FF',
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      gap: 6,
+      borderWidth: 1,
+      borderColor: '#E0E7FF',
+    },
+    registerBadgeText: {
+      fontSize: 12,
+      fontFamily: 'Inter_700Bold',
+      color: '#4F46E5',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
+    registerCloseButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: '#F3F4F6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    registerTitle: {
+      fontSize: 22,
+      fontFamily: 'Inter_700Bold',
+      color: '#111827',
+      letterSpacing: -0.35,
+    },
+    registerSubtitle: {
+      fontSize: 14,
+      color: '#4B5563',
+      lineHeight: 21,
+      fontFamily: 'Inter',
+      marginBottom: 4,
+    },
+    registerScroll: {
+      flexGrow: 1,
+      gap: 12,
+      paddingBottom: 12,
+    },
+    registerSectionCard: {
+      backgroundColor: '#F8FAFC',
+      borderRadius: 18,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      marginTop: 6,
+      gap: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+    registerLabel: {
+      fontSize: 12,
+      fontFamily: 'Inter_700Bold',
+      color: '#111827',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    registerInputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      gap: 10,
+      minHeight: 54,
+    },
+    registerInputWrapperFocused: {
+      borderColor: '#4F46E5',
+      shadowColor: '#4F46E5',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 6,
+      backgroundColor: '#F9FAFF',
+    },
+    registerInput: {
+      flex: 1,
+      fontSize: 16,
+      color: '#111827',
+      fontFamily: 'Inter_600SemiBold',
+      paddingVertical: 0,
+    },
+    registerHelper: {
+      fontSize: 12,
+      color: '#9CA3AF',
+      fontFamily: 'Inter',
+    },
+    roleChipsRow: {
+      gap: 12,
+    },
+    roleChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      gap: 12,
+      marginTop: 8,
+      minHeight: 72,
+    },
+    roleChipActive: {
+      backgroundColor: '#EEF2FF',
+      borderColor: '#4F46E5',
+      shadowColor: '#4F46E5',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    roleChipIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: '#F3F4F6',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    roleChipIconActive: {
+      backgroundColor: '#4F46E5',
+    },
+    roleChipTextWrap: {
+      flex: 1,
+      gap: 2,
+    },
+    roleChipTitle: {
+      fontSize: 15,
+      fontFamily: 'Inter_700Bold',
+      color: '#111827',
+      letterSpacing: -0.2,
+    },
+    roleChipTitleActive: {
+      color: '#111827',
+    },
+    roleChipSubtitle: {
+      fontSize: 12,
+      fontFamily: 'Inter',
+      color: '#6B7280',
+      lineHeight: 16,
+    },
+    registerFooter: {
+      marginTop: 10,
+      gap: 12,
+    },
+    registerHintRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: '#ECFDF3',
+      borderColor: '#BBF7D0',
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 10,
+    },
+    registerHintText: {
+      fontSize: 13,
+      fontFamily: 'Inter',
+      color: '#065F46',
+      flex: 1,
+    },
+    registerPrimaryButton: {
+      backgroundColor: '#111827',
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    registerPrimaryButtonDisabled: {
+      backgroundColor: '#E5E7EB',
+      shadowOpacity: 0,
+      elevation: 0,
+    },
+    registerPrimaryText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontFamily: 'Inter_700Bold',
+      letterSpacing: 0.3,
+    },
+    registerSecondaryButton: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    registerSecondaryText: {
+      color: '#111827',
+      fontSize: 14,
+      fontFamily: 'Inter_600SemiBold',
     },
     roleSegment: {
       flexDirection: 'row',
@@ -652,32 +884,6 @@ export default function LoginScreen() {
       fontFamily: 'Inter',
       marginLeft: 4,
     },
-    roleChip: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 14,
-      alignItems: 'center',
-      borderWidth: 1,
-    },
-    roleChipInactive: {
-      backgroundColor: '#FFFFFF',
-      borderColor: '#E5E7EB',
-    },
-    roleChipActive: {
-      backgroundColor: '#111827',
-      borderColor: '#111827',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.25,
-      shadowRadius: 16,
-      elevation: 10,
-    },
-    roleChipText: {
-      fontSize: 15,
-      fontFamily: 'Inter',
-      color: '#111827',
-      letterSpacing: -0.2,
-    },
     primaryCta: {
       backgroundColor: '#111827',
       borderRadius: 16,
@@ -780,7 +986,7 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.content}>            
+            <View style={styles.content}>
               <View style={styles.modal}>
                 <Text style={styles.subtitle}>
                   შეიყვანეთ თქვენი ტელეფონის ნომერი
@@ -842,10 +1048,10 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-            {showOTP && (
-              <View style={styles.otpModal}>
-                <Text style={styles.otpTitle}>SMS კოდის ვერიფიკაცია</Text>
-                <Text style={styles.otpSubtitle}>
+              {showOTP && (
+                <View style={styles.otpModal}>
+                  <Text style={styles.otpTitle}>SMS კოდის ვერიფიკაცია</Text>
+                  <Text style={styles.otpSubtitle}>
                   გთხოვთ შეიყვანოთ კოდი, რომელიც გამოგეგზავნათ ნომერზე {phone}
                 </Text>
 
@@ -893,100 +1099,205 @@ export default function LoginScreen() {
                   <Text style={styles.resendText}>ხელახლა გაგზავნა</Text>
                 </TouchableOpacity>
               </View>
-            )}
+              )}
 
-            {showRegister && (
-              <View style={styles.otpModal}>
-                <Text style={styles.otpTitle}>ანგარიშის შექმნა</Text>
-                <Text style={styles.otpSubtitle}>შეიყვანეთ სახელი და აირჩიეთ როლი</Text>
+              {showRegister && (
+                <View style={styles.registerOverlay}>
+                  <View style={styles.registerModal}>
+                    <View style={styles.registerHeaderRow}>
+                      <View style={styles.registerHeaderLeft}>
+                        <View style={styles.registerBadge}>
+                          <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
+                          <Text style={styles.registerBadgeText}>ახალი პროფილი</Text>
+                        </View>
+                       
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setShowRegister(false)}
+                        style={styles.registerCloseButton}
+                        hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+                      >
+                        <Ionicons name="close" size={20} color="#111827" />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.registerTitle}>დასრულე რეგისტრაცია</Text>
+                    <Text style={styles.registerSubtitle}>
+                      შეიყვანე სახელი და აირჩიე როლი. შეძლებ ცვლილებას პროფილში მოგვიანებითაც.
+                    </Text>
 
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>სახელი</Text>
-                  <View style={styles.phoneInputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={firstName}
-                      onChangeText={setFirstName}
-                      placeholder="მაგ: გიორგი"
-                      placeholderTextColor={colors.placeholder}
-                    />
+                    <ScrollView
+                      contentContainerStyle={styles.registerScroll}
+                      bounces={false}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <View style={styles.registerSectionCard}>
+                        <Text style={styles.registerLabel}>სახელი</Text>
+                        <View style={[
+                          styles.registerInputWrapper,
+                          nameInputFocused && styles.registerInputWrapperFocused
+                        ]}>
+                          <Ionicons
+                            name="person-circle-outline"
+                            size={22}
+                            color={nameInputFocused ? '#4F46E5' : '#9CA3AF'}
+                          />
+                          <TextInput
+                            style={styles.registerInput}
+                            value={firstName}
+                            onChangeText={setFirstName}
+                            placeholder="მაგ: გიორგი"
+                            placeholderTextColor="#9CA3AF"
+                            autoCapitalize="words"
+                            onFocus={() => setNameInputFocused(true)}
+                            onBlur={() => setNameInputFocused(false)}
+                          />
+                          <Text style={styles.registerHelper}>{Math.min(firstName.trim().length, 30)}/30</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.registerSectionCard}>
+                        <Text style={styles.registerLabel}>აირჩიე როლი</Text>
+                        <View style={styles.roleChipsRow}>
+                          <TouchableOpacity
+                            onPress={() => setRole('user')}
+                            activeOpacity={0.85}
+                            style={[
+                              styles.roleChip,
+                              role === 'user' && styles.roleChipActive
+                            ]}
+                          >
+                            <View style={[
+                              styles.roleChipIcon,
+                              role === 'user' && styles.roleChipIconActive
+                            ]}>
+                              <Ionicons
+                                name="person"
+                                size={20}
+                                color={role === 'user' ? '#FFFFFF' : '#111827'}
+                              />
+                            </View>
+                            <View style={styles.roleChipTextWrap}>
+                              <Text style={[
+                                styles.roleChipTitle,
+                                role === 'user' && styles.roleChipTitleActive
+                              ]}>
+                                მომხმარებელი
+                              </Text>
+                              <Text style={styles.roleChipSubtitle}>შეკვეთები და დაჯავშნები</Text>
+                            </View>
+                            {role === 'user' && (
+                              <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={() => setRole('partner')}
+                            activeOpacity={0.85}
+                            style={[
+                              styles.roleChip,
+                              role === 'partner' && styles.roleChipActive
+                            ]}
+                          >
+                            <View style={[
+                              styles.roleChipIcon,
+                              role === 'partner' && styles.roleChipIconActive
+                            ]}>
+                              <Ionicons
+                                name="business"
+                                size={20}
+                                color={role === 'partner' ? '#FFFFFF' : '#111827'}
+                              />
+                            </View>
+                            <View style={styles.roleChipTextWrap}>
+                              <Text style={[
+                                styles.roleChipTitle,
+                                role === 'partner' && styles.roleChipTitleActive
+                              ]}>
+                                პარტნიორი
+                              </Text>
+                              <Text style={styles.roleChipSubtitle}>ანგარიშები, სერვისები, გაყიდვები</Text>
+                            </View>
+                            {role === 'partner' && (
+                              <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </ScrollView>
+
+                    <View style={styles.registerFooter}>
+                      <View style={styles.registerHintRow}>
+                        <Ionicons name="shield-checkmark-outline" size={18} color="#10B981" />
+                        <Text style={styles.registerHintText}>შესვლის შემდეგ შეგიძლია პროფილის ცვლილება.</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.registerPrimaryButton,
+                          (loading || !firstName.trim() || !role) && styles.registerPrimaryButtonDisabled
+                        ]}
+                        onPress={async () => {
+                          if (!pendingUserId) {
+                            error('შეცდომა', 'დაბრუნდით თავიდან');
+                            setShowRegister(false);
+                            return;
+                          }
+                          if (!firstName.trim() || !role) {
+                            error('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
+                            return;
+                          }
+                          try {
+                            setLoading(true);
+                            const res = await fetch(`${API_URL}/auth/complete`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userId: pendingUserId, firstName: firstName.trim(), role }),
+                            });
+                            const data = await res.json();
+                            setLoading(false);
+                            if (!res.ok) {
+                              const msg = typeof data === 'object' && data?.message ? String(data.message) : 'შენახვა ვერ მოხერხდა';
+                              error('შეცდომა', msg);
+                              return;
+                            }
+                            if (data?.user) {
+                              await login(data.user);
+                            }
+                            success('წარმატება!', 'ანგარიში წარმატებით შეიქმნა');
+                            setShowRegister(false);
+                            router.replace('/(tabs)');
+                            showSubscriptionModalAfterLogin();
+                          } catch (e) {
+                            setLoading(false);
+                            error('შეცდომა', 'ქსელური შეცდომა');
+                          }
+                        }}
+                        disabled={loading || !firstName.trim() || !role}
+                      >
+                        {loading ? (
+                          <View style={styles.loadingContainer}>
+                            <ActivityIndicator color="#FFFFFF" />
+                            <Text style={[styles.registerPrimaryText, styles.loadingText]}>შენახვა...</Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Text style={styles.registerPrimaryText}>დასრულება</Text>
+                            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity 
+                        style={styles.registerSecondaryButton} 
+                        onPress={() => setShowRegister(false)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.registerSecondaryText}>გაუქმება</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-
-                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                  <TouchableOpacity
-                    onPress={() => setRole('user')}
-                    style={[styles.socialButton, role === 'user' && { borderWidth: 1, borderColor: colors.primary }]}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={styles.socialButtonText}>მომხმარებელი</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setRole('partner')}
-                    style={[styles.socialButton, role === 'partner' && { borderWidth: 1, borderColor: colors.primary }]}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={styles.socialButtonText}>პარტნიორი</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-                  onPress={async () => {
-                    if (!pendingUserId) {
-                      error('შეცდომა', 'დაბრუნდით თავიდან');
-                      setShowRegister(false);
-                      return;
-                    }
-                    if (!firstName.trim() || !role) {
-                      error('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
-                      return;
-                    }
-                    try {
-                      setLoading(true);
-                      const res = await fetch(`${API_URL}/auth/complete`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: pendingUserId, firstName: firstName.trim(), role }),
-                      });
-                      const data = await res.json();
-                      setLoading(false);
-                      if (!res.ok) {
-                        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'შენახვა ვერ მოხერხდა';
-                        error('შეცდომა', msg);
-                        return;
-                      }
-                      // Save updated user data to context
-                      if (data?.user) {
-                        await login(data.user);
-                      }
-                      success('წარმატება!', 'ანგარიში წარმატებით შეიქმნა');
-                      setShowRegister(false);
-                      router.replace('/(tabs)');
-                      // Show subscription modal after registration
-                      showSubscriptionModalAfterLogin();
-                    } catch (e) {
-                      setLoading(false);
-                      error('შეცდომა', 'ქსელური შეცდომა');
-                    }
-                  }}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator color="#FFFFFF" />
-                      <Text style={[styles.loginButtonText, styles.loadingText]}>შენახვა...</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.loginButtonText}>დასრულება</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.resendContainer} onPress={() => setShowRegister(false)}>
-                  <Text style={styles.resendText}>გაუქმება</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              )}
             </View>
           </TouchableWithoutFeedback>
         </ScrollView>

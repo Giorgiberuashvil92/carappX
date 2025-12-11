@@ -7,17 +7,22 @@ import {
   Animated,
   Dimensions,
   StatusBar,
-  ScrollView,
   Alert,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
+import { Buffer } from 'buffer';
+import { carfaxApi } from '../services/carfaxApi';
 
 const { width } = Dimensions.get('window');
+const ACCENT = '#0B64D4';
+const SURFACE = '#F3F6FC';
+const BG = '#FFFFFF';
+const TEXT = '#0F172A';
+const MUTED = '#475569';
 
 interface CarFAXSuccessProps {
   vinCode: string;
@@ -27,817 +32,474 @@ interface CarFAXSuccessProps {
 
 export default function CarFAXSuccess({ vinCode, carData, onClose }: CarFAXSuccessProps) {
   const router = useRouter();
-  
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.96)).current;
+
+  const wrapHtmlWithStyles = (html: string) => {
+    const style = `
+      <meta charset="UTF-8">
+      <base href="https://cai.autoimports.ge/">
+      <style id="carfax-override">
+        :root { color-scheme: only light; }
+        *, *::before, *::after { box-sizing: border-box !important; }
+        body {
+          font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+          background: #f6f7fb !important;
+          color: #0c1b2a !important;
+          line-height: 1.6 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .page {
+          max-width: 1080px !important;
+          margin: 0 auto !important;
+          padding: 24px !important;
+        }
+        .hero {
+          background: linear-gradient(135deg, #0f2d4d, #0b3f6b) !important;
+          color: #fff !important;
+          border-radius: 18px !important;
+          padding: 20px !important;
+          margin-bottom: 18px !important;
+          box-shadow: 0 16px 40px rgba(12,27,42,0.28) !important;
+        }
+        h1, h2, h3, h4, h5 {
+          color: #0b3f6b !important;
+          letter-spacing: 0.2px !important;
+          margin-top: 18px !important;
+          margin-bottom: 10px !important;
+        }
+        .hero h1, .hero h2, .hero h3 { color: #fff !important; }
+        a { color: #0b64d4 !important; text-decoration: none !important; }
+        a:hover { text-decoration: underline !important; }
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          background: #fff !important;
+          border: 1px solid #d9e2ec !important;
+          border-radius: 12px !important;
+          overflow: hidden !important;
+          box-shadow: 0 10px 28px rgba(12,27,42,0.12) !important;
+        }
+        th, td {
+          padding: 12px 14px !important;
+          border-bottom: 1px solid #e3e8f0 !important;
+          color: #0c1b2a !important;
+          font-size: 14px !important;
+        }
+        th {
+          background: #f0f4ff !important;
+          font-weight: 700 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+        }
+        tr:nth-child(even) td { background: #fbfcff !important; }
+        tr:last-child td { border-bottom: none !important; }
+        .card, .panel, .box, .section, .summary-row, .row {
+          background: #fff !important;
+          border: 1px solid #d9e2ec !important;
+          border-radius: 16px !important;
+          padding: 18px !important;
+          margin: 14px 0 !important;
+          box-shadow: 0 12px 32px rgba(12,27,42,0.14) !important;
+        }
+        .badge, .pill {
+          display: inline-block !important;
+          background: #e9eefb !important;
+          color: #0b3f6b !important;
+          border-radius: 999px !important;
+          padding: 6px 12px !important;
+          font-weight: 700 !important;
+          font-size: 12px !important;
+          letter-spacing: 0.3px !important;
+        }
+        img { max-width: 100% !important; height: auto !important; border-radius: 8px !important; }
+        .kv-row { display: flex !important; justify-content: space-between !important; gap: 12px !important; }
+        .kv-row .label { color: #4b5563 !important; font-weight: 600 !important; }
+        .kv-row .value { color: #0c1b2a !important; font-weight: 700 !important; }
+      </style>
+    `;
+    const bodyWrapped = html.toLowerCase().includes('<body')
+      ? html.replace(/<body[^>]*>/i, m => `${m}<div class="page">`).replace(/<\/body>/i, '</div></body>')
+      : `<div class="page">${html}</div>`;
+    if (html.toLowerCase().includes('</head>')) {
+      return bodyWrapped.replace(/<\/head>/i, `${style}</head>`);
+    }
+    return `<!DOCTYPE html><html><head>${style}</head><body>${bodyWrapped}</body></html>`;
+  };
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 320, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
     ]).start();
   }, []);
 
   const generatePDF = async (htmlContent: string): Promise<string | null> => {
     try {
-      // Dynamic import for expo-print
+      const styled = wrapHtmlWithStyles(htmlContent);
       let Print: any;
       try {
         Print = require('expo-print');
-      } catch (requireError) {
-        Alert.alert(
-          'შეცდომა',
-          'expo-print module არ არის ხელმისაწვდომი. გთხოვთ გადააკეთოთ app-ი expo-print module-ით.'
-        );
+      } catch {
+        Alert.alert('შეცდომა', 'expo-print module არ არის ხელმისაწვდომი');
         throw new Error('expo-print module not found');
       }
-
-      console.log('📄 PDF-ის გენერაცია CarFAX მოხსენებისთვის HTML-დან...');
-      console.log('📄 HTML content length:', htmlContent.length);
-      console.log('📄 HTML content preview (first 300 chars):', htmlContent.substring(0, 300));
-      
-      // Validate HTML content
-      if (!htmlContent || htmlContent.trim().length === 0) {
-        throw new Error('HTML კონტენტი ცარიელია');
-      }
-      
-      // Ensure HTML has proper structure for PDF generation
-      let wrappedHtml = htmlContent.trim();
-      
-      // Check if HTML already has document structure
-      const hasDocType = wrappedHtml.includes('<!DOCTYPE') || wrappedHtml.includes('<!doctype');
-      const hasHtmlTag = wrappedHtml.toLowerCase().includes('<html');
-      const hasBodyTag = wrappedHtml.toLowerCase().includes('<body');
-      
-      // If HTML is missing structure, wrap it
-      if (!hasDocType || !hasHtmlTag || !hasBodyTag) {
-        console.log('📦 Wrapping HTML content with proper document structure...');
-        
-        // Extract body content if it exists
-        let bodyContent = wrappedHtml;
-        if (hasBodyTag) {
-          const bodyMatch = wrappedHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-          if (bodyMatch) {
-            bodyContent = bodyMatch[1];
-          }
-        }
-        
-        // Create complete HTML document
-        wrappedHtml = `<!DOCTYPE html>
-<html lang="ka">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CarFAX Report - ${vinCode}</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      font-size: 12px;
-      line-height: 1.5;
-      color: #000;
-      background: #fff;
-      padding: 20px;
-    }
-    img {
-      max-width: 100%;
-      height: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    @media print {
-      body {
-        padding: 0;
-      }
-    }
-  </style>
-</head>
-<body>
-${bodyContent}
-</body>
-</html>`;
-        
-        console.log('✅ HTML wrapped with proper structure, new length:', wrappedHtml.length);
-        console.log('📄 Wrapped HTML preview (first 500 chars):', wrappedHtml.substring(0, 500));
-      } else {
-        console.log('✅ HTML already has proper structure');
-        // Even if it has structure, ensure it has proper encoding
-        if (!wrappedHtml.includes('charset')) {
-          // Add charset if missing
-          wrappedHtml = wrappedHtml.replace('<head>', '<head><meta charset="UTF-8">');
-          console.log('📝 Added charset meta tag');
-        }
-      }
-      
-      // Final validation - check if wrapped HTML has actual content
-      const bodyMatch = wrappedHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-      if (bodyMatch) {
-        const bodyContent = bodyMatch[1].trim();
-        console.log('📄 Body content preview:', bodyContent.substring(0, 500));
-        
-        if (bodyContent.length < 100) {
-          console.warn('⚠️ Body content seems too short:', bodyContent.length, 'characters');
-          console.warn('⚠️ This might be a React SPA shell that needs JavaScript to render');
-          
-          // Try to find if there's a div with id="root" or similar
-          if (bodyContent.includes('root') || bodyContent.includes('app') || bodyContent.includes('__next')) {
-            console.warn('⚠️ Detected React/Next.js app shell - content needs JavaScript to render');
-            
-            // Try to extract any static content that might be in the HTML
-            // Look for script tags that might contain data
-            const scriptMatches = wrappedHtml.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
-            if (scriptMatches) {
-              console.log('📜 Found', scriptMatches.length, 'script tags');
-              
-              // Check if scripts contain JSON data that we can use
-              for (const script of scriptMatches) {
-                // Look for JSON data in script tags
-                const jsonMatch = script.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  try {
-                    const jsonData = JSON.parse(jsonMatch[0]);
-                    console.log('📦 Found JSON data in script tag');
-                    // This might contain report data, but we still can't render React components
-                  } catch (e) {
-                    // Not valid JSON
-                  }
-                }
-              }
-            }
-            
-            // Check if HTML contains React hydration data
-            if (wrappedHtml.includes('__NEXT_DATA__') || wrappedHtml.includes('window.__REACT') || bodyContent.includes('root')) {
-              console.warn('⚠️ This is a React/Next.js app that requires client-side rendering');
-              
-              // Save HTML file as fallback so user can open it in browser
-              console.log('💾 Saving HTML file as fallback...');
-              try {
-                if (FileSystem.documentDirectory) {
-                  const htmlFileName = `carfax-report-${vinCode}-${Date.now()}.html`;
-                  const htmlFileUri = `${FileSystem.documentDirectory}${htmlFileName}`;
-                  
-                  await FileSystem.writeAsStringAsync(htmlFileUri, wrappedHtml, {
-                    encoding: FileSystem.EncodingType.UTF8,
-                  });
-                  
-                  console.log('✅ HTML file saved:', htmlFileUri);
-                  
-                  // Show alert with option to share HTML file
-                  // Use setTimeout to ensure Alert shows before error is thrown
-                  setTimeout(() => {
-                    Alert.alert(
-                      'შეცდომა',
-                      `HTML კონტენტი არის React აპლიკაცია, რომელიც საჭიროებს JavaScript-ს.\n\nPDF-ის გენერაცია ვერ მოხერხდა.\n\nHTML ფაილი შეინახა:\n${htmlFileName}\n\nგახსენით ის ბრაუზერში JavaScript-ით.`,
-                      [
-                        { text: 'კარგი' },
-                        {
-                          text: 'გაზიარება',
-                          onPress: async () => {
-                            try {
-                              const Sharing = require('expo-sharing');
-                              if (await Sharing.isAvailableAsync()) {
-                                await Sharing.shareAsync(htmlFileUri);
-                              } else {
-                                Alert.alert('შეცდომა', 'გაზიარება ხელმისაწვდომი არ არის');
-                              }
-                            } catch (shareError) {
-                              console.error('Share error:', shareError);
-                              Alert.alert('შეცდომა', 'გაზიარებისას მოხდა შეცდომა');
-                            }
-                          },
-                        },
-                      ]
-                    );
-                  }, 100);
-                  
-                  // Return null instead of throwing to prevent error from showing
-                  return null;
-                } else {
-                  Alert.alert(
-                    'შეცდომა',
-                    'HTML კონტენტი არის React აპლიკაცია, რომელიც საჭიროებს JavaScript-ს.\n\nPDF-ის გენერაცია ვერ მოხერხდა.\n\nგთხოვთ დაუკავშირდეთ API developer-ს რომ აბრუნოს სერვერზე რენდერებული HTML.'
-                  );
-                  return null;
-                }
-              } catch (saveError) {
-                console.error('Failed to save HTML file:', saveError);
-                Alert.alert(
-                  'შეცდომა',
-                  'HTML კონტენტი არის React აპლიკაცია, რომელიც საჭიროებს JavaScript-ს.\n\nPDF-ის გენერაცია ვერ მოხერხდა.'
-                );
-                return null;
-              }
-            }
-          }
-        } else {
-          console.log('✅ Body content validated, length:', bodyContent.length, 'characters');
-        }
-      }
-      
-      // PDF-ის შექმნა HTML-დან
-      console.log('🔄 Generating PDF from HTML...');
-      const { uri } = await Print.printToFileAsync({
-        html: wrappedHtml,
-        base64: false,
-        width: 612, // A4 width in points (8.5 inches * 72 points/inch)
-        height: 792, // A4 height in points (11 inches * 72 points/inch)
-      });
-
-      console.log('✅ PDF შექმნილია:', uri);
-      console.log('📊 Final HTML length sent to print:', wrappedHtml.length);
+      const { uri } = await Print.printToFileAsync({ html: styled, base64: false });
       return uri;
     } catch (error) {
-      console.error('❌ PDF-ის შექმნის შეცდომა:', error);
-      throw error;
+      console.error('❌ PDF generation error:', error);
+      Alert.alert('შეცდომა', 'PDF-ის გენერაციისას მოხდა შეცდომა');
+      return null;
     }
   };
 
   const sharePDF = async (pdfUri: string) => {
-    try {
-      // Dynamic import for expo-sharing
-      let Sharing: any;
-      try {
-        Sharing = require('expo-sharing');
-      } catch (requireError) {
-        Alert.alert(
-          'შეცდომა',
-          'expo-sharing module არ არის ხელმისაწვდომი. გთხოვთ გადააკეთოთ app-ი expo-sharing module-ით.'
-        );
-        throw new Error('expo-sharing module not found');
-      }
-
-      // PDF ფაილის გაზიარება
-      if (!(await Sharing.isAvailableAsync())) {
-        Alert.alert('შეცდომა', 'გაზიარების ფუნქცია მიუწვდომელია ამ მოწყობილობაზე.');
-        return;
-      }
-      
-      await Sharing.shareAsync(pdfUri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'გააზიარეთ CarFAX მოხსენება',
-        UTI: 'com.adobe.pdf',
-      });
-    } catch (error) {
-      console.error('❌ PDF-ის გაზიარების შეცდომა:', error);
-      throw error;
+    const Sharing = require('expo-sharing');
+    if (!(await Sharing.isAvailableAsync())) {
+      Alert.alert('შეცდომა', 'გაზიარება მიუწვდომელია ამ მოწყობილობაზე.');
+      return;
     }
+    await Sharing.shareAsync(pdfUri, {
+      dialogTitle: 'გააზიარეთ CarFAX მოხსენება',
+      UTI: 'com.adobe.pdf',
+    });
   };
 
   const handleDownload = async () => {
     try {
-      // Check if we have HTML content from API
-      const htmlContent = carData?.htmlContent;
-      
-      if (!htmlContent) {
-        Alert.alert(
-          'შეცდომა', 
-          'PDF-ის შესაქმნელად HTML კონტენტი არ არის ხელმისაწვდომი.\n\nეს ნიშნავს რომ CarFAX API-დან HTML მოხსენება ვერ მოიძებნა.'
-        );
-        console.warn('⚠️ HTML content არ არის carData-ში:', carData);
+      const htmlContent = carData?.htmlContent || carData?.reportData?.htmlContent;
+      if (!htmlContent?.trim()) {
+        Alert.alert('შეცდომა', 'HTML კონტენტი ვერ მოიძებნა PDF-ისთვის.');
         return;
       }
+      const styledHtml = wrapHtmlWithStyles(htmlContent);
+      const fileName = `CarFAX_Report_${vinCode}_${Date.now()}.pdf`;
+      const { buffer } = await carfaxApi.generatePdfFromHtml(styledHtml, fileName);
 
-      console.log('📄 HTML content length:', htmlContent.length);
-      console.log('📄 HTML content preview (first 500 chars):', htmlContent.substring(0, 500));
-      
-      // Validate HTML content
-      if (!htmlContent || htmlContent.trim().length === 0) {
-        Alert.alert('შეცდომა', 'HTML კონტენტი ცარიელია.');
+      if (!FileSystem.documentDirectory) {
+        Alert.alert('შეცდომა', 'ფაილური სისტემა მიუწვდომელია.');
         return;
       }
-      
-      // Generate PDF
-      const pdfUri = await generatePDF(htmlContent);
-      
-      if (!pdfUri) {
-        // generatePDF already showed an Alert if it's a React app shell
-        // Only show this Alert if pdfUri is null for other reasons
-        console.log('⚠️ PDF generation returned null - Alert already shown if React app shell detected');
-        return;
-      }
-
-      // Move to a better location with descriptive filename if needed
-      if (FileSystem.documentDirectory) {
-        const pdfFileName = `CarFAX_Report_${vinCode}_${Date.now()}.pdf`;
-        const newPdfUri = `${FileSystem.documentDirectory}${pdfFileName}`;
-        
-        try {
-          await FileSystem.moveAsync({
-            from: pdfUri,
-            to: newPdfUri,
-          });
-          
-          Alert.alert(
-            'წარმატება',
-            `PDF ფაილი წარმატებით შეიქმნა:\n${pdfFileName}`,
-            [
-              { text: 'კარგი' },
-              {
-                text: 'გაზიარება',
-                onPress: async () => {
-                  try {
-                    await sharePDF(newPdfUri);
-                  } catch (shareError) {
-                    Alert.alert('შეცდომა', 'გაზიარებისას მოხდა შეცდომა');
-                  }
-                },
-              },
-            ]
-          );
-        } catch (moveError) {
-          // If move fails, just use original URI
-          Alert.alert(
-            'წარმატება',
-            'PDF ფაილი წარმატებით შეიქმნა.',
-            [
-              { text: 'კარგი' },
-              {
-                text: 'გაზიარება',
-                onPress: async () => {
-                  try {
-                    await sharePDF(pdfUri);
-                  } catch (shareError) {
-                    Alert.alert('შეცდომა', 'გაზიარებისას მოხდა შეცდომა');
-                  }
-                },
-              },
-            ]
-          );
-        }
-      } else {
-        Alert.alert(
-          'წარმატება',
-          'PDF ფაილი წარმატებით შეიქმნა.',
-          [
-            { text: 'კარგი' },
-            {
-              text: 'გაზიარება',
-              onPress: async () => {
-                try {
-                  await sharePDF(pdfUri);
-                } catch (shareError) {
-                  Alert.alert('შეცდომა', 'გაზიარებისას მოხდა შეცდომა');
-                }
-              },
-            },
-          ]
-        );
-      }
-      
+      const base64 = Buffer.from(buffer).toString('base64');
+      const pdfPath = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(pdfPath, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      Alert.alert('PDF მზადაა', `ფაილი შეიქმნა: ${fileName}`, [
+        { text: 'კარგი' },
+        { text: 'გაზიარება', onPress: async () => sharePDF(pdfPath) },
+      ]);
     } catch (error) {
       console.error('❌ PDF-ის გენერაციის შეცდომა:', error);
-      Alert.alert('შეცდომა', `PDF-ის გენერაციისას მოხდა შეცდომა: ${error instanceof Error ? error.message : String(error)}`);
+      Alert.alert('შეცდომა', 'PDF-ის გენერაციისას მოხდა შეცდომა');
     }
   };
 
   const handleShare = async () => {
     try {
-      const htmlContent = carData?.htmlContent;
-      
-      if (!htmlContent) {
-        Alert.alert('შეცდომა', 'გაზიარებისთვის HTML კონტენტი არ არის ხელმისაწვდომი');
+      const htmlContent = carData?.htmlContent || carData?.reportData?.htmlContent;
+      if (!htmlContent?.trim()) {
+        Alert.alert('შეცდომა', 'HTML კონტენტი არ არის ხელმისაწვდომი');
         return;
       }
-
-      // Generate PDF first
       const pdfUri = await generatePDF(htmlContent);
-      
-      if (!pdfUri) {
-        Alert.alert('შეცდომა', 'PDF-ის შექმნა ვერ მოხერხდა.');
-        return;
-      }
-
-      // Share the PDF
-      await sharePDF(pdfUri);
-      
+      if (pdfUri) await sharePDF(pdfUri);
     } catch (error) {
       console.error('❌ გაზიარების შეცდომა:', error);
-      Alert.alert('შეცდომა', `გაზიარებისას მოხდა შეცდომა: ${error instanceof Error ? error.message : String(error)}`);
+      Alert.alert('შეცდომა', 'გაზიარებისას მოხდა შეცდომა');
     }
   };
 
+  const make = carData?.make || 'უცნობი';
+  const model = carData?.model || 'უცნობი';
+  const year = carData?.year || '';
+  const mileage = carData?.mileage ?? 0;
+  const owners = carData?.owners ?? 0;
+  const accidents = carData?.accidents ?? 0;
+  const serviceRecords = carData?.serviceRecords ?? 0;
+  const titleStatus = carData?.titleStatus || 'უცნობი';
+  const lastServiceDate = carData?.lastServiceDate || '';
+
+  const SpecRow = ({ label, value }: { label: string; value: string }) => (
+    <View style={styles.kvRow}>
+      <Text style={styles.kvLabel}>{label}</Text>
+      <Text style={styles.kvValue}>{value}</Text>
+    </View>
+  );
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" translucent />
-      
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <Animated.View 
+    <View style={styles.overlay}>
+      <StatusBar barStyle="light-content" />
+      <SafeAreaView style={{ flex: 1 }}>
+        <Animated.View
           style={[
-            styles.header,
+            styles.modal,
             {
               opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             },
           ]}
         >
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={onClose}
+          <LinearGradient
+          colors={['#0b64d4', '#0f7bff']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.header}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>CarFAX მოხსენება</Text>
-          <View style={styles.headerSpacer} />
+            <View style={styles.headerTop}>
+              <TouchableOpacity style={styles.iconBtn} onPress={onClose}>
+                <Ionicons name="chevron-back" size={20} color="#E5E7EB" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>CarFAX Report</Text>
+              <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/carfax')}>
+                <Ionicons name="refresh" size={18} color="#E5E7EB" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.heroRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroTitle}>{make} {model}</Text>
+                <Text style={styles.heroSubtitle}>{year} • VIN {vinCode}</Text>
+              </View>
+              <View style={styles.heroBadge}>
+                <Ionicons name="shield-checkmark" size={16} color="#E0F2FE" />
+                <Text style={styles.heroBadgeText}>Verified</Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          <View style={styles.content}>
+            <View style={styles.card}>
+              <SpecRow label="VIN" value={vinCode} />
+              <SpecRow label="Model" value={`${make} ${model} ${year}`} />
+              <SpecRow label="Mileage" value={mileage ? `${mileage} mi` : '—'} />
+              <SpecRow label="Title status" value={titleStatus} />
+              <SpecRow label="Last service" value={lastServiceDate || '—'} />
+            </View>
+
+            <View style={styles.grid}>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoLabel}>Owners</Text>
+                <Text style={styles.infoValue}>{owners}</Text>
+              </View>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoLabel}>Accidents</Text>
+                <Text style={styles.infoValue}>{accidents}</Text>
+              </View>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoLabel}>Service Records</Text>
+                <Text style={styles.infoValue}>{serviceRecords}</Text>
+              </View>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoLabel}>Year</Text>
+                <Text style={styles.infoValue}>{year || '—'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleDownload}>
+                <Ionicons name="download-outline" size={18} color="#fff" />
+                <Text style={styles.primaryText}>PDF ჩამოტვირთვა</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={handleShare}>
+                <Ionicons name="share-outline" size={18} color={ACCENT} />
+                <Text style={styles.secondaryText}>გაზიარება</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.flatBtn} onPress={onClose}>
+              <Text style={styles.flatBtnText}>დახურვა</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
-
-        <ScrollView 
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Success Icon */}
-          <Animated.View 
-            style={[
-              styles.successSection,
-              {
-                opacity: fadeAnim,
-                transform: [
-                  { translateY: slideAnim },
-                  { scale: scaleAnim }
-                ],
-              },
-            ]}
-          >
-            <View style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={48} color="#10B981" />
-            </View>
-            <Text style={styles.successTitle}>მოხსენება მოიძებნა!</Text>
-            <Text style={styles.successSubtitle}>
-              VIN კოდისთვის სრული ინფორმაცია მოიძებნა CarFAX ბაზაში
-            </Text>
-          </Animated.View>
-
-          {/* Car Information */}
-          <Animated.View 
-            style={[
-              styles.carInfoSection,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Text style={styles.sectionTitle}>მანქანის ინფორმაცია</Text>
-            <View style={styles.carInfoCard}>
-              <View style={styles.carInfoRow}>
-                <Text style={styles.carInfoLabel}>მარკა/მოდელი:</Text>
-                <Text style={styles.carInfoValue}>{carData.year} {carData.make} {carData.model}</Text>
-              </View>
-              <View style={styles.carInfoRow}>
-                <Text style={styles.carInfoLabel}>VIN კოდი:</Text>
-                <Text style={styles.carInfoValue}>{vinCode}</Text>
-              </View>
-              <View style={styles.carInfoRow}>
-                <Text style={styles.carInfoLabel}>გარბენი:</Text>
-                <Text style={styles.carInfoValue}>
-                  {carData.mileage ? `${carData.mileage.toLocaleString()} კმ` : 'უცნობი'}
-                </Text>
-              </View>
-              <View style={styles.carInfoRow}>
-                <Text style={styles.carInfoLabel}>მფლობელები:</Text>
-                <Text style={styles.carInfoValue}>{carData.owners}</Text>
-              </View>
-            </View>
-          </Animated.View>
-
-          {/* Report Details */}
-          <Animated.View 
-            style={[
-              styles.reportSection,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Text style={styles.sectionTitle}>მოხსენების დეტალები</Text>
-            <View style={styles.reportCard}>
-              <View style={styles.reportItem}>
-                <View style={styles.reportIcon}>
-                  <Ionicons name="car" size={20} color="#10B981" />
-                </View>
-                <View style={styles.reportContent}>
-                  <Text style={styles.reportTitle}>ავარიები</Text>
-                  <Text style={styles.reportValue}>
-                    {carData.accidents === 0 ? 'ავარიები არ არის' : `${carData.accidents} ავარია`}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.reportItem}>
-                <View style={styles.reportIcon}>
-                  <Ionicons name="document-text" size={20} color="#8B5CF6" />
-                </View>
-                <View style={styles.reportContent}>
-                  <Text style={styles.reportTitle}>სერვისის ჩანაწერები</Text>
-                  <Text style={styles.reportValue}>{carData.serviceRecords} ჩანაწერი</Text>
-                </View>
-              </View>
-
-              <View style={styles.reportItem}>
-                <View style={styles.reportIcon}>
-                  <Ionicons name="shield-checkmark" size={20} color="#10B981" />
-                </View>
-                <View style={styles.reportContent}>
-                  <Text style={styles.reportTitle}>სტატუსი</Text>
-                  <Text style={styles.reportValue}>{carData.titleStatus}</Text>
-                </View>
-              </View>
-
-              <View style={styles.reportItem}>
-                <View style={styles.reportIcon}>
-                  <Ionicons name="calendar" size={20} color="#F59E0B" />
-                </View>
-                <View style={styles.reportContent}>
-                  <Text style={styles.reportTitle}>ბოლო სერვისი</Text>
-                  <Text style={styles.reportValue}>{carData.lastServiceDate}</Text>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
-
-          {/* Report ID */}
-          <Animated.View 
-            style={[
-              styles.reportIdSection,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <View style={styles.reportIdCard}>
-              <Text style={styles.reportIdLabel}>მოხსენების ID</Text>
-              <Text style={styles.reportIdValue}>{carData.reportId}</Text>
-            </View>
-          </Animated.View>
-
-          {/* Action Buttons */}
-          <Animated.View 
-            style={[
-              styles.actionsSection,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <TouchableOpacity 
-              style={styles.downloadButton}
-              onPress={handleDownload}
-            >
-              <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.downloadButtonGradient}
-              >
-                <Ionicons name="download" size={20} color="#FFFFFF" />
-                <Text style={styles.downloadButtonText}>PDF ჩამოტვირთვა</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.shareButton}
-              onPress={handleShare}
-            >
-              <View style={styles.shareButtonContent}>
-                <Ionicons name="share" size={20} color="#8B5CF6" />
-                <Text style={styles.shareButtonText}>გაზიარება</Text>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-
-          <View style={{ height: 30 }} />
-        </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  safeArea: {
-    flex: 1,
+  modal: {
+    width: width * 0.94,
+    maxHeight: '90%',
+    backgroundColor: BG,
+    borderRadius: 24,
+    overflow: 'hidden',
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 12,
+    elevation: 12,
   },
   header: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#0F0F0F',
+    marginBottom: 12,
   },
-  backButton: {
-    padding: 8,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '700',
   },
-  headerSpacer: {
-    width: 40,
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 4,
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(14,165,233,0.16)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  heroBadgeText: {
+    color: '#E0F2FE',
+    fontWeight: '700',
+    marginLeft: 6,
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  successSection: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    backgroundColor: 'transparent',
-  },
-  successIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-    fontFamily: 'Inter',
-  },
-  successSubtitle: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 24,
-    fontFamily: 'Inter',
-  },
-  carInfoSection: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    marginBottom: 16,
-  },
-  carInfoCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  carInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(156, 163, 175, 0.1)',
-  },
-  carInfoLabel: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-  },
-  carInfoValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-  },
-  reportSection: {
-    marginBottom: 30,
-  },
-  reportCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  reportItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  reportIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  reportContent: {
-    flex: 1,
-  },
-  reportTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-  },
-  reportValue: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-  },
-  reportIdSection: {
-    marginBottom: 30,
-  },
-  reportIdCard: {
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
-    alignItems: 'center',
-  },
-  reportIdLabel: {
-    fontSize: 14,
-    color: '#8B5CF6',
-    marginBottom: 8,
-    fontFamily: 'Inter',
-  },
-  reportIdValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-  },
-  actionsSection: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: BG,
     gap: 12,
   },
-  downloadButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  downloadButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  downloadButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-  },
-  shareButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+  card: {
+    backgroundColor: SURFACE,
+    borderColor: '#E3E8F0',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
   },
-  shareButtonContent: {
+  kvRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  kvLabel: {
+    color: MUTED,
+    fontWeight: '600',
+  },
+  kvValue: {
+    color: TEXT,
+    fontWeight: '700',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  infoCard: {
+    width: '48%',
+    backgroundColor: SURFACE,
+    borderColor: '#E3E8F0',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+  },
+  infoLabel: {
+    color: MUTED,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  infoValue: {
+    color: TEXT,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  primaryBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 8,
+    backgroundColor: ACCENT,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginRight: 8,
+    shadowColor: '#0b64d4',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
   },
-  shareButtonText: {
-    fontSize: 16,
+  secondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(11,100,212,0.08)',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(11,100,212,0.35)',
+  },
+  primaryText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  secondaryText: {
+    color: ACCENT,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  flatBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  flatBtnText: {
+    color: MUTED,
     fontWeight: '600',
-    color: '#8B5CF6',
-    fontFamily: 'Inter',
   },
 });

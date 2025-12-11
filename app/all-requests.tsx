@@ -200,6 +200,13 @@ export default function AllRequestsScreen() {
     return true;
   });
 
+  const activeCount = requests.filter(r => r.status === 'active').length;
+  const completedCount = requests.filter(r => r.status === 'fulfilled').length;
+  const newOffersCount = requests.reduce((sum, r: any) => {
+    const offers = r?.unreadOffersCount ?? r?.offersCount ?? 0;
+    return sum + (offers || 0);
+  }, 0);
+
   const handleRequestPress = (request: Request) => {
     // Navigate to offers page first, then to chat
     router.push(`/offers/${request.id}` as any);
@@ -213,7 +220,7 @@ export default function AllRequestsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
           <Animated.View 
@@ -232,7 +239,7 @@ export default function AllRequestsScreen() {
             <View style={styles.headerSection}>
               <View style={styles.headerContainer}>
                 <Pressable style={styles.backButton} onPress={() => router.back()}>
-                  <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+                  <Ionicons name="arrow-back" size={20} color="#0B64D4" />
                 </Pressable>
                 <View style={styles.headerTextWrap}>
                   <Text style={styles.heroTitle}>ჩემი მოთხოვნები</Text>
@@ -241,53 +248,23 @@ export default function AllRequestsScreen() {
                   </Text>
                 </View>
               </View>
-            </View>
-
-            {/* Quick Actions */}
-            {/* Filter Tabs */}
-            <View style={styles.filterSection}>
-              <Text style={styles.sectionTitle}>ფილტრები</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                {[
-                  { key: 'all', label: 'ყველა', count: requests.length },
-                  { key: 'active', label: 'აქტიური', count: requests.filter(r => r.status === 'active').length },
-                  { key: 'completed', label: 'დასრულებული', count: requests.filter(r => r.status === 'fulfilled').length },
-                ].map((filterOption) => (
-                  <Pressable
-                    key={filterOption.key}
-                    style={[
-                      styles.filterTab,
-                      filter === filterOption.key && styles.filterTabActive
-                    ]}
-                    onPress={() => setFilter(filterOption.key as any)}
-                  >
-                    <View
-                      style={[
-                        styles.filterTabGradient,
-                        filter === filterOption.key && styles.filterTabActive
-                      ]}
-                    >
-                      <Text style={[
-                        styles.filterTabText,
-                        filter === filterOption.key && styles.filterTabTextActive
-                      ]}>
-                        {filterOption.label}
-                      </Text>
-                      <View style={[
-                        styles.filterBadge,
-                        filter === filterOption.key && styles.filterBadgeActive
-                      ]}>
-                        <Text style={[
-                          styles.filterBadgeText,
-                          filter === filterOption.key && styles.filterBadgeTextActive
-                        ]}>
-                          {filterOption.count}
-                        </Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>აქტიური</Text>
+                  <Text style={styles.summaryValue}>{activeCount}</Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>შეთავაზებები</Text>
+                  <View style={styles.summaryBadge}>
+                    <Ionicons name="chatbubbles-outline" size={14} color="#10B981" />
+                    <Text style={styles.summaryValueSmall}>{newOffersCount}</Text>
+                  </View>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>დასრულებული</Text>
+                  <Text style={styles.summaryValue}>{completedCount}</Text>
+                </View>
+              </View>
             </View>
 
             {/* Requests List */}
@@ -359,18 +336,6 @@ export default function AllRequestsScreen() {
                                 {request.description}
                               </Text>
                             )}
-                            <View style={styles.metaRow}>
-                              {request.location && (
-                                <View style={styles.locationContainer}>
-                                  <Ionicons name="location-outline" size={10} color="#9CA3AF" />
-                                  <Text style={styles.locationText}>{request.location}</Text>
-                                </View>
-                              )}
-                              <View style={styles.timeContainer}>
-                                <Ionicons name="time-outline" size={10} color="#9CA3AF" />
-                                <Text style={styles.timeText}>{formatTimeAgo(request.createdAt)}</Text>
-                              </View>
-                            </View>
                             <View style={styles.requestFooter}>
                               <View style={styles.timeContainer}>
                                 <Ionicons name="time-outline" size={10} color="#9CA3AF" />
@@ -436,12 +401,7 @@ export default function AllRequestsScreen() {
                     <Text style={styles.emptySubtitle}>
                       შექმენით ახალი მოთხოვნა სერვისების გამოყენებით
                     </Text>
-                    <Pressable style={styles.emptyButton} onPress={handleCreateRequest}>
-                      <View style={styles.emptyButtonGradient}>
-                        <Ionicons name="add" size={16} color="#6366F1" />
-                        <Text style={styles.emptyButtonText}>ახალი მოთხოვნა</Text>
-                      </View>
-                    </Pressable>
+                   
                   </Animated.View>
                 )}
               </ScrollView>
@@ -456,16 +416,16 @@ export default function AllRequestsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#F6F7FB',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#F6F7FB',
   },
   content: {
     padding: 20,
     paddingBottom: 20,
-    gap: 16,
+    gap: 18,
   },
 
   // Hero Section
@@ -474,16 +434,21 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     marginTop: 4,
+    marginBottom: 8,
   },
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 12,
+    padding: 14,
     borderRadius: 16,
-    backgroundColor: 'rgba(55, 65, 81, 0.3)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
   },
   headerTextWrap: {
     flex: 1,
@@ -494,20 +459,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 3,
   },
   heroTitle: {
     fontSize: 24,
-    color: '#FFFFFF',
+    color: '#0F172A',
     textAlign: 'left',
     letterSpacing: -0.5,
     fontWeight: '800',
@@ -515,12 +480,50 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     textAlign: 'left',
     lineHeight: 18,
     fontWeight: '500',
     letterSpacing: 0.5,
     marginTop: 2,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 18,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  summaryValueSmall: {
+    fontSize: 16,
+    color: '#10B981',
+    fontWeight: '800',
+  },
+  summaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   heroIconContainer: {
     width: 48,
@@ -575,7 +578,7 @@ const styles = StyleSheet.create({
 
   // Filter Section
   filterSection: {
-    gap: 16,
+    gap: 12,
   },
   filterScroll: {
     gap: 16,
@@ -585,16 +588,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
   },
   filterTabActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
+    backgroundColor: '#E8F0FF',
+    borderColor: '#C7DCFF',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
   },
   filterTabGradient: {
     flexDirection: 'row',
@@ -603,20 +606,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
-    backgroundColor: 'rgba(55, 65, 81, 0.3)',
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
   filterTabText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: '#475569',
     fontWeight: '700',
   },
   filterTabTextActive: {
-    color: '#6366F1',
+    color: '#0B64D4',
     fontWeight: '700',
   },
   filterBadge: {
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -624,29 +627,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterBadgeActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: '#E0EAFF',
   },
   filterBadgeText: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: '#475569',
     fontWeight: '700',
   },
   filterBadgeTextActive: {
-    color: '#6366F1',
+    color: '#0B64D4',
   },
 
   // Requests Section
   requestsSection: {
     gap: 12,
+    marginTop: 6,
   },
   sectionTitle: {
-    fontSize: 24,
-    color: '#FFFFFF',
+    fontSize: 20,
+    color: '#0F172A',
     fontWeight: '800',
     letterSpacing: -0.3,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   requestsContainer: {
     maxHeight: 'auto',
@@ -656,28 +657,28 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   requestWrapper: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   requestCard: {
     flex: 1,
   },
   serviceGradient: {
-    padding: 16,
-    minHeight: 120,
+    padding: 14,
+    minHeight: 104,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
-    backgroundColor: 'rgba(55, 65, 81, 0.3)',
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -713,9 +714,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(17, 24, 39, 0.5)',
+    backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.25)',
+    borderColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -726,14 +727,14 @@ const styles = StyleSheet.create({
   },
   requestTitle: {
     fontSize: 15,
-    color: '#FFFFFF',
+    color: '#0F172A',
     textAlign: 'left',
     fontWeight: '800',
     letterSpacing: -0.2,
   },
   requestSubtitle: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: '#64748B',
     textAlign: 'left',
     fontWeight: '600',
     letterSpacing: 0.2,
@@ -741,7 +742,7 @@ const styles = StyleSheet.create({
   },
   requestDescription: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#4B5563',
     textAlign: 'left',
     fontWeight: '400',
     lineHeight: 18,
@@ -758,14 +759,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
   locationText: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: '#475569',
     fontWeight: '500',
   },
   requestFooter: {
@@ -773,7 +776,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    marginTop: 8,
+    marginTop: 10,
   },
   timeContainer: {
     flexDirection: 'row',
@@ -794,8 +797,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    borderColor: '#E5E7EB',
+    backgroundColor: '#EEF2F6',
   },
   statusText: {
     fontSize: 10,
@@ -853,47 +856,40 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: '#E0EAFF',
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderColor: '#C7DCFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyTitle: {
     fontSize: 18,
-    color: '#FFFFFF',
+    color: '#0F172A',
     textAlign: 'center',
     fontWeight: '700',
   },
   emptySubtitle: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     textAlign: 'center',
     lineHeight: 18,
     fontWeight: '500',
   },
   emptyButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  emptyButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginTop: 8,
+    borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    gap: 8,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
+    backgroundColor: '#6366F1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
   },
   emptyButtonText: {
     fontSize: 14,
-    color: '#6366F1',
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

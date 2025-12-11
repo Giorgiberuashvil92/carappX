@@ -1,121 +1,198 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
+  ActivityIndicator,
   Alert,
-  StatusBar,
-  Dimensions,
   Animated,
   Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
 import { useUser } from '../contexts/UserContext';
-import { useCarFAXAccess } from '../hooks/useSubscriptionModal';
-import SubscriptionModal from '../components/ui/SubscriptionModal';
 import CarFAXSuccess from '../components/CarFAXSuccess';
 import { carfaxApi, CarFAXReport } from '../services/carfaxApi';
 
-const { width } = Dimensions.get('window');
+const PRIMARY = '#2563EB';
+const DARK = '#0F172A';
+const MUTED = '#475569';
+const BORDER = '#E2E8F0';
+const SOFT = '#F8FAFC';
+const FONT = 'Inter';
+const FONT_BOLD = 'Inter_700Bold';
 
 export default function CarFAXScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ paid?: string; vinCode?: string }>();
   const { user } = useUser();
+
   const [vinNumber, setVinNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<any>(null);
-  
-  // CarFAX Success Modal
   const [showCarFAXSuccess, setShowCarFAXSuccess] = useState(false);
   const [carfaxResult, setCarfaxResult] = useState<any>(null);
-  
-  // Subscription modal
-  const { canAccessCarFAX, checkCarFAXAccess } = useCarFAXAccess();
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  
-  // User's CarFAX credits/packages
-  const [userCredits, setUserCredits] = useState({
-    singleReports: 0,
-    tripleReports: 0,
-    fiveReports: 0
-  });
-  
-  // CarFAX reports history
   const [carfaxReports, setCarfaxReports] = useState<CarFAXReport[]>([]);
-  
-  // Animation values
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+  const paidFetchRef = useRef(false);
+
+  const wrapHtmlWithStyles = (html: string) => {
+    const style = `
+      <meta charset="UTF-8">
+      <base href="https://cai.autoimports.ge/">
+      <style id="carfax-override">
+        :root { color-scheme: only light; }
+        *, *::before, *::after { box-sizing: border-box !important; }
+        body {
+          font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+          background: #f6f7fb !important;
+          color: #0c1b2a !important;
+          line-height: 1.6 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .page {
+          max-width: 1080px !important;
+          margin: 0 auto !important;
+          padding: 24px !important;
+        }
+        .hero {
+          background: linear-gradient(135deg, #0f2d4d, #0b3f6b) !important;
+          color: #fff !important;
+          border-radius: 18px !important;
+          padding: 20px !important;
+          margin-bottom: 18px !important;
+          box-shadow: 0 16px 40px rgba(12,27,42,0.28) !important;
+        }
+        h1, h2, h3, h4, h5 {
+          color: #0b3f6b !important;
+          letter-spacing: 0.2px !important;
+          margin-top: 18px !important;
+          margin-bottom: 10px !important;
+        }
+        .hero h1, .hero h2, .hero h3 { color: #fff !important; }
+        a { color: #0b64d4 !important; text-decoration: none !important; }
+        a:hover { text-decoration: underline !important; }
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          background: #fff !important;
+          border: 1px solid #d9e2ec !important;
+          border-radius: 12px !important;
+          overflow: hidden !important;
+          box-shadow: 0 10px 28px rgba(12,27,42,0.12) !important;
+        }
+        th, td {
+          padding: 12px 14px !important;
+          border-bottom: 1px solid #e3e8f0 !important;
+          color: #0c1b2a !important;
+          font-size: 14px !important;
+        }
+        th {
+          background: #f0f4ff !important;
+          font-weight: 700 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+        }
+        tr:nth-child(even) td { background: #fbfcff !important; }
+        tr:last-child td { border-bottom: none !important; }
+        .card, .panel, .box, .section, .summary-row, .row {
+          background: #fff !important;
+          border: 1px solid #d9e2ec !important;
+          border-radius: 16px !important;
+          padding: 18px !important;
+          margin: 14px 0 !important;
+          box-shadow: 0 12px 32px rgba(12,27,42,0.14) !important;
+        }
+        .badge, .pill {
+          display: inline-block !important;
+          background: #e9eefb !important;
+          color: #0b3f6b !important;
+          border-radius: 999px !important;
+          padding: 6px 12px !important;
+          font-weight: 700 !important;
+          font-size: 12px !important;
+          letter-spacing: 0.3px !important;
+        }
+        img { max-width: 100% !important; height: auto !important; border-radius: 8px !important; }
+        .kv-row { display: flex !important; justify-content: space-between !important; gap: 12px !important; }
+        .kv-row .label { color: #4b5563 !important; font-weight: 600 !important; }
+        .kv-row .value { color: #0c1b2a !important; font-weight: 700 !important; }
+      </style>
+    `;
+
+    // always wrap the body content in a page container for consistent padding
+    const bodyWrapped = html.toLowerCase().includes('<body')
+      ? html.replace(/<body[^>]*>/i, match => `${match}<div class="page">`).replace(/<\/body>/i, '</div></body>')
+      : `<div class="page">${html}</div>`;
+
+    if (html.toLowerCase().includes('</head>')) {
+      return bodyWrapped.replace(/<\/head>/i, `${style}</head>`);
+    }
+    return `<!DOCTYPE html><html><head>${style}</head><body>${bodyWrapped}</body></html>`;
+  };
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
-    
-    // Load user's CarFAX reports
+
     loadCarFAXReports();
   }, []);
 
-  const loadCarFAXReports = async () => {
-    try {
-      const reports = await carfaxApi.getUserCarFAXReports();
-      setCarfaxReports(reports);
-    } catch (error) {
-      console.error('CarFAX მოხსენებების ჩატვირთვის შეცდომა:', error);
+  useEffect(() => {
+    const paid = params?.paid === '1';
+    const vinParam = params?.vinCode ? String(params.vinCode).toUpperCase() : '';
+    if (paid && vinParam && !paidFetchRef.current) {
+      paidFetchRef.current = true;
+      setVinNumber(vinParam);
+      fetchCarfaxReport(vinParam);
     }
+  }, [params?.paid, params?.vinCode]);
+
+  const loadCarFAXReports = async () => {
+    // ბაზის ისტორიას აღარ ვქაჩავთ
+    setCarfaxReports([]);
   };
 
-  const handleCheckVIN = async () => {
-    if (!vinNumber.trim()) {
-      Alert.alert('შეცდომა', 'გთხოვთ შეიყვანოთ VIN ნომერი');
-      return;
-    }
-
-    if (vinNumber.length !== 17) {
-      Alert.alert('შეცდომა', 'VIN ნომერი უნდა შედგებოდეს 17 სიმბოლოსგან');
-      return;
-    }
-
-    const trimmedVin = vinNumber.trim().toUpperCase();
+  const fetchCarfaxReport = async (vin: string) => {
     setLoading(true);
-
     try {
-      console.log('🔍 CarFAX API-სთან დაკავშირება VIN:', trimmedVin);
-      
-      // Call API directly
-      const response = await carfaxApi.getCarFAXReport(trimmedVin);
-      
-      console.log('📥 CarFAX API Response:', {
-        success: response?.success,
-        hasHtmlContent: !!response?.htmlContent,
-        htmlContentLength: response?.htmlContent?.length || 0,
-        hasData: !!response?.data,
-      });
-      
-      // Check if API returned HTML content
-      if (response && response.htmlContent && response.htmlContent.length > 0) {
-        console.log('✅ HTML content received, showing CarFAXSuccess screen');
-        
-        // API returned HTML - show success screen with download button
+      const response = await carfaxApi.getCarFAXReport(vin);
+
+      const htmlContent =
+        response?.htmlContent ||
+        response?.data?.reportData?.htmlContent ||
+        (response as any)?.html ||
+        (response as any)?.data?.html;
+
+      if (response && htmlContent && htmlContent.length > 0) {
+        const styledHtml = wrapHtmlWithStyles(htmlContent);
+        let htmlFilePath: string | undefined;
+        try {
+          const target = `${FileSystem.documentDirectory}carfax-report-${vin}.html`;
+          await FileSystem.writeAsStringAsync(target, styledHtml, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          htmlFilePath = target;
+          console.log('📄 CarFAX HTML saved:', target);
+        } catch (err) {
+          console.warn('⚠️ HTML save failed', err);
+        }
+
         const carData = {
-          vin: trimmedVin,
+          vin,
           make: response.data?.make || 'უცნობი',
           model: response.data?.model || 'უცნობი',
           year: response.data?.year || new Date().getFullYear(),
@@ -126,96 +203,55 @@ export default function CarFAXScreen() {
           titleStatus: response.data?.titleStatus || 'უცნობი',
           lastServiceDate: response.data?.lastServiceDate,
           reportId: response.data?.reportId || 'CF' + Date.now(),
-          htmlContent: response.htmlContent, // Store HTML for PDF generation
+          htmlContent: styledHtml,
+          htmlFilePath,
         };
-        
-        console.log('📋 Setting carfaxResult and showing success screen');
+
         setCarfaxResult(carData);
         setShowCarFAXSuccess(true);
       } else {
-        // API returned error or no HTML
         const errorMsg = response?.error || response?.message || 'CarFAX მოხსენება ვერ მოიძებნა';
-        console.warn('⚠️ CarFAX API error or no HTML:', errorMsg);
         Alert.alert('შეცდომა', errorMsg);
       }
     } catch (error) {
-      console.error('❌ CarFAX API შეცდომა:', error);
+      console.error('CarFAX API შეცდომა:', error);
       Alert.alert('შეცდომა', 'CarFAX მოხსენების მიღებისას მოხდა შეცდომა');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePayment = () => {
-    const carfaxMetadata = {
-      packageType: 'single',
-      vinNumber: vinNumber,
-      reportType: 'carfax',
-      credits: 1
-    };
+  const handleCheckVIN = async () => {
+    if (!vinNumber.trim()) {
+      Alert.alert('შეცდომა', 'გთხოვთ შეიყვანოთ VIN ნომერი');
+      return;
+    }
+    if (vinNumber.trim().length !== 17) {
+      Alert.alert('შეცდომა', 'VIN ნომერი უნდა შედგებოდეს 17 სიმბოლოსგან');
+      return;
+    }
+
+    const trimmedVin = vinNumber.trim().toUpperCase();
 
     router.push({
       pathname: '/payment-card',
       params: {
-        amount: '1499',
-        description: 'CarFAX 1 მოხსენების პაკეტი',
+        amount: '14.99',
+        description: 'CarFAX ერთჯერადი მოხსენება',
         context: 'carfax',
         orderId: `carfax_subscription_${user?.id || 'guest'}_${Date.now()}`,
-        successUrl: '/carfax-simulation',
-        vinCode: vinNumber,
-        metadata: JSON.stringify(carfaxMetadata)
-      }
+        successUrl: `/carfax?paid=1&vinCode=${encodeURIComponent(trimmedVin)}`,
+        vinCode: trimmedVin,
+        metadata: JSON.stringify({
+          packageType: 'single',
+          vinNumber: trimmedVin,
+          reportType: 'carfax',
+          credits: 1,
+        }),
+      },
     });
   };
 
-  const handlePlanPurchase = (planType: 'single' | 'triple' | 'five') => {
-    // Simulate package purchase
-    if (planType === 'single') {
-      setUserCredits(prev => ({ ...prev, singleReports: prev.singleReports + 1 }));
-    } else if (planType === 'triple') {
-      setUserCredits(prev => ({ ...prev, tripleReports: prev.tripleReports + 3 }));
-    } else if (planType === 'five') {
-      setUserCredits(prev => ({ ...prev, fiveReports: prev.fiveReports + 5 }));
-    }
-    
-    Alert.alert(
-      'წარმატება!',
-      `CarFAX ${planType === 'single' ? '1' : planType === 'triple' ? '3' : '5'} მოხსენების პაკეტი წარმატებით შეიძინეთ!`,
-      [{ text: 'კარგი' }]
-    );
-  };
-
-  const CarFAXPlans = [
-    {
-      id: 'single',
-      title: '1 CarFAX მოხსენება',
-      price: '14.99₾',
-      description: 'ერთი ავტომობილის სრული ისტორია',
-      gradient: ['#10B981', '#059669'],
-      icon: 'document-text'
-    },
-    {
-      id: 'triple',
-      title: '3 CarFAX მოხსენება',
-      price: '33₾',
-      description: '3 ავტომობილის მოხსენება (11₾ თითო)',
-      savings: '11.97₾ დაზოგვა',
-      popular: true,
-      gradient: ['#8B5CF6', '#7C3AED'],
-      icon: 'documents'
-    },
-    {
-      id: 'five',
-      title: '5 CarFAX მოხსენება',
-      price: '49.99₾',
-      description: '5 ავტომობილის მოხსენება (9.99₾ თითო)',
-      savings: '24.96₾ დაზოგვა',
-      gradient: ['#F59E0B', '#D97706'],
-      icon: 'library'
-    }
-  ];
-
-  // Convert CarFAX reports to history format
   const historyReports = carfaxReports.map(report => ({
     id: report._id,
     title: `${report.year} ${report.make} ${report.model}`,
@@ -225,357 +261,298 @@ export default function CarFAXScreen() {
     serviceRecords: report.serviceRecords,
     mileage: report.mileage ? `${report.mileage.toLocaleString()} კმ` : 'უცნობი',
     owners: report.owners,
-    reportId: report.reportId
+    reportId: report.reportId,
   }));
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      <ScrollView 
-        style={styles.container} 
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View 
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>CarFAX მოხსენებები</Text>
-            <View style={styles.headerSpacer} />
-          </View>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-          {/* Hero Section */}
-        
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+          <Animated.View
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={22} color={PRIMARY} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>CarFAX</Text>
+              <View style={styles.headerSpacer} />
+            </View>
 
-          {/* Tabs */}
-          <View style={styles.tabsContainer}>
+            <View style={styles.heroCard}>
+              <View style={styles.heroBadge}>
+                <Ionicons name="shield-checkmark" size={14} color={PRIMARY} />
+                <Text style={styles.heroBadgeText}>დაცული გადახდა</Text>
+              </View>
+              <Text style={styles.heroTitle}>სრული CarFAX მოხსენება წუთებში</Text>
+              <Text style={styles.heroSubtitle}>
+                VIN კოდის შემოწმება, გადახდა და სრული HTML/PDF. ავარიები, სერვისები და მფლობელობა ერთ ეკრანზე.
+              </Text>
+              <View style={styles.heroChips}>
+                <View style={styles.chip}>
+                  <Ionicons name="time" size={14} color={PRIMARY} />
+                  <Text style={styles.chipText}>სწრაფი პასუხი</Text>
+                </View>
+                <View style={styles.chip}>
+                  <Ionicons name="document-text" size={14} color={PRIMARY} />
+                  <Text style={styles.chipText}>PDF/HTML</Text>
+                </View>
+                <View style={styles.chip}>
+                  <Ionicons name="card" size={14} color={PRIMARY} />
+                  <Text style={styles.chipText}>უსაფრთხო გადახდა</Text>
+                </View>
+              </View>
+            </View>
+
             <View style={styles.tabsWrapper}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.tab, activeTab === 'search' && styles.activeTab]}
                 onPress={() => setActiveTab('search')}
               >
-                <Ionicons 
-                  name="search" 
-                  size={20} 
-                  color={activeTab === 'search' ? '#FFFFFF' : '#9CA3AF'} 
-                />
-                <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText]}>
-                  CarFAX ძებნა
-                </Text>
+                <Ionicons name="search" size={18} color={activeTab === 'search' ? '#FFFFFF' : MUTED} />
+                <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText]}>ძებნა</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.tab, activeTab === 'history' && styles.activeTab]}
                 onPress={() => setActiveTab('history')}
               >
-                <Ionicons 
-                  name="time" 
-                  size={20} 
-                  color={activeTab === 'history' ? '#FFFFFF' : '#9CA3AF'} 
-                />
-                <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>
-                  ისტორია
-                </Text>
+                <Ionicons name="time" size={18} color={activeTab === 'history' ? '#FFFFFF' : MUTED} />
+                <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>ისტორია</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {activeTab === 'search' ? (
-            <>
-              {/* Credits Info */}
-              <View style={styles.creditsSection}>
-                <Text style={styles.sectionTitle}>CarFAX კრედიტები</Text>
-                <View style={styles.creditsContainer}>
-                  <View style={styles.creditItem}>
-                    <Text style={styles.creditLabel}>1 მოხსენება</Text>
-                    <Text style={styles.creditValue}>{userCredits.singleReports}</Text>
+            {activeTab === 'search' ? (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={styles.cardTitle}>VIN კოდის შემოწმება</Text>
+                    <Text style={styles.cardSubtitle}>შეიყვანე 17 სიმბოლო და მიიღე მოხსენება</Text>
                   </View>
-                  <View style={styles.creditItem}>
-                    <Text style={styles.creditLabel}>3 მოხსენება</Text>
-                    <Text style={styles.creditValue}>{userCredits.tripleReports}</Text>
-                  </View>
-                  <View style={styles.creditItem}>
-                    <Text style={styles.creditLabel}>5 მოხსენება</Text>
-                    <Text style={styles.creditValue}>{userCredits.fiveReports}</Text>
-                  </View>
+                  <Ionicons name="car-sport" size={26} color={PRIMARY} />
                 </View>
-              </View>
 
-              {/* VIN Input Section */}
-              <View style={styles.inputSection}>
-                <Text style={styles.sectionTitle}>VIN ნომრის შეყვანა</Text>
                 <View style={styles.inputContainer}>
+                  <Ionicons name="key" size={18} color={MUTED} />
                   <TextInput
                     style={styles.vinInput}
-                    placeholder="შეიყვანეთ VIN ნომერი (17 სიმბოლო)"
+                    placeholder="მაგ: 1HGCM82633A123456"
+                    placeholderTextColor="#94A3B8"
                     value={vinNumber}
                     onChangeText={setVinNumber}
                     maxLength={17}
                     autoCapitalize="characters"
-                    placeholderTextColor="#9CA3AF"
                   />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.checkButton, loading && styles.checkButtonDisabled]}
                     onPress={handleCheckVIN}
                     disabled={loading}
                   >
-                    <Ionicons 
-                      name={loading ? "hourglass" : "search"} 
-                      size={20} 
-                      color="#FFFFFF" 
-                    />
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Ionicons name="search" size={18} color="#FFFFFF" />
+                    )}
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.inputHint}>
-                  VIN ნომერი ჩვეულებრივ მდებარეობს ავტომობილის ქვედა ნაწილში
-                </Text>
-              </View>
 
-              {/* Plans Section */}
-              <View style={styles.plansSection}>
-                <Text style={styles.sectionTitle}>CarFAX პაკეტები</Text>
-                <View style={styles.plansGrid}>
-                  {CarFAXPlans.map((plan, index) => (
-                    <View
-                      key={plan.id}
-                      style={styles.planCard}
-                    >
-                      <TouchableOpacity
-                        style={styles.planPressable}
-                        onPress={() => {
-                          Alert.alert(
-                            `${plan.title} პაკეტი`,
-                            `ფასი: ${plan.price}\n\nგსურთ ამ პაკეტის შეძენა?`,
-                            [
-                              { text: 'არა', style: 'cancel' },
-                              { text: 'კი', onPress: () => handlePlanPurchase(plan.id as 'single' | 'triple' | 'five') }
-                            ]
-                          );
-                        }}
-                      >
-                        <LinearGradient
-                          colors={plan.gradient as [string, string]}
-                          style={styles.planGradient}
-                        >
-                          {plan.popular && (
-                            <View style={styles.popularBadge}>
-                              <Text style={styles.popularBadgeText}>პოპულარული</Text>
-                            </View>
-                          )}
-                          <View style={styles.planContent}>
-                            <View style={styles.planIconContainer}>
-                              <Ionicons name={plan.icon as any} size={32} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.planTitle}>{plan.title}</Text>
-                            <Text style={styles.planDescription}>{plan.description}</Text>
-                            <Text style={styles.planPrice}>{plan.price}</Text>
-                            {plan.savings && (
-                              <View style={styles.savingsBadge}>
-                                <Text style={styles.savingsText}>{plan.savings}</Text>
-                              </View>
-                            )}
-                          </View>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+                <View style={styles.helperRow}>
+                  <Ionicons name="information-circle" size={16} color={MUTED} />
+                  <Text style={styles.helperText}>VIN 17 სიმბოლოა და ჩანს წინა საქარე მინაზე ან კარსშიდა პლაკატზე.</Text>
+                </View>
+
+                <TouchableOpacity style={styles.primaryButton} onPress={handleCheckVIN} disabled={loading}>
+                  <View style={styles.primaryButtonLeft}>
+                    <Ionicons name="card" size={18} color="#FFFFFF" />
+                    <Text style={styles.primaryButtonText}>გადახდა და სრული CarFAX</Text>
+                  </View>
+                  <Text style={styles.primaryButtonPrice}>14.99₾</Text>
+                </TouchableOpacity>
+
+                <View style={styles.infoGrid}>
+                  <View style={styles.infoItem}>
+                    <Ionicons name="shield" size={18} color={PRIMARY} />
+                    <Text style={styles.infoTitle}>ავარიები</Text>
+                    <Text style={styles.infoText}>დაზიანებები, ტოტალ-ლოსი და ტიტული</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Ionicons name="construct" size={18} color={PRIMARY} />
+                    <Text style={styles.infoTitle}>სერვისები</Text>
+                    <Text style={styles.infoText}>მომსახურების ჩანაწერები და გარბენის დინამიკა</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Ionicons name="people" size={18} color={PRIMARY} />
+                    <Text style={styles.infoTitle}>მფლობელები</Text>
+                    <Text style={styles.infoText}>ფლობის ცვლები და რეგისტრაციის ზონები</Text>
+                  </View>
                 </View>
               </View>
-            </>
-          ) : (
-            /* History Tab */
-            <View style={styles.historySection}>
-              <Text style={styles.sectionTitle}>CarFAX მოხსენებების ისტორია</Text>
-              
-              <View style={styles.historyList}>
-                {historyReports.map((report) => (
-                  <View key={report.id} style={styles.historyItem}>
-                    <LinearGradient
-                      colors={['rgba(55, 65, 81, 0.3)', 'rgba(75, 85, 99, 0.3)']}
-                      style={styles.historyGradient}
-                    >
-                      <View style={styles.historyIcon}>
-                        <Ionicons name="document-text" size={24} color="#FFFFFF" />
-                      </View>
-                      <View style={styles.historyContent}>
-                        <Text style={styles.historyTitle}>{report.title}</Text>
-                        <Text style={styles.historyVin}>VIN: {report.vin}</Text>
-                        <Text style={styles.historyDate}>{report.date}</Text>
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.historyButton}
+            ) : (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={styles.cardTitle}>მოხსენებების ისტორია</Text>
+                    <Text style={styles.cardSubtitle}>წინა მოთხოვნები შენახულია</Text>
+                  </View>
+                  <Ionicons name="time" size={24} color={PRIMARY} />
+                </View>
+
+                {historyReports.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="archive-outline" size={32} color="#94A3B8" />
+                    <Text style={styles.emptyTitle}>ჯერ არაფერია შენახული</Text>
+                    <Text style={styles.emptySubtitle}>გააკეთე VIN ძებნა და მოხსენებები აქ გამოჩნდება</Text>
+                  </View>
+                ) : (
+                  <View style={styles.historyList}>
+                    {historyReports.map(report => (
+                      <TouchableOpacity
+                        key={report.id}
+                        style={styles.historyRow}
                         onPress={() => {
                           setSelectedReport(report);
                           setShowReportModal(true);
                         }}
                       >
-                        <Ionicons name="eye" size={20} color="#FFFFFF" />
+                        <View style={styles.historyIcon}>
+                          <Ionicons name="document-text" size={20} color={PRIMARY} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyTitle}>{report.title}</Text>
+                          <Text style={styles.historyMeta}>VIN: {report.vin}</Text>
+                          <Text style={styles.historyMeta}>{report.date}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
                       </TouchableOpacity>
-                    </LinearGradient>
+                    ))}
                   </View>
-                ))}
+                )}
               </View>
-            </View>
-          )}
-        </Animated.View>
-      </ScrollView>
+            )}
+          </Animated.View>
+        </ScrollView>
 
-      {/* CarFAX Report Modal */}
-      <Modal
-        visible={showReportModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowReportModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View 
-            style={[
-              styles.modalContent,
-              {
-                opacity: fadeAnim,
-                transform: [{ scale: fadeAnim }],
-              },
-            ]}
-          >
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIcon}>
-                <Ionicons name="document-text" size={24} color="#FFFFFF" />
+        <Modal visible={showReportModal} transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ scale: fadeAnim }],
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <View style={styles.modalIcon}>
+                  <Ionicons name="document-text" size={24} color={PRIMARY} />
+                </View>
+                <Text style={styles.modalTitle}>CarFAX მოხსენება</Text>
+                <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowReportModal(false)}>
+                  <Ionicons name="close" size={20} color={MUTED} />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.modalTitle}>CarFAX მოხსენება</Text>
-              <TouchableOpacity 
-                style={styles.modalCloseButton}
-                onPress={() => setShowReportModal(false)}
-              >
-                <Ionicons name="close" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
 
-            {/* Report Content */}
-            {selectedReport && (
-              <View style={styles.modalBody}>
-                <Text style={styles.reportTitle}>{selectedReport.title}</Text>
-                <Text style={styles.reportVin}>VIN: {selectedReport.vin}</Text>
-                <Text style={styles.reportDate}>თარიღი: {selectedReport.date}</Text>
+              {selectedReport && (
+                <View style={styles.modalBody}>
+                  <Text style={styles.reportTitle}>{selectedReport.title}</Text>
+                  <Text style={styles.reportVin}>VIN: {selectedReport.vin}</Text>
+                  <Text style={styles.reportDate}>თარიღი: {selectedReport.date}</Text>
 
-                <View style={styles.reportStats}>
-                  <View style={styles.statItem}>
-                    <View style={styles.statIcon}>
-                      <Ionicons name="car" size={20} color="#FFFFFF" />
+                  <View style={styles.reportStats}>
+                    <View style={styles.statItem}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="car" size={20} color={PRIMARY} />
+                      </View>
+                      <View style={styles.statContent}>
+                        <Text style={styles.statLabel}>ავარიების ისტორია</Text>
+                        <Text style={styles.statValue}>
+                          {selectedReport.accidents === 0 ? '0 ავარია' : `${selectedReport.accidents} ავარია`}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.statContent}>
-                      <Text style={styles.statLabel}>ავარიების ისტორია</Text>
-                      <Text style={styles.statValue}>
-                        {selectedReport.accidents === 0 ? '0 ავარია' : `${selectedReport.accidents} ავარია`}
-                      </Text>
-                    </View>
-                  </View>
 
-                  <View style={styles.statItem}>
-                    <View style={styles.statIcon}>
-                      <Ionicons name="settings" size={20} color="#FFFFFF" />
+                    <View style={styles.statItem}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="settings" size={20} color={PRIMARY} />
+                      </View>
+                      <View style={styles.statContent}>
+                        <Text style={styles.statLabel}>მომსახურების ისტორია</Text>
+                        <Text style={styles.statValue}>{selectedReport.serviceRecords} ჩანაწერი</Text>
+                      </View>
                     </View>
-                    <View style={styles.statContent}>
-                      <Text style={styles.statLabel}>მომსახურების ისტორია</Text>
-                      <Text style={styles.statValue}>{selectedReport.serviceRecords} ჩანაწერი</Text>
-                    </View>
-                  </View>
 
-                  <View style={styles.statItem}>
-                    <View style={styles.statIcon}>
-                      <Ionicons name="speedometer" size={20} color="#FFFFFF" />
+                    <View style={styles.statItem}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="speedometer" size={20} color={PRIMARY} />
+                      </View>
+                      <View style={styles.statContent}>
+                        <Text style={styles.statLabel}>ოდომეტრი</Text>
+                        <Text style={styles.statValue}>{selectedReport.mileage}</Text>
+                      </View>
                     </View>
-                    <View style={styles.statContent}>
-                      <Text style={styles.statLabel}>ოდომეტრი</Text>
-                      <Text style={styles.statValue}>{selectedReport.mileage}</Text>
-                    </View>
-                  </View>
 
-                  <View style={styles.statItem}>
-                    <View style={styles.statIcon}>
-                      <Ionicons name="people" size={20} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.statContent}>
-                      <Text style={styles.statLabel}>საკუთრების ისტორია</Text>
-                      <Text style={styles.statValue}>{selectedReport.owners} მფლობელი</Text>
+                    <View style={styles.statItem}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="people" size={20} color={PRIMARY} />
+                      </View>
+                      <View style={styles.statContent}>
+                        <Text style={styles.statLabel}>საკუთრების ისტორია</Text>
+                        <Text style={styles.statValue}>{selectedReport.owners} მფლობელი</Text>
+                      </View>
                     </View>
                   </View>
                 </View>
+              )}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.modalSecondaryButton} onPress={() => setShowReportModal(false)}>
+                  <Text style={styles.modalSecondaryButtonText}>დახურვა</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalPrimaryButton}
+                  onPress={() => {
+                    setShowReportModal(false);
+                    const fullReport = carfaxReports.find(r => r._id === selectedReport?.id);
+                    if (fullReport) {
+                      router.push({
+                        pathname: '/carfax-simulation',
+                        params: {
+                          vinCode: selectedReport?.vin,
+                          carData: JSON.stringify(fullReport),
+                        },
+                      });
+                    }
+                  }}
+                >
+                  <Text style={styles.modalPrimaryButtonText}>სრული მოხსენება</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
-            )}
+            </Animated.View>
+          </View>
+        </Modal>
 
-            {/* Modal Actions */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={styles.modalSecondaryButton}
-                onPress={() => setShowReportModal(false)}
-              >
-                <Text style={styles.modalSecondaryButtonText}>დახურვა</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.modalPrimaryButton}
-                onPress={() => {
-                  setShowReportModal(false);
-                  // Find the full report data
-                  const fullReport = carfaxReports.find(r => r._id === selectedReport?.id);
-                  if (fullReport) {
-                    router.push({
-                      pathname: '/carfax-simulation',
-                      params: { 
-                        vinCode: selectedReport?.vin,
-                        carData: JSON.stringify(fullReport)
-                      }
-                    });
-                  }
-                }}
-              >
-                <Text style={styles.modalPrimaryButtonText}>სრული მოხსენება</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      {/* Subscription Modal */}
-      <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
-        onSuccess={() => {
-          setShowSubscriptionModal(false);
-          // After successful subscription, allow VIN check
-          handleCheckVIN();
-        }}
-      />
-
-      {/* CarFAX Success Modal */}
-      {showCarFAXSuccess && carfaxResult && (
-        <CarFAXSuccess
-          vinCode={vinNumber.trim().toUpperCase()}
-          carData={carfaxResult}
-          onClose={() => {
-            setShowCarFAXSuccess(false);
-            setCarfaxResult(null);
-          }}
-        />
-      )}
-    </SafeAreaView>
+        {showCarFAXSuccess && carfaxResult && (
+          <CarFAXSuccess
+            vinCode={vinNumber.trim().toUpperCase()}
+            carData={carfaxResult}
+            onClose={() => {
+              setShowCarFAXSuccess(false);
+              setCarfaxResult(null);
+            }}
+          />
+        )}
+      </SafeAreaView>
     </>
   );
 }
@@ -583,504 +560,352 @@ export default function CarFAXScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#FFFFFF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     padding: 20,
-    gap: 24,
+    gap: 18,
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 4,
   },
   backButton: {
     padding: 8,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: 'rgba(37, 99, 235, 0.18)',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
+    fontWeight: '700',
+    color: DARK,
+    letterSpacing: 0.2,
+    fontFamily: FONT_BOLD,
   },
-  headerSpacer: {
-    width: 40,
-  },
-
-  // Hero Section
-  heroSection: {
-    marginTop: 8,
-  },
-  heroGradient: {
+  headerSpacer: { width: 40 },
+  heroCard: {
     borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
+    padding: 18,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: '#F6F8FF',
+    shadowColor: '#CBD5E1',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    gap: 8,
   },
-  heroContent: {
+  heroBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: '#E0ECFF',
+    borderColor: '#C7DBFF',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
+  heroBadgeText: { color: DARK, fontSize: 12, fontWeight: '600', fontFamily: FONT },
   heroTitle: {
-    fontFamily: 'Inter',
-    fontSize: 22,
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    color: DARK,
+    lineHeight: 26,
+    letterSpacing: 0.2,
+    fontFamily: FONT_BOLD,
   },
   heroSubtitle: {
-    fontFamily: 'Inter',
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    fontWeight: '500',
-    marginTop: 2,
+    color: MUTED,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: FONT,
   },
-
-  // Tabs
-  tabsContainer: {
-    marginTop: 8,
+  heroChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
   },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F3F6FF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  chipText: { color: DARK, fontSize: 12, fontWeight: '600', fontFamily: FONT },
   tabsWrapper: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
-    padding: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: BORDER,
+    padding: 4,
+    gap: 6,
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 8,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   activeTab: {
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   tabText: {
+    color: MUTED,
     fontSize: 14,
     fontWeight: '600',
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
+    fontFamily: FONT,
   },
   activeTabText: {
     color: '#FFFFFF',
+    fontFamily: FONT_BOLD,
   },
-
-  // Credits Section
-  creditsSection: {
-    marginTop: 8,
-  },
-  creditsContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: BORDER,
+    gap: 14,
+    shadowColor: '#CBD5E1',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  creditItem: {
-    flex: 1,
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 4,
   },
-  creditLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    textAlign: 'center',
-  },
-  creditValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
-
-  // Input Section
-  inputSection: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
+  cardTitle: { color: DARK, fontSize: 18, fontWeight: '700', letterSpacing: 0.2, fontFamily: FONT_BOLD },
+  cardSubtitle: { color: '#64748B', fontSize: 13, marginTop: 2, fontFamily: FONT },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
+    backgroundColor: SOFT,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 20,
-    marginBottom: 16,
+    borderColor: BORDER,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   vinInput: {
     flex: 1,
-    paddingVertical: 16,
+    color: DARK,
     fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
+    paddingVertical: 14,
+    letterSpacing: 1,
+    fontFamily: FONT,
   },
   checkButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginLeft: 8,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   checkButtonDisabled: {
-    backgroundColor: 'rgba(156, 163, 175, 0.3)',
+    backgroundColor: '#93C5FD',
   },
-  inputHint: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-
-  // Plans Section
-  plansSection: {
-    gap: 12,
-    marginTop: 8,
-  },
-  plansGrid: {
-    flexDirection: 'column',
-    gap: 16,
-  },
-  planCard: {
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  planPressable: {
-    flex: 1,
-  },
-  planGradient: {
-    padding: 20,
-    height: 180,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  popularBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
-  planContent: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  planIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planTitle: {
-    fontFamily: 'Inter',
-    fontSize: 16,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  planDescription: {
-    fontFamily: 'Inter',
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    fontWeight: '500',
-    lineHeight: 16,
-    marginTop: 2,
-  },
-  planPrice: {
-    fontFamily: 'Inter',
-    fontSize: 18,
-    color: '#FFFFFF',
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    marginTop: 2,
-  },
-  savingsBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  savingsText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
-
-  // History Section
-  historySection: {
-    gap: 12,
-    marginTop: 8,
-  },
-  historyList: {
-    gap: 12,
-  },
-  historyItem: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  historyGradient: {
-    padding: 16,
+  helperRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 8,
+  },
+  helperText: {
+    color: MUTED,
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
+    fontFamily: FONT,
+  },
+  primaryButton: {
+    marginTop: 4,
+    backgroundColor: PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#1D4ED8',
+  },
+  primaryButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontFamily: FONT_BOLD },
+  primaryButtonPrice: { color: '#FFFFFF', fontSize: 15, fontWeight: '500', fontFamily: FONT_BOLD },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  infoItem: {
+    width: '31%',
+    minWidth: 0,
+    backgroundColor: SOFT,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  infoTitle: { color: DARK, fontWeight: '500', fontSize: 13, fontFamily: FONT },
+  infoText: { color: MUTED, fontSize: 12, lineHeight: 16, fontFamily: FONT },
+  historyList: { gap: 10 },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: SOFT,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   historyIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#E0ECFF',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: '#C7DBFF',
   },
-  historyContent: {
-    flex: 1,
+  historyTitle: { color: DARK, fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD },
+  historyMeta: { color: MUTED, fontSize: 12, marginTop: 2, fontFamily: FONT },
+  emptyState: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 24,
   },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
-  historyVin: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-  historyDate: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-  historyButton: {
-    padding: 8,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-  },
-
-  // Modal Styles
+  emptyTitle: { color: DARK, fontWeight: '700', fontSize: 16, fontFamily: FONT_BOLD },
+  emptySubtitle: { color: MUTED, fontSize: 13, textAlign: 'center', fontFamily: FONT },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
     justifyContent: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: BORDER,
   },
   modalIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderRadius: 12,
+    backgroundColor: '#E0ECFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: '#C7DBFF',
   },
-  modalTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
+  modalTitle: { flex: 1, color: DARK, fontSize: 18, fontWeight: '700', fontFamily: FONT_BOLD },
   modalCloseButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(156, 163, 175, 0.2)',
+    borderRadius: 10,
+    backgroundColor: SOFT,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: BORDER,
   },
-  modalBody: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  reportTitle: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
-  reportVin: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-  reportDate: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginBottom: 20,
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-  reportStats: {
-    gap: 16,
-  },
+  modalBody: { padding: 20, gap: 12 },
+  reportTitle: { color: DARK, fontSize: 19, fontWeight: '700', fontFamily: FONT_BOLD },
+  reportVin: { color: MUTED, fontSize: 13, fontFamily: FONT },
+  reportDate: { color: '#94A3B8', fontSize: 12, marginTop: -4, fontFamily: FONT },
+  reportStats: { gap: 10, marginTop: 6 },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(55, 65, 81, 0.3)',
+    gap: 12,
+    backgroundColor: SOFT,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(55, 65, 81, 0.5)',
+    borderColor: BORDER,
   },
   statIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderRadius: 12,
+    backgroundColor: '#E0ECFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: '#C7DBFF',
   },
-  statContent: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#D1D5DB',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-    marginTop: 2,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
+  statContent: { flex: 1 },
+  statLabel: { color: DARK, fontWeight: '600', fontSize: 13, fontFamily: FONT },
+  statValue: { color: '#111827', fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD },
   modalActions: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    gap: 12,
+    gap: 10,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: BORDER,
   },
   modalSecondaryButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(156, 163, 175, 0.2)',
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: SOFT,
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: BORDER,
   },
-  modalSecondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
+  modalSecondaryButtonText: { color: MUTED, fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD },
   modalPrimaryButton: {
-    flex: 2,
+    flex: 1.2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#8B5CF6',
     gap: 8,
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: PRIMARY,
+    borderWidth: 1,
+    borderColor: '#1D4ED8',
   },
-  modalPrimaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 0.3,
-  },
+  modalPrimaryButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD },
 });

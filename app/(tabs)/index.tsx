@@ -49,6 +49,12 @@ export default function TabOneScreen() {
   const { user } = useUser();
   const { subscription, hasActiveSubscription } = useSubscription();
   const displayFirstName = user?.name ? user.name.split(' ')[0] : '';
+  const greetingText = React.useMemo(() => {
+    const base = displayFirstName ? `გამარჯობა, ${displayFirstName}` : 'გამარჯობა';
+    const maxChars = 20;
+    const sliced = base.slice(0, Math.max(0, maxChars - 1)); // ვტოვებთ ადგილს ძახილისთვის
+    return `${sliced}!`;
+  }, [displayFirstName]);
   
   // Promo banner state
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
@@ -86,6 +92,50 @@ export default function TabOneScreen() {
   const [refreshing, setRefreshing] = useState(false); // Pull-to-refresh state
   const [offers, setOffers] = useState<any[]>([]);
   const [offersLoading, setOffersLoading] = useState<boolean>(false);
+  const [quickActionsIndex, setQuickActionsIndex] = useState(0);
+
+  const quickActionsList = [
+    {
+      key: 'assist',
+      title: 'დახმარება',
+      subtitle: 'ევაკუატორი და გზაზე სწრაფი დახმარება',
+      icon: 'car-sport',
+      colors: ['#2563EB', '#1D4ED8'],
+      pill: '24/7',
+      tag: 'სასწრაფო',
+      route: '/caru-service' as any,
+    },
+    {
+      key: 'wash',
+      title: 'ავტო სამრეცხაო',
+      subtitle: 'ბუქინგი უახლოეს სამრეცხაოში',
+      icon: 'water',
+      colors: ['#22C55E', '#16A34A'],
+      pill: 'დაჯავშნა',
+      tag: 'ახალი',
+      route: '/(tabs)/carwash' as any,
+    },
+    {
+      key: 'loyalty',
+      title: 'ლოიალობის პროგრამა',
+      subtitle: 'გულების დაგროვება და ფასდაკლებები',
+      icon: 'star',
+      colors: ['#F59E0B', '#D97706'],
+      pill: 'ქულები',
+      tag: 'ბონუსი',
+      route: '/loyalty' as any,
+    },
+    {
+      key: 'carfax',
+      title: 'კარფაქსი',
+      subtitle: 'ავტომობილის ისტორიის შემოწმება',
+      icon: 'document-text',
+      colors: ['#111827', '#0F172A'],
+      pill: 'შემოწმება',
+      tag: 'დაცვა',
+      route: '/carfax' as any,
+    },
+  ];
 
   console.log(popularServices, 'პოპულარული სერვისები');
   
@@ -501,52 +551,142 @@ export default function TabOneScreen() {
       marginRight: 10,
     },
     quickActionsContainer: {
-      paddingHorizontal: 5,
-      paddingTop: 24,
-      paddingBottom: 20,
+      paddingHorizontal: 8,
+      paddingTop: 18,
+      paddingBottom: 10,
+      gap: 8,
     },
     quickActions: {
       flexDirection: 'row' as const,
-      justifyContent: 'space-between' as const,
       gap: 12,
     },
-    quickActionButton: {
-      flex: 1,
-      alignItems: 'center' as const,
-      gap: 8,
+    quickActionsScroll: {
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+      gap: 12,
     },
-    quickActionIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 20,
+    quickActionCard: {
+      width: 230,
+      borderRadius: 18,
+      overflow: 'hidden' as const,
+      shadowColor: '#0F172A',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 14,
+      elevation: 5,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      backgroundColor: '#FFFFFF',
+      position: 'relative' as const,
+    },
+    quickActionSurface: {
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 18,
+      borderWidth: 0,
+      gap: 10,
+      minHeight: 128,
+    },
+    quickActionHeader: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      position: 'relative' as const,
+    },
+    quickActionIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
     },
-    quickActionText: {
-      fontSize: 16,
-      fontWeight: '500' as const,
-      color: '#374151',
-      textAlign: 'center' as const,
-      lineHeight: 20,
-      width: 56,
-      alignSelf: 'center' as const,
+    quickActionTitle: {
+      fontSize: 13,
+      fontWeight: '600' as const,
+      color: '#0B1220',
       fontFamily: 'Inter',
+      letterSpacing: -0.1,
+      lineHeight: 18,
+    },
+    quickActionSubtitle: {
+      fontSize: 12,
+      color: '#6B7280',
+      fontFamily: 'Inter',
+      marginTop: 2,
+      lineHeight: 16,
+    },
+    quickActionBadge: {
+      position: 'absolute' as const,
+      top: -6,
+      right: -6,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      backgroundColor: 'rgba(255,255,255,0.16)',
+      borderWidth: 1,
+      borderColor: 'rgba(0,0,0,0.15)',
+      zIndex: 2,
+      color: '#FFFFFF',
+    },
+    quickActionBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontFamily: 'Inter_700Bold',
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
+    },
+    quickActionFooter: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+    },
+    quickActionPill: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    quickActionPillText: {
+      color: '#0B1220',
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '600' as const,
+      letterSpacing: 0.2,
+    },
+    quickActionsIndicatorRow: {
+      flexDirection: 'row' as const,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+      paddingTop: 10,
+      paddingBottom: 2,
+    },
+    quickActionsDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#E5E7EB',
+    },
+    quickActionsDotActive: {
+      width: 16,
+      backgroundColor: '#0F172A',
+    },
+    quickActionTextWrap: {
+      flex: 1,
+      paddingTop: 6,
+      paddingRight: 64,
     },
     categoriesContainer: {
       paddingTop: 24,
       paddingHorizontal: 20,
     },
     sectionTitle: {
-      fontSize: 22,
+      fontSize: 18,
       color: '#1F2937',
       fontFamily: 'Inter',
       marginBottom: 18,
-      fontWeight: '700' as const,
+      fontWeight: '500' as const,
       letterSpacing: -0.5,
     },
     categoriesList: {
@@ -659,7 +799,6 @@ export default function TabOneScreen() {
       fontFamily: 'Inter',
     },
     popularContainer: {
-      paddingTop: 32,
       paddingHorizontal: 20,
       paddingBottom: 24,
     },
@@ -695,7 +834,6 @@ export default function TabOneScreen() {
     sectionAction: {
       fontSize: 13,
       fontFamily: 'Inter',
-      color: colors.primary,
     },
     popularContent: {
       paddingLeft: H_MARGIN,
@@ -1197,7 +1335,7 @@ export default function TabOneScreen() {
             </View>
             <View style={{ marginLeft: 10 }}>
               <Text style={styles.userName} numberOfLines={1}>
-                გამარჯობა{displayFirstName ? `, ${displayFirstName}` : ''}!
+                {greetingText}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="location-outline" size={14} color={colors.secondary} />
@@ -1292,51 +1430,77 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ახალი სექცია - მომხმარებლის სტატისტიკა */}
+        {/* ახალი სექცია - ჩვენი სერვისები */}
         <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>ჩემი ავტოები</Text>
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/caru-service' as any)}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#3B82F6' }]}>
-                <Ionicons name="car" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.quickActionText} numberOfLines={2} adjustsFontSizeToFit>MARTE</Text>
-            </TouchableOpacity>
-            
-            
-            
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/(tabs)/carwash')}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#22C55E' }]}>
-                <Ionicons name="water" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >CARWASH</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/loyalty')}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#F59E0B' }]}>
-                <Ionicons name="star" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >LOYALTY</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/carfax')}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#374151' }]}>
-                <Ionicons name="document-text" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.quickActionText} numberOfLines={1} adjustsFontSizeToFit >CARFAX</Text>
-            </TouchableOpacity>
+          <Text style={styles.sectionTitle}>ჩვენი სერვისები</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickActionsScroll}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            onScroll={(e) => {
+              const cardFull = 230 + 12; // width + gap
+              const idx = Math.round(e.nativeEvent.contentOffset.x / cardFull);
+              setQuickActionsIndex(Math.min(Math.max(idx, 0), quickActionsList.length - 1));
+            }}
+            scrollEventThrottle={16}
+          >
+            <View style={styles.quickActions}>
+              {quickActionsList.map((action) => (
+                <TouchableOpacity
+                  key={action.key}
+                  style={styles.quickActionCard}
+                  activeOpacity={0.9}
+                  onPress={() => router.push(action.route)}
+                >
+                  <LinearGradient
+                    colors={action.colors as [string, string]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.quickActionSurface}
+                  >
+                    <View style={styles.quickActionHeader}>
+                      <View style={[styles.quickActionIconWrap, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+                        <Ionicons name={action.icon as any} size={18} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.quickActionTextWrap}>
+                        <Text style={[styles.quickActionTitle, { color: '#FFFFFF', lineHeight: 18 }]} numberOfLines={1} ellipsizeMode="tail">
+                          {action.title}
+                        </Text>
+                        <Text style={[styles.quickActionSubtitle, { color: '#E5E7EB', lineHeight: 16 }]} numberOfLines={2} ellipsizeMode="tail">
+                          {action.subtitle}
+                        </Text>
+                      </View>
+                      <View style={styles.quickActionBadge}>
+                        <Text style={styles.quickActionBadgeText}>{action.tag}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.quickActionFooter}>
+                      <View style={[
+                        styles.quickActionPill,
+                        { backgroundColor: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.28)', borderWidth: 1 }
+                      ]}>
+                        <Text style={[styles.quickActionPillText, { color: '#FFFFFF' }]}>{action.pill}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.86)" />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+          <View style={styles.quickActionsIndicatorRow}>
+            {quickActionsList.map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.quickActionsDot,
+                  i === quickActionsIndex && styles.quickActionsDotActive
+                ]}
+              />
+            ))}
           </View>
         </View>
       </View>

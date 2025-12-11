@@ -46,7 +46,7 @@ export default function OffersScreen() {
       distanceKm: 3.4,
       notes: 'მაღალი ხარისხის ფილტრი, 3 თვის გარანტია',
       warranty: '3 თვე',
-      isOriginal: false
+      isOriginal: false 
     },
     { 
       id: '3', 

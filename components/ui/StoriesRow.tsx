@@ -9,7 +9,7 @@ type Props = {
   title?: string;
 };
 
-export default function StoriesRow({ stories, onOpen, onCreate, title = 'ისტორიები' }: Props) {
+export default function StoriesRow({ stories, onOpen, onCreate, title = 'სთორების კატალოგი' }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>

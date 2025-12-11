@@ -81,6 +81,17 @@ export default function PaymentCardScreen() {
     metadata?: string; // JSON string
   }>();
 
+  const successUrlParam = params.successUrl
+    ? decodeURIComponent(String(params.successUrl))
+    : undefined;
+
+  const navigateInternal = (target: string) => {
+    const normalized = target.startsWith('/') ? target : `/${target}`;
+    const [pathname, query] = normalized.split('?');
+    const queryParams = Object.fromEntries(new URLSearchParams(query || ''));
+    router.replace({ pathname: pathname as any, params: queryParams as any });
+  };
+
   // Payment Data-ს შექმნა params-იდან
   const paymentData: PaymentData = {
     amount: parseFloat(params.amount || '0'),
@@ -88,7 +99,7 @@ export default function PaymentCardScreen() {
     description: params.description || 'CarApp სერვისი',
     context: params.context || 'general',
     orderId: params.orderId,
-    successUrl: params.successUrl,
+    successUrl: successUrlParam,
     failUrl: undefined, // განვსაზღვრავთ default-ად
     vinCode: params.vinCode,
     isSubscription: params.isSubscription === 'true',
@@ -123,6 +134,7 @@ export default function PaymentCardScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bogOAuthStatus, setBogOAuthStatus] = useState<any>(null);
   const [isCheckingBOG, setIsCheckingBOG] = useState<boolean>(false);
+  const [visible, setVisible] = useState(true);
   
   const isSubscription = (params as any).isSubscription === 'true';
   const planId = (params as any).planId;
@@ -340,17 +352,38 @@ export default function PaymentCardScreen() {
     }
   };
 
+  const handleTestPayment = () => {
+    const fallback =
+      paymentData.vinCode && paymentData.context === 'carfax'
+        ? `/carfax?paid=1&vinCode=${paymentData.vinCode}`
+        : '/payment-success';
+
+    const target = paymentData.successUrl || fallback;
+    console.log('🧪 Test payment navigate ->', target);
+
+    setVisible(false);
+
+    if (target.startsWith('http')) {
+      Linking.openURL(target);
+    } else {
+      navigateInternal(target);
+    }
+  };
+
 
   return (
     <Modal
-      visible={true}
+      visible={visible}
       animationType="slide"
       transparent={false}
-      onRequestClose={() => router.back()}
+      onRequestClose={() => {
+        setVisible(false);
+        router.back();
+      }}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
-          <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" translucent />
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent />
         
           <SafeAreaView style={styles.safeArea}>
         {/* Header */}
@@ -366,9 +399,12 @@ export default function PaymentCardScreen() {
         >
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              setVisible(false);
+              router.back();
+            }}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={24} color="#2563EB" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>გადახდის მეთოდი</Text>
           <View style={styles.headerSpacer} />
@@ -381,44 +417,77 @@ export default function PaymentCardScreen() {
           {/* Hero Section */}
           <Animated.View 
             style={[
-              styles.heroSection,
+              styles.heroWrapper,
               {
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
               },
             ]}
           >
-            <View style={styles.heroIcon}>
-              <Ionicons name="card" size={28} color="#8B5CF6" />
-            </View>
-            <Text style={styles.heroTitle}>
-              {paymentData.isSubscription ? 'Subscription გადახდა' : 'გადახდის მეთოდი'}
-            </Text>
-            <Text style={styles.heroSubtitle}>
-              {paymentData.isSubscription ? 'აირჩიეთ გადახდის მეთოდი' : 'აირჩიეთ ყველაზე მოსახერხებელი ვარიანტი'}
-            </Text>
-            
-            {paymentData.isSubscription && paymentData.planName && (
-              <View style={styles.subscriptionSection}>
-                <Text style={styles.subscriptionTitle}>🚀 {paymentData.planName}</Text>
-                <Text style={styles.subscriptionPrice}>{paymentData.planPrice} {paymentData.planCurrency}</Text>
-                {paymentData.planDescription && (
-                  <Text style={styles.subscriptionDescription}>{paymentData.planDescription}</Text>
-                )}
+            <LinearGradient
+              colors={['#E0ECFF', '#FFFFFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroSection}
+            >
+              <View style={styles.heroIcon}>
+                <Ionicons name="card" size={28} color="#FFFFFF" />
               </View>
-            )}
-            
-            {paymentData.amount > 0 && !paymentData.isSubscription && (
-              <View style={styles.amountSection}>
-                <Text style={styles.amountText}>{paymentData.amount} {paymentData.currency}</Text>
-                {paymentData.description && (
-                  <Text style={styles.descriptionText}>{paymentData.description}</Text>
-                )}
-                {paymentData.context && (
-                  <Text style={styles.contextText}>კონტექსტი: {paymentData.context}</Text>
-                )}
+              <View style={styles.heroBadgeRow}>
+                <View style={styles.heroBadgePill}>
+                  <Ionicons name="lock-closed" size={14} color="#2563EB" />
+                  <Text style={styles.heroBadgeText}>უსაფრთხო გადახდა</Text>
+                </View>
+                {paymentData.vinCode ? (
+                  <View style={styles.heroBadgePill}>
+                    <Ionicons name="car-sport" size={14} color="#2563EB" />
+                    <Text style={styles.heroBadgeText}>{paymentData.vinCode}</Text>
+                  </View>
+                ) : null}
               </View>
-            )}
+              <Text style={styles.heroTitle}>
+                {paymentData.isSubscription ? 'Subscription გადახდა' : 'გადახდის მეთოდი'}
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                {paymentData.isSubscription ? 'აირჩიეთ გადახდის მეთოდი' : 'აირჩიეთ ყველაზე მოსახერხებელი ვარიანტი'}
+              </Text>
+
+              {paymentData.isSubscription && paymentData.planName && (
+                <View style={styles.subscriptionSection}>
+                  <Text style={styles.subscriptionTitle}>🚀 {paymentData.planName}</Text>
+                  <Text style={styles.subscriptionPrice}>{paymentData.planPrice} {paymentData.planCurrency}</Text>
+                  {paymentData.planDescription && (
+                    <Text style={styles.subscriptionDescription}>{paymentData.planDescription}</Text>
+                  )}
+                </View>
+              )}
+
+              {paymentData.amount > 0 && !paymentData.isSubscription && (
+                <View style={styles.amountSection}>
+                  <Text style={styles.amountText}>{paymentData.amount} {paymentData.currency}</Text>
+                  {paymentData.description && (
+                    <Text style={styles.descriptionText}>{paymentData.description}</Text>
+                  )}
+                  {paymentData.context && (
+                    <Text style={styles.contextText}>კონტექსტი: {paymentData.context}</Text>
+                  )}
+                  <View style={styles.amountChips}>
+                    <View style={styles.amountChip}>
+                      <Ionicons name="flash" size={14} color="#2563EB" />
+                      <Text style={styles.amountChipText}>დადასტურება წამებში</Text>
+                    </View>
+                    <View style={styles.amountChip}>
+                      <Ionicons name="shield-checkmark" size={14} color="#2563EB" />
+                      <Text style={styles.amountChipText}>ფraud დაცვა</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity style={styles.testPayButton} onPress={handleTestPayment}>
+                    <Ionicons name="checkmark-circle" size={16} color="#2563EB" />
+                    <Text style={styles.testPayText}>სატესტო გადახდა (იმიტაცია)</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </LinearGradient>
           </Animated.View>        
 
           {savedCard && (
@@ -446,7 +515,7 @@ export default function PaymentCardScreen() {
                           <Text style={styles.loyaltyLogoText}>CA</Text>
                         </View>
                       ) : (
-                        <Ionicons name="card" size={20} color="#FFFFFF" />
+                        <Ionicons name="card" size={20} color="#2563EB" />
                       )}
                     </View>
                   </View>
@@ -779,7 +848,7 @@ export default function PaymentCardScreen() {
                   }}
                 >
                   <LinearGradient
-                    colors={['#8B5CF6', '#7C3AED']}
+                    colors={['#2563EB', '#1D4ED8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.submitGradient}
@@ -982,15 +1051,15 @@ export default function PaymentCardScreen() {
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#F8FAFC',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#FFFFFF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#FFFFFF',
   },
   safeArea: {
     flex: 1,
@@ -1001,19 +1070,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#FFFFFF',
   },
   backButton: {
     padding: 8,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: 'rgba(37, 99, 235, 0.18)',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontFamily: 'Inter',
   },
   headerSpacer: {
@@ -1022,32 +1091,71 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  heroWrapper: {
+    paddingHorizontal: 16,
+  },
   heroSection: {
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 30,
-    backgroundColor: 'transparent',
+    paddingVertical: 26,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#CBD5E1',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    backgroundColor: '#F6F8FF',
   },
   heroIcon: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+    shadowColor: '#2563EB',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  heroBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  heroBadgeText: {
+    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter',
   },
   heroTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
     textAlign: 'center',
     marginBottom: 8,
     fontFamily: 'Inter',
   },
   heroSubtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#475569',
     textAlign: 'center',
     lineHeight: 20,
     fontFamily: 'Inter',
@@ -1055,78 +1163,119 @@ const styles = StyleSheet.create({
   amountSection: {
     marginTop: 16,
     alignItems: 'center',
+    gap: 8,
   },
   amountText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#22C55E',
+    color: '#2563EB',
     fontFamily: 'Inter',
     marginBottom: 4,
   },
   descriptionText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     textAlign: 'center',
     fontFamily: 'Inter',
   },
   contextText: {
     fontSize: 10,
-    color: '#6B7280',
+    color: '#94A3B8',
     textAlign: 'center',
     fontFamily: 'Inter',
     marginTop: 4,
   },
+  amountChips: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  amountChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  amountChipText: {
+    fontSize: 12,
+    color: '#0F172A',
+    fontWeight: '600',
+    fontFamily: 'Inter',
+  },
+  testPayButton: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#E0ECFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C7DBFF',
+  },
+  testPayText: {
+    color: '#2563EB',
+    fontWeight: '700',
+    fontSize: 13,
+    fontFamily: 'Inter',
+  },
   subscriptionSection: {
     marginTop: 16,
     alignItems: 'center',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: 'rgba(37, 99, 235, 0.07)',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: 'rgba(37, 99, 235, 0.16)',
   },
   subscriptionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontFamily: 'Inter',
     marginBottom: 8,
   },
   subscriptionPrice: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#8B5CF6',
+    color: '#2563EB',
     fontFamily: 'Inter',
     marginBottom: 4,
   },
   subscriptionDescription: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     textAlign: 'center',
     fontFamily: 'Inter',
   },
   vinSection: {
     paddingHorizontal: 20,
     paddingVertical: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: '#FFFFFF',
   },
   vinInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: '#0F172A',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#E2E8F0',
     fontFamily: 'Inter',
     letterSpacing: 1,
     marginBottom: 8,
   },
   vinHint: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     fontFamily: 'Inter',
   },
   savedCardSection: {
@@ -1136,8 +1285,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     fontFamily: 'Inter',
     marginBottom: 16,
   },
@@ -1146,13 +1295,16 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#CBD5E1',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
-    elevation: 16,
+    elevation: 12,
     marginBottom: 16,
     position: 'relative',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   cardBackground: {
     position: 'absolute',
@@ -1161,8 +1313,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: 20,
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
-    backdropFilter: 'blur(20px)',
+    backgroundColor: '#E0ECFF',
   },
   cardGradient: {
     position: 'absolute',
@@ -1170,7 +1321,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(75, 85, 99, 0.2)',
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
     borderRadius: 20,
   },
   cardPattern: {
@@ -1179,7 +1330,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
     borderRadius: 20,
   },
   cardContent: {
@@ -1196,8 +1347,8 @@ const styles = StyleSheet.create({
   },
   cardType: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     letterSpacing: 1,
     fontFamily: 'Inter',
   },
@@ -1235,15 +1386,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#E0ECFF',
     alignItems: 'center',
     justifyContent: 'center',
-    backdropFilter: 'blur(10px)',
   },
   loyaltyLogoText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#2563EB',
     fontFamily: 'Inter',
   },
   mastercardLogo: {
@@ -1255,13 +1405,13 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#FF5F00',
+    backgroundColor: '#2563EB',
   },
   mastercardCircle2: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#EB001B',
+    backgroundColor: '#60A5FA',
     marginLeft: -6,
   },
   cardNumber: {
@@ -1270,8 +1420,8 @@ const styles = StyleSheet.create({
   },
   cardNumberText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     letterSpacing: 2,
     fontFamily: 'Inter',
   },
@@ -1285,16 +1435,16 @@ const styles = StyleSheet.create({
   },
   cardHolderLabel: {
     fontSize: 8,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
+    color: '#475569',
     marginBottom: 4,
     fontFamily: 'Inter',
     letterSpacing: 1,
   },
   cardHolderName: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     fontFamily: 'Inter',
   },
   cardExpiry: {
@@ -1302,24 +1452,23 @@ const styles = StyleSheet.create({
   },
   cardExpiryLabel: {
     fontSize: 8,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
+    color: '#475569',
     marginBottom: 4,
     fontFamily: 'Inter',
     letterSpacing: 1,
   },
   cardExpiryDate: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     fontFamily: 'Inter',
   },
   payButton: {
-    backgroundColor: 'rgba(55, 65, 81, 0.4)',
+    backgroundColor: '#2563EB',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#1D4ED8',
     borderRadius: 12,
-    backdropFilter: 'blur(20px)',
   },
   payButtonContent: {
     flexDirection: 'row',
@@ -1377,16 +1526,16 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   methodCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: '#E2E8F0',
+    shadowColor: '#CBD5E1',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowRadius: 10,
+    elevation: 8,
     overflow: 'hidden',
   },
   methodTouchable: {
@@ -1398,7 +1547,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#E0ECFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1408,14 +1557,14 @@ const styles = StyleSheet.create({
   },
   methodName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 2,
     fontFamily: 'Inter',
   },
   methodDescription: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     fontFamily: 'Inter',
   },
   securitySection: {
@@ -1425,11 +1574,11 @@ const styles = StyleSheet.create({
   securityCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: '#E2E8F0',
   },
   securityInfo: {
     flex: 1,
@@ -1437,22 +1586,24 @@ const styles = StyleSheet.create({
   },
   securityTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#10B981',
+    fontWeight: '700',
+    color: '#2563EB',
     marginBottom: 2,
     fontFamily: 'Inter',
   },
   securityDescription: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#475569',
     fontFamily: 'Inter',
   },
   // Modal Styles
   modalContent: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1461,12 +1612,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(156, 163, 175, 0.2)',
+    borderBottomColor: '#E2E8F0',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
     fontFamily: 'Inter',
   },
   closeButton: {
@@ -1489,20 +1640,20 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: '#0F172A',
     marginBottom: 8,
     fontFamily: 'Inter',
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: '#0F172A',
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#E2E8F0',
     fontFamily: 'Inter',
   },
   modalFooter: {
@@ -1518,13 +1669,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#475569',
     fontFamily: 'Inter',
   },
   submitButton: {
@@ -1535,10 +1687,14 @@ const styles = StyleSheet.create({
   submitGradient: {
     paddingVertical: 12,
     alignItems: 'center',
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   submitButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
     fontFamily: 'Inter',
   },
@@ -1550,32 +1706,32 @@ const styles = StyleSheet.create({
   rememberCardToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(156, 163, 175, 0.3)',
+    borderColor: '#E2E8F0',
   },
   toggleSwitch: {
     width: 44,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(156, 163, 175, 0.3)',
+    backgroundColor: '#E2E8F0',
     justifyContent: 'center',
     paddingHorizontal: 2,
     marginRight: 12,
   },
   toggleSwitchActive: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#2563EB',
   },
   toggleThumb: {
     width: 20,
     height: 20,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowColor: '#CBD5E1',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },

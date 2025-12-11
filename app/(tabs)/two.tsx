@@ -47,13 +47,7 @@ const PROFILE_MENU_ITEMS = [
     icon: 'star-outline',
     color: '#F59E0B',
   },
-  {
-    id: 'partner',
-    title: 'პარტნიორი მაღაზიები',
-    subtitle: 'შეთავაზებები და ფასდაკლებები',
-    icon: 'storefront-outline',
-    color: '#22C55E',
-  },
+  
   {
     id: '9',
     title: 'მხარდაჭერა',
@@ -67,35 +61,6 @@ const PROFILE_MENU_ITEMS = [
     subtitle: 'დაამატეთ ან შეცვალეთ მანქანები',
     icon: 'car-outline',
     color: '#10B981',
-  },
-  {
-    id: '3',
-    title: 'გადახდის მეთოდები',
-    subtitle: 'ბარათები, ბანკის ანგარიშები',
-    icon: 'card-outline',
-    color: '#F59E0B',
-  },
-  {
-    id: '4',
-    title: 'შეფასებები',
-    subtitle: 'თქვენი შეფასებები სერვისებისთვის',
-    icon: 'star-outline',
-    color: '#8B5CF6',
-  },
-  {
-    id: '5',
-    title: 'შეტყობინებები',
-    subtitle: 'შეტყობინებები და ნოტიფიკაციები',
-    icon: 'chatbubble-outline',
-    color: '#EF4444',
-  },
-  
-  {
-    id: '7',
-    title: 'პარამეტრები',
-    subtitle: 'აპლიკაციის პარამეტრები',
-    icon: 'settings-outline',
-    color: '#374151',
   },
   {
     id: '8',
@@ -432,6 +397,14 @@ export default function ProfileScreen() {
     console.log('Menu item pressed:', item.title);
     
     // Handle specific menu items
+    if (item.id === '1') {
+      router.push('/personal-info');
+      return;
+    }
+    if (item.id === '2') {
+      router.push('/(tabs)/garage');
+      return;
+    }
     if (item.id === 'loyalty') {
       // Navigate to loyalty page
       router.push('/loyalty');
@@ -534,12 +507,11 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{displayName}</Text>
-              <Text style={styles.profileEmail}>{displayEmail}</Text>
               <Text style={styles.profilePhone}>{displayPhone}</Text>
             </View>
           </View>
 
-          <View style={styles.statsContainer}>
+          {/* <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{MOCK_USER_DATA.totalBookings}</Text>
               <Text style={styles.statLabel}>ჯავშნები</Text>
@@ -552,7 +524,7 @@ export default function ProfileScreen() {
               <Text style={styles.statValue}>{MOCK_USER_DATA.rating}</Text>
               <Text style={styles.statLabel}>შეფასება</Text>
             </View>
-          </View>
+          </View> */}
 
          
 

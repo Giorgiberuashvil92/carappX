@@ -11,6 +11,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -93,11 +94,21 @@ export default function CommunityScreen() {
     };
   }, []);
 
+  const mergeWithExisting = (prev: CommunityPost[], incoming: CommunityPost[]) => {
+    return incoming.map((post) => {
+      const prevMatch = prev.find((p) => p.id === post.id);
+      if (prevMatch?.isLiked) {
+        return { ...post, isLiked: true };
+      }
+      return post;
+    });
+  };
+
   const loadPosts = async () => {
     try {
       setLoading(true);
       const fetchedPosts = await communityApi.getPosts(user?.id);
-      setPosts(fetchedPosts);
+      setPosts((prev) => mergeWithExisting(prev, fetchedPosts));
       
       // Set up real-time listeners for each post
       setupRealtimeListeners(fetchedPosts);
@@ -140,7 +151,7 @@ export default function CommunityScreen() {
     setRefreshing(true);
     try {
       const fetchedPosts = await communityApi.getPosts(user?.id);
-      setPosts(fetchedPosts);
+      setPosts((prev) => mergeWithExisting(prev, fetchedPosts));
       success('განახლდა!', 'კომუნიტის პოსტები განახლდა');
     } catch (err) {
       console.error('Error refreshing posts:', err);
@@ -247,6 +258,24 @@ export default function CommunityScreen() {
     }
   };
 
+  const sharePost = async (post: CommunityPost) => {
+    try {
+      const messageParts = [
+        post.postText || '',
+        post.postImage ? `📸 ${post.postImage}` : '',
+      ].filter(Boolean);
+
+      await Share.share({
+        message: messageParts.join('\n\n'),
+        url: post.postImage,
+        title: 'გაზიარება',
+      });
+    } catch (err) {
+      console.error('Error sharing post:', err);
+      error('შეცდომა', 'გაზიარება ვერ მოხერხდა');
+    }
+  };
+
   const deletePost = async (postId: string) => {
     Alert.alert(
       'პოსტის წაშლა',
@@ -271,23 +300,30 @@ export default function CommunityScreen() {
     );
   };
 
-  const showPostOptions = (postId: string) => {
-    Alert.alert(
-      'პოსტის ოფციები',
-      'რა გსურთ გააკეთოთ?',
-      [
-        { text: 'გაუქმება', style: 'cancel' },
-        {
-          text: 'წაშლა',
-          style: 'destructive',
-          onPress: () => deletePost(postId),
-        },
-      ]
-    );
+  const showPostOptions = (post: CommunityPost) => {
+    const canDelete = user?.id && post.userId === user.id;
+
+    const actions = [
+      {
+        text: 'გაზიარება',
+        onPress: () => sharePost(post),
+      },
+      canDelete
+        ? {
+            text: 'წაშლა',
+            style: 'destructive' as const,
+            onPress: () => deletePost(post.id),
+          }
+        : null,
+      { text: 'გაუქმება', style: 'cancel' as const },
+    ].filter(Boolean) as { text: string; style?: any; onPress?: () => void }[];
+
+    Alert.alert('პოსტის ოფციები', 'აირჩიე ქმედება', actions);
   };
 
   const renderPost = (post: CommunityPost) => {
     const isHighlighted = highlightedPostId === post.id;
+    const isOwner = user?.id && post.userId === user.id;
     
     return (
     <View style={[styles.post, isHighlighted && styles.highlightedPost]}>
@@ -301,9 +337,13 @@ export default function CommunityScreen() {
             <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => showPostOptions(post.id)}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#6B7280" />
-        </TouchableOpacity>
+        {isOwner ? (
+          <TouchableOpacity onPress={() => showPostOptions(post)}>
+            <Ionicons name="ellipsis-horizontal" size={20} color="#6B7280" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 24, height: 24 }} />
+        )}
       </View>
       
       <Text style={styles.postText}>{post.postText}</Text>
@@ -319,7 +359,7 @@ export default function CommunityScreen() {
       
       <View style={styles.postActions}>
         <TouchableOpacity 
-          style={styles.actionButton}
+          style={[styles.actionButton, post.isLiked && styles.actionButtonLiked]}
           onPress={() => toggleLike(post.id)}
         >
           <Ionicons 
@@ -346,7 +386,10 @@ export default function CommunityScreen() {
           <Ionicons name="chatbubble-outline" size={18} color="#6B7280" />
           <Text style={styles.actionText}>{post.commentsCount}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => sharePost(post)}
+        >
           <Ionicons name="share-outline" size={18} color="#6B7280" />
           <Text style={styles.actionText}>გაზიარება</Text>
         </TouchableOpacity>
@@ -366,14 +409,12 @@ export default function CommunityScreen() {
       >
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>კომუნიტი</Text>
+            <Text style={styles.headerTitle}>ჯგუფი</Text>
             <Text style={styles.headerSubtitle}>
               მანქანების მოყვარულთა საზოგადოება
             </Text>
           </View>
-          <TouchableOpacity style={styles.createPostButton}>
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          
         </View>
       </LinearGradient>
 
@@ -678,6 +719,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  actionButtonLiked: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: '#FCA5A5',
   },
   actionText: {
     fontSize: 12,

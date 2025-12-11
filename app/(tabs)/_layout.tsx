@@ -38,7 +38,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="garage"
         options={{
-          title: 'გარაჟი',
+          title: 'ფარეხი',
           tabBarIcon: ({ color }) => <TabBarIcon name="car" color={color} />,
         }}
       />
@@ -52,7 +52,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: 'კომუნიტი',
+          title: 'ჯგუფი',
           tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
         }}
       />
