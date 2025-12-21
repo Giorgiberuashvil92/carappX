@@ -22,6 +22,7 @@
       "node": "20.19.4"
     },
     "production": {
+      "developmentClient": false,
       "autoIncrement": true,
       "distribution": "store",
       "node": "20.19.4",

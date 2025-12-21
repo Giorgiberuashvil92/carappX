@@ -55,27 +55,6 @@ const MAIN_CATEGORIES = [
   },
 ];
 
-const DEFAULT_FEATURED_SERVICES = [
-  {
-    id: '1',
-    title: 'BMW ორიგინალი ნაწილები',
-    description: 'ორიგინალური ნაწილები E90, F30 სერიებისთვის',
-    price: '45₾-დან',
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=600&auto=format&fit=crop',
-    rating: 4.8,
-    verified: true,
-  },
-  {
-    id: '2',
-    title: 'პრემიუმ ავტო დეტეილინგი',
-    description: 'სრული დეტეილინგი ყველა ტიპის ავტომობილისთვის',
-    price: '120₾',
-    image: 'https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?q=80&w=600&auto=format&fit=crop',
-    rating: 4.9,
-    verified: true,
-  },
-];
-
 const FeaturedSkeleton = () => {
   return (
     <View style={styles.featureCardSkeleton}>
@@ -124,31 +103,35 @@ export default function MarketplaceScreen() {
           id: item._id || item.id,
           title: item.title || item.name,
           description: item.description || `${item.brand} ${item.model}`,
-          price: item.price || 'ფასი დასაზუსტებელია',
+          price: item.price || undefined, // Only show price if exists, no fallback text
           image: item.images?.[0] || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=600&auto=format&fit=crop',
           rating: 4.5 + Math.random() * 0.5,
           verified: true,
-          type: 'part'
+          type: 'part',
+          // Store full item data for navigation
+          itemData: item
         })),
         ...(stores.data || stores || []).map((item: any) => ({
           id: item._id || item.id,
           title: item.name || item.title,
           description: item.description || item.type,
-          price: 'ფასი დასაზუსტებელია',
+          price: undefined, // No price for stores
           image: item.images?.[0] || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400&auto=format&fit=crop',
           rating: 4.5 + Math.random() * 0.5,
           verified: true,
-          type: 'store'
+          type: 'store',
+          itemData: item
         })),
         ...(dismantlers.data || dismantlers || []).map((item: any) => ({
           id: item._id || item.id,
           title: `${item.brand} ${item.model}`,
           description: `${item.yearFrom}-${item.yearTo} წლები`,
-          price: 'ფასი დასაზუსტებელია',
+          price: undefined, // No price for dismantlers
           image: item.photos?.[0] || 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?q=80&w=400&auto=format&fit=crop',
           rating: 4.5 + Math.random() * 0.5,
           verified: true,
-          type: 'dismantler'
+          type: 'dismantler',
+          itemData: item
         }))
       ];
 
@@ -186,7 +169,7 @@ export default function MarketplaceScreen() {
     loadLatestServices();
   }, []);
 
-  const COMING_SOON = new Set(['services', 'towing']);
+  const COMING_SOON = new Set(['towing']);
 
   const handleCategoryPress = (categoryId: string) => {
     if (COMING_SOON.has(categoryId)) {
@@ -201,7 +184,7 @@ export default function MarketplaceScreen() {
         router.push('/parts');
         break;
       case 'services':
-        router.push('/carwash');
+        router.push('/services');
         break;
       case 'towing':
         router.push('/ai');
@@ -220,12 +203,12 @@ export default function MarketplaceScreen() {
         onPress={() => handleCategoryPress(category.id)}
         activeOpacity={0.8}
       >
-        {isComingSoon && category.id !== 'mechanics' && (
+        {isComingSoon ? (
           <View style={styles.comingSoonPill}>
             <Ionicons name="time-outline" size={12} color="#6B7280" />
             <Text style={styles.comingSoonText}>მალე</Text>
           </View>
-        )}
+        ) : null}
         <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
           <Ionicons name={category.icon as any} size={20} color="#FFFFFF" />
         </View>
@@ -235,25 +218,77 @@ export default function MarketplaceScreen() {
     );
   };
 
-  const renderFeaturedCard = (item: any, index: number) => (
+  const renderFeaturedCard = (item: any, index: number) => {
+    const handlePress = () => {
+      const itemData = item.itemData || {};
+      
+      if (item.type === 'part') {
+        router.push({
+          pathname: '/details',
+          params: {
+            id: item.id,
+            type: 'part',
+            title: item.title,
+            description: item.description,
+            price: item.price || '',
+            image: item.image,
+            rating: item.rating?.toFixed(1) || '4.5',
+            // Pass additional part data
+            brand: itemData.brand || '',
+            model: itemData.model || '',
+            category: itemData.category || '',
+            condition: itemData.condition || '',
+            location: itemData.location || '',
+            phone: itemData.phone || '',
+            seller: itemData.seller || itemData.name || '',
+          }
+        });
+      } else if (item.type === 'store') {
+        // Navigate to details page with store data
+        router.push({
+          pathname: '/details',
+          params: {
+            id: item.id,
+            type: 'store',
+            title: item.title,
+            description: item.description,
+            image: item.image,
+            rating: item.rating?.toFixed(1) || '4.5',
+            address: itemData.address || itemData.location || '',
+            phone: itemData.phone || '',
+          }
+        });
+      } else if (item.type === 'dismantler') {
+        // Navigate to details page with dismantler data
+        router.push({
+          pathname: '/details',
+          params: {
+            id: item.id,
+            type: 'dismantler',
+            title: item.title,
+            description: item.description,
+            image: item.image,
+            rating: item.rating?.toFixed(1) || '4.5',
+            brand: itemData.brand || '',
+            model: itemData.model || '',
+            yearFrom: itemData.yearFrom || '',
+            yearTo: itemData.yearTo || '',
+            location: itemData.location || '',
+            phone: itemData.phone || '',
+            name: itemData.name || '',
+          }
+        });
+      } else {
+        router.push('/details');
+      }
+    };
+
+    return (
     <TouchableOpacity 
       key={item.id} 
       style={styles.featureCard} 
       activeOpacity={0.95}
-      onPress={() => {
-        // Navigation based on item type
-        if (item.type === 'part') {
-          router.push('/parts');
-        } else if (item.type === 'store') {
-          router.push('/details');
-        } else if (item.type === 'dismantler') {
-          router.push('/details');
-        } else if (item.title.includes('დეტეილინგი')) {
-          router.push('/carwash');
-        } else {
-          router.push('/details');
-        }
-      }}
+        onPress={handlePress}
     >
       <Image source={{ uri: item.image }} style={styles.featureImage} />
       <LinearGradient
@@ -271,11 +306,15 @@ export default function MarketplaceScreen() {
         <Text style={styles.featureSubtitle} numberOfLines={1}>{item.description}</Text>
         <View style={styles.featureMetaRow}>
           <View style={styles.featureRating}><Ionicons name="star" size={14} color="#F59E0B" /><Text style={styles.featureRatingText}>{item.rating?.toFixed(1)}</Text></View>
+            {/* Only show price for parts */}
+            {item.type === 'part' && item.price && (
           <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price}</Text></View>
+            )}
         </View>
       </View>
     </TouchableOpacity>
   );
+  };
 
   return (
     <View style={styles.container}>

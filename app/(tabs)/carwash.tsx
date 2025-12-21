@@ -1066,6 +1066,11 @@ export default function CarWashScreen() {
                 setMyCarwashes(prev => [...prev, newCarwash]);
               }
             }
+            
+            // Navigate to settings page for the newly created carwash
+            if (data?.data?.id) {
+              router.push(`/settings/${data.data.id}`);
+            }
           }
         }}
         defaultType="carwash"

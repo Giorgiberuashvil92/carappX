@@ -29,6 +29,7 @@ import API_BASE_URL from '../config/api';
 import  {requestPermission, getToken, AuthorizationStatus } from '@react-native-firebase/messaging';
 import messaging from '@react-native-firebase/messaging';
 import * as TrackingTransparency from 'expo-tracking-transparency';
+import { analyticsService } from '../services/analytics';
 
 
 export {
@@ -125,6 +126,11 @@ function RootLayoutNav() {
 
     requestUserPermission();
     requestTrackingPermission();
+    
+    // Initialize Firebase Analytics (fire-and-forget)
+    analyticsService.initialize().catch(() => {
+      // Silently fail - analytics should never block app startup
+    });
     const onMessageReceived = (message: any) => {
       console.log('Message:', message);
     };

@@ -6,10 +6,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import API_BASE_URL from '../config/api';
+import { categoriesApi, Category } from '../services/categoriesApi';
 
 const { width, height } = Dimensions.get('window');
 
-// კატეგორიების კონფიგურაცია
+// Fallback კატეგორიების კონფიგურაცია (თუ API-დან ვერ ჩაიტვირთა)
 const CATEGORY_CONFIG: Record<string, { title: string; icon: string; color: string; gradient: string[] }> = {
   carwash: {
     title: 'სამრეცხაო სერვისები',
@@ -61,14 +62,34 @@ const CATEGORY_CONFIG: Record<string, { title: string; icon: string; color: stri
   },
 };
 
+// Helper function to convert hex to RGB for gradient
+const hexToRgb = (hex: string): [number, number, number] => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16),
+      ]
+    : [99, 102, 241];
+};
+
+// Helper to create gradient from color
+const createGradient = (color: string): string[] => {
+  const [r, g, b] = hexToRgb(color);
+  const darker = `rgb(${Math.max(0, r - 20)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)})`;
+  return [color, darker];
+};
+
 export default function CategoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   
   const categoryType = (params.type as string) || 'carwash';
-  const categoryName = (params.name as string) || CATEGORY_CONFIG[categoryType]?.title || 'კატეგორია';
+  const categoryId = params.categoryId as string | undefined;
   
+  const [category, setCategory] = useState<Category | null>(null);
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,9 +98,20 @@ export default function CategoryScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
-  const config = CATEGORY_CONFIG[categoryType] || CATEGORY_CONFIG.carwash;
+  // Get config from API category or fallback
+  const config = category
+    ? {
+        title: category.name,
+        icon: category.icon as any,
+        color: category.color,
+        gradient: createGradient(category.color),
+      }
+    : CATEGORY_CONFIG[categoryType] || CATEGORY_CONFIG.carwash;
+  
+  const categoryName = params.name as string || category?.name || config.title || 'კატეგორია';
 
   useEffect(() => {
+    loadCategory();
     fetchCategoryServices();
     
     // Entrance animation
@@ -96,7 +128,33 @@ export default function CategoryScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [categoryType, filter]);
+  }, [categoryType, categoryId, filter]);
+
+  const loadCategory = async () => {
+    if (categoryId) {
+      try {
+        const cat = await categoriesApi.getCategoryById(categoryId);
+        if (cat) {
+          setCategory(cat);
+        }
+      } catch (error) {
+        console.error('Error loading category:', error);
+      }
+    } else {
+      // Try to find category by service type
+      try {
+        const allCategories = await categoriesApi.getAllCategories();
+        const foundCategory = allCategories.find(
+          (cat) => cat.serviceTypes?.includes(categoryType)
+        );
+        if (foundCategory) {
+          setCategory(foundCategory);
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    }
+  };
 
   const fetchCategoryServices = async (isRefresh = false) => {
     try {

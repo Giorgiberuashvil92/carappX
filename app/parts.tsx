@@ -21,6 +21,7 @@ import {
   import DetailModal, { DetailItem } from '../components/ui/DetailModal';
   import AddModal, { AddModalType } from '../components/ui/AddModal';
   import { addItemApi } from '../services/addItemApi';
+  import { categoriesApi, Category } from '../services/categoriesApi';
 
 
 
@@ -45,6 +46,7 @@ import {
     const [partsFilters, setPartsFilters] = useState({
       brand: '',
       model: '',
+      category: '',
       condition: '',
       priceMin: '',
       priceMax: '',
@@ -77,6 +79,10 @@ import {
     const [carModels, setCarModels] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [brandSearchQuery, setBrandSearchQuery] = useState('');
+    
+    // Categories from API
+    const [partsCategories, setPartsCategories] = useState<string[]>([]);
+    const [loadingCategories, setLoadingCategories] = useState(false);
 
     // Load real data functions
     const loadDismantlers = async () => {
@@ -112,7 +118,23 @@ import {
       try {
         setLoading(true);
         setError(null);
-        const response = await addItemApi.getParts(partsFilters);
+        // Prepare filters for API - convert priceMin/priceMax to numbers
+        const apiFilters: any = {
+          ...partsFilters,
+          minPrice: partsFilters.priceMin ? Number(partsFilters.priceMin) : undefined,
+          maxPrice: partsFilters.priceMax ? Number(partsFilters.priceMax) : undefined,
+        };
+        // Remove priceMin/priceMax as they're replaced by minPrice/maxPrice
+        delete apiFilters.priceMin;
+        delete apiFilters.priceMax;
+        // Remove empty strings
+        Object.keys(apiFilters).forEach(key => {
+          if (apiFilters[key] === '' || apiFilters[key] === undefined) {
+            delete apiFilters[key];
+          }
+        });
+        
+        const response = await addItemApi.getParts(apiFilters);
         if (response.success && response.data) {
           setParts(response.data);
         } else {
@@ -144,9 +166,35 @@ import {
       }
     };
 
+    // Load parts categories from API
+    const loadPartsCategories = async () => {
+      try {
+        setLoadingCategories(true);
+        const allCategories = await categoriesApi.getAllCategories();
+        // Find categories with 'part' in serviceTypes
+        const partsCats = allCategories
+          .filter((cat: Category) => cat.serviceTypes?.includes('part'))
+          .map((cat: Category) => cat.name);
+        
+        if (partsCats.length > 0) {
+          setPartsCategories(partsCats);
+        } else {
+          // Fallback to hardcoded categories
+          setPartsCategories(PART_CATEGORIES || []);
+        }
+      } catch (error) {
+        console.error('Error loading parts categories:', error);
+        // Fallback to hardcoded categories
+        setPartsCategories(PART_CATEGORIES || []);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
     // Initialize data on mount
     useEffect(() => {
       setCarMakes(CAR_BRANDS);
+      loadPartsCategories();
       // Load initial data
       loadDismantlers();
     }, []);
@@ -549,23 +597,7 @@ import {
             {/* AI Search Section */}
             <View style={styles.aiSearchSection}>
               {/* AI Search Banner */}
-              <TouchableOpacity 
-                style={styles.modernAICard}
-                activeOpacity={0.95}
-              >
-                <View style={styles.modernAIBackground}>
-                  <View style={styles.aiSearchContent}>
-                    <View style={styles.aiIcon}>
-                      <Ionicons name="sparkles" size={24} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.aiTextContainer}>
-                      <Text style={styles.aiTitle}>AI დამხმარე</Text>
-                      <Text style={styles.aiSubtitle}>მოძებნე ნაწილები ჭკვიანად</Text>
-                    </View>
-                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                  </View>
-                </View>
-              </TouchableOpacity>
+              
 
               {/* Simple Filter Button */}
               <TouchableOpacity 
@@ -986,8 +1018,6 @@ import {
                                   style={styles.modernStoreLikeButton}
                                   onPress={(e) => {
                                     e.stopPropagation();
-                                    // Toggle like functionality
-                                    console.log('Store liked:', store.name);
                                   }}
                                   activeOpacity={0.7}
                                 >
@@ -1123,6 +1153,7 @@ import {
                     setPartsFilters({
                       brand: '',
                     model: '',
+                      category: '',
                       condition: '',
                       priceMin: '',
                       priceMax: '',
@@ -1227,6 +1258,17 @@ import {
                 {/* Parts Filters */}
                 {activeTab === 'ნაწილები' && (
                   <>
+                    <View style={styles.filterSection}>
+                      <Text style={styles.filterSectionTitle}>კატეგორია</Text>
+                      {renderDropdown(
+                        'parts-category',
+                        partsFilters.category,
+                        'აირჩიეთ კატეგორია',
+                        partsCategories.length > 0 ? partsCategories : PART_CATEGORIES,
+                        (value) => setPartsFilters(prev => ({ ...prev, category: value }))
+                      )}
+                    </View>
+
                     <View style={styles.filterSection}>
                       <Text style={styles.filterSectionTitle}>ბრენდი</Text>
                       {renderDropdown(
@@ -1362,11 +1404,18 @@ import {
                       </View>
                       <View>
                         <Text style={styles.cleanHeaderTitle}>
-                          {openDropdown === 'dismantler-brand' || openDropdown === 'parts-brand' ? 'ბრენდის არჩევა' : 'არჩევა'}
+                          {openDropdown === 'dismantler-brand' || openDropdown === 'parts-brand' 
+                            ? 'ბრენდის არჩევა' 
+                            : openDropdown === 'parts-category'
+                            ? 'კატეგორიის არჩევა'
+                            : 'არჩევა'}
                         </Text>
                         <Text style={styles.cleanHeaderSubtitle}>
-                          {openDropdown === 'dismantler-brand' || openDropdown === 'parts-brand' ? 
-                            `${filteredBrands.length} ბრენდი ხელმისაწვდომი` : 'აირჩიეთ ოფცია'}
+                          {openDropdown === 'dismantler-brand' || openDropdown === 'parts-brand' 
+                            ? `${filteredBrands.length} ბრენდი ხელმისაწვდომი`
+                            : openDropdown === 'parts-category'
+                            ? `${partsCategories.length > 0 ? partsCategories.length : PART_CATEGORIES.length} კატეგორია ხელმისაწვდომი`
+                            : 'აირჩიეთ ოფცია'}
                         </Text>
                       </View>
                     </View>
@@ -1409,6 +1458,31 @@ import {
                     )}
                   </View>
                 )}
+                
+                {/* Search Section for Category */}
+                {openDropdown === 'parts-category' && (
+                  <View style={styles.cleanSearchSection}>
+                    <View style={styles.cleanSearchWrapper}>
+                      <Ionicons name="search" size={18} color="#9CA3AF" style={styles.cleanSearchIcon} />
+                      <TextInput
+                        style={styles.cleanSearchInput}
+                        placeholder="ძებნა კატეგორიებში..."
+                        placeholderTextColor="#9CA3AF"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                      />
+                      {searchQuery.length > 0 && (
+                        <TouchableOpacity 
+                          onPress={() => setSearchQuery('')} 
+                          style={styles.cleanClearButton}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="close-circle" size={18} color="#6B7280" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                )}
 
                 {(() => {
                   let options: string[] = [];
@@ -1422,6 +1496,10 @@ import {
                     case 'parts-brand':
                       options = filteredBrands;
                       onSelect = (value) => setPartsFilters(prev => ({ ...prev, brand: value }));
+                      break;
+                    case 'parts-category':
+                      options = partsCategories.length > 0 ? partsCategories : PART_CATEGORIES;
+                      onSelect = (value) => setPartsFilters(prev => ({ ...prev, category: value }));
                       break;
                     case 'dismantler-model':
                       if (!dismantlerFilters.brand) {
@@ -1463,6 +1541,13 @@ import {
                       option.toLowerCase().includes(searchQuery.toLowerCase())
                     );
                   }
+                  
+                  // For category dropdown, also allow search
+                  if (openDropdown === 'parts-category' && searchQuery.trim()) {
+                    filteredOptions = options.filter(option => 
+                      option.toLowerCase().includes(searchQuery.toLowerCase())
+                    );
+                  }
 
                   return (
                     <ScrollView style={styles.dropdownScrollView} showsVerticalScrollIndicator={false}>
@@ -1471,6 +1556,7 @@ import {
                         switch(openDropdown) {
                           case 'dismantler-brand': currentValue = dismantlerFilters.brand; break;
                           case 'parts-brand': currentValue = partsFilters.brand; break;
+                          case 'parts-category': currentValue = partsFilters.category; break;
                           case 'dismantler-model': currentValue = dismantlerFilters.model; break;
                           case 'dismantler-year-from': currentValue = dismantlerFilters.yearFrom; break;
                           case 'dismantler-year-to': currentValue = dismantlerFilters.yearTo; break;
@@ -1579,12 +1665,9 @@ import {
           item={selectedDetailItem}
           onClose={() => setShowDetailModal(false)}
           onContact={() => {
-            // Handle contact action
-            console.log('Contact pressed for:', selectedDetailItem?.title);
             setShowDetailModal(false);
           }}
           onFavorite={() => {
-            // Handle favorite toggle
             console.log('Favorite pressed for:', selectedDetailItem?.title);
           }}
           isFavorite={false}

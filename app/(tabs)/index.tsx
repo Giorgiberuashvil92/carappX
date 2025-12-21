@@ -10,6 +10,8 @@ import {
   Image,
   Dimensions,
   RefreshControl,
+  Modal,
+  Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +32,7 @@ import StoryViewer from '../../components/ui/StoryViewer';
 import StoryOverlay from '../../components/ui/StoryOverlay';
 import NotificationsModal from '../../components/ui/NotificationsModal';
 import RacingBanner from '../../components/ui/RacingBanner';
+import DetailView, { DetailViewProps } from '../../components/DetailView';
 import { useEffect } from 'react';
 import { getResponsiveDimensions, getResponsiveCardWidth } from '../../utils/responsive';
 
@@ -72,17 +75,63 @@ export default function TabOneScreen() {
       const res = await fetch(`${API_BASE_URL}/stories?highlight=true${userIdParam}`);
       const json = await res.json().catch(() => ({}));
       const data = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
-      setStories(data.map((s: any) => ({
+      // Log raw items array separately to see full content
+      console.log('🔍 Full raw story object:', JSON.stringify(data[0], null, 2));
+      if (data[0]?.items) {
+        console.log('📦 Raw items array type:', typeof data[0].items);
+        console.log('📦 Raw items array:', JSON.stringify(data[0].items, null, 2));
+        console.log('📦 Raw items array length:', data[0].items?.length);
+        console.log('📦 First item in raw array:', data[0].items?.[0]);
+        console.log('📦 Items keys:', Object.keys(data[0].items || {}));
+      } else {
+        console.log('⚠️ No items field in story');
+      }
+      
+      console.log('📚 Stories fetched from backend:', {
+        rawData: data,
+        storiesCount: data.length,
+        firstStory: data[0] ? {
+          id: data[0].id || data[0]._id,
+          itemsCount: data[0].items?.length,
+          itemsRaw: data[0].items, // Full raw items array
+          items: data[0].items?.map((it: any) => ({
+            id: it.id,
+            _id: it._id,
+            type: it.type,
+            uri: it.uri,
+            url: it.url,
+            image: it.image,
+            imageUrl: it.imageUrl,
+            hasUri: !!it.uri,
+            fullItem: it, // Full item object for debugging
+          })),
+        } : null,
+      });
+      const mapped = data.map((s: any) => ({
         id: String(s.id || s._id),
         author: { id: String(s.authorId || 'svc'), name: s.authorName || 'Story', avatar: s.authorAvatar },
         createdAt: Number(s.createdAt || Date.now()),
-        items: Array.isArray(s.items) ? s.items.map((it: any) => ({ id: String(it.id || Math.random()), type: it.type || 'image', uri: it.uri, durationMs: it.durationMs, caption: it.caption, poll: it.poll })) : [],
+        items: Array.isArray(s.items) ? s.items.map((it: any) => {
+          const uri = it.uri || it.url || it.image || it.imageUrl || (typeof it.image === 'object' && it.image?.uri) || '';
+          return {
+            id: String(it.id || it._id || Math.random()),
+            type: it.type || 'image',
+            uri: uri,
+            durationMs: it.durationMs,
+            caption: it.caption,
+            poll: it.poll,
+          };
+        }) : [],
         highlight: !!s.highlight,
         category: s.category,
         seen: !!s.isSeen,
         internalImage: s.internalImage || undefined,
-      })));
-    } catch {}
+      }));
+      
+      setStories(mapped);
+    } catch (error) {
+      console.error('❌ Error fetching stories:', error);
+    }
   }, [user?.id]);
   
   const [popularServices, setPopularServices] = useState<any[]>([]);
@@ -93,6 +142,8 @@ export default function TabOneScreen() {
   const [offers, setOffers] = useState<any[]>([]);
   const [offersLoading, setOffersLoading] = useState<boolean>(false);
   const [quickActionsIndex, setQuickActionsIndex] = useState(0);
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [selectedService, setSelectedService] = useState<any | null>(null);
 
   const quickActionsList = [
     {
@@ -137,7 +188,6 @@ export default function TabOneScreen() {
     },
   ];
 
-  console.log(popularServices, 'პოპულარული სერვისები');
   
   // Stories state
   const [stories, setStories] = useState<any[]>([]);
@@ -186,10 +236,15 @@ export default function TabOneScreen() {
         name: service.title, // title-ი name-ად
         location: service.location,
         rating: service.rating || 4.5, // default rating
-        price: typeof service.price === 'string' ? service.price : `${service.price || 25}₾`,
+        price: service.price 
+          ? (typeof service.price === 'string' ? service.price : `${service.price}₾`)
+          : undefined, // თუ price არ არის, undefined დავტოვოთ
         image: typeof service.images?.[0] === 'string'
           ? { uri: service.images[0] }
           : require('../../assets/images/car-bg.png'),
+        images: service.images && Array.isArray(service.images) && service.images.length > 0
+          ? service.images.map((img: any) => typeof img === 'string' ? img : (img?.uri || img))
+          : undefined,
         category: service.category || service.type, // category ან type
         address: service.location, // location address-ად
         phone: service.phone || 'N/A',
@@ -1543,41 +1598,8 @@ export default function TabOneScreen() {
                 price={service.price}
                 type={service.type} // ახალი ველი - სერვისის ტიპი
                 onPress={() => {
-                const imgParam = typeof service.image === 'string'
-                  ? service.image
-                  : (service.image && (service.image as any).uri)
-                    ? (service.image as any).uri
-                    : 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=800&auto=format&fit=crop';
-                const detailsParams = {
-                    id: service.id,
-                    title: service.name,
-                    lat: '41.7151',
-                    lng: '44.8271',
-                    rating: service.rating?.toString() || '4.9',
-                    distance: service.distance || '1.2 კმ',
-                    price: service.price || '15₾',
-                    address: service.address || service.location,
-                    description: 'პრემიუმ ხარისხის მომსახურება, სწრაფად და უსაფრთხოდ. ჩვენი პროფესიონალური გუნდი უზრუნველყოფს შენი მანქანის სრულ გაწმენდას ყველაზე მოდერნული ტექნოლოგიების გამოყენებით.',
-                    features: JSON.stringify(['WiFi', 'პარკინგი', 'ღამის სერვისი', 'ბარათით გადახდა', 'დაზღვეული', 'VIP ოთახი']),
-                    category: service.category || 'სამრეცხაო',
-                    isOpen: service.isOpen?.toString() || 'true',
-                    waitTime: service.waitTime?.toString() || '10 წთ',
-                    reviews: service.reviews?.toString() || '89',
-                    services: JSON.stringify(service.services || ['შიდა რეცხვა', 'გარე რეცხვა', 'ვაკუუმი', 'ცვილის ფენა']),
-                    detailedServices: JSON.stringify(service.services || []),
-                    timeSlotsConfig: JSON.stringify({}),
-                    availableSlots: JSON.stringify([]),
-                    realTimeStatus: JSON.stringify({}),
-                    workingHours: '09:00 - 18:00',
-                  image: imgParam,
-                  };
-                  
-                  console.log('🔍 [POPULAR] Navigating to details with params:', detailsParams);
-                  
-                  router.push({ 
-                    pathname: '/details', 
-                    params: detailsParams
-                  });
+                  setSelectedService(service);
+                  setShowServiceModal(true);
                 }}
               />
             ))
@@ -1617,9 +1639,132 @@ export default function TabOneScreen() {
         onClose={() => setShowSubscriptionModal(false)}
         onSuccess={() => {
           setShowSubscriptionModal(false);
-          // Show success message or update UI
         }}
       />
+
+      {/* Service Detail Modal */}
+      <Modal
+        visible={showServiceModal}
+        animationType="slide"
+        presentationStyle="overFullScreen"
+        onRequestClose={() => setShowServiceModal(false)}
+      >
+        {selectedService && (() => {
+          const imgParam = typeof selectedService.image === 'string'
+            ? selectedService.image
+            : (selectedService.image && (selectedService.image as any).uri)
+              ? (selectedService.image as any).uri : '';
+          
+          const serviceType = selectedService.type || 'carwash';
+          const phone = selectedService.phone || undefined;
+          const address = selectedService.address || selectedService.location || '';
+          const basePrice = selectedService.price || undefined;
+          
+          // Dynamic features based on service type
+          const getFeatures = () => {
+            const baseFeatures = [
+              { icon: 'checkmark-circle', label: 'ხარისხიანი სერვისი' },
+              { icon: 'time', label: 'სწრაფი მომსახურება' },
+            ];
+            
+            if (serviceType === 'carwash') {
+              return [
+                { icon: 'wifi', label: 'WiFi' },
+                { icon: 'card', label: 'ბარათით გადახდა' },
+                ...baseFeatures,
+              ];
+            } else if (serviceType === 'store' || serviceType === 'dismantler') {
+              return [
+                { icon: 'cash', label: 'ნაღდი ანგარიშსწორება' },
+                { icon: 'car', label: 'ადგილზე მიტანა' },
+                ...baseFeatures,
+              ];
+            } else if (serviceType === 'mechanic') {
+              return [
+                { icon: 'hammer', label: 'გამოცდილი ხელოსნები' },
+                { icon: 'shield-checkmark', label: 'გარანტია' },
+                ...baseFeatures,
+              ];
+            }
+            
+            return baseFeatures;
+          };
+
+          // Prepare images array
+          const serviceImages = selectedService.images && Array.isArray(selectedService.images) && selectedService.images.length > 0
+            ? selectedService.images.map((img: any) => typeof img === 'string' ? img : (img?.uri || img))
+            : imgParam ? [imgParam] : [];
+
+          const detailViewProps: DetailViewProps = {
+            id: selectedService.id,
+            title: selectedService.name,
+            coverImage: imgParam,
+            images: serviceImages.length > 0 ? serviceImages : undefined,
+            serviceType: serviceType,
+            rating: {
+              value: selectedService.rating || 4.9,
+              count: selectedService.reviews || 0,
+            },
+            distance: selectedService.distance || undefined,
+            eta: selectedService.waitTime ? `${selectedService.waitTime} წთ` : undefined,
+            price: basePrice ? { from: basePrice } : undefined,
+            vendor: {
+              phone: phone || undefined,
+              location: { address: address },
+            },
+            sections: {
+              description: selectedService.description || '',
+              features: getFeatures(),
+            },
+            actions: {
+              onBook: serviceType === 'carwash' ? () => {
+                const loc = {
+                  id: selectedService.id,
+                  name: selectedService.name,
+                  address: address,
+                  image: imgParam,
+                  category: selectedService.category || serviceType,
+                  isOpen: Boolean(selectedService.isOpen),
+                  rating: selectedService.rating || 0,
+                  reviews: selectedService.reviews || 0,
+                  distance: selectedService.distance || '',
+                };
+                const ds = selectedService.detailedServices || [];
+                const tsc = selectedService.timeSlotsConfig || null;
+
+                setShowServiceModal(false);
+                router.push({
+                  pathname: '/booking',
+                  params: {
+                    location: JSON.stringify(loc),
+                    locationDetailedServices: JSON.stringify(ds),
+                    locationTimeSlotsConfig: JSON.stringify(tsc),
+                  },
+                });
+              } : undefined,
+              onCall: phone ? () => Linking.openURL(`tel:${phone}`) : undefined,
+              onFinance: (amount) => {
+                const fallback = basePrice ? parseInt(String(basePrice).replace(/[^0-9]/g, '')) : 0;
+                const a = amount || fallback || 0;
+                setShowServiceModal(false);
+                router.push(`/financing-request?requestId=${encodeURIComponent(selectedService.id)}&amount=${encodeURIComponent(String(a))}`);
+              },
+              onShare: () => {},
+            },
+            flags: {
+              stickyCTA: true,
+              showFinance: serviceType === 'carwash' || serviceType === 'store',
+            },
+          };
+
+          return (
+            <DetailView 
+              {...detailViewProps} 
+              onClose={() => setShowServiceModal(false)}
+            />
+          );
+        })()}
+      </Modal>
 
     </View>
   );

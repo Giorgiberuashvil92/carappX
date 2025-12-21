@@ -74,3 +74,7 @@ export function getFontScale(): number {
   const tablet = isTablet();
   return tablet ? 1.1 : 1.0;
 }
+
+
+
+

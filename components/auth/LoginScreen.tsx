@@ -128,6 +128,10 @@ export default function LoginScreen() {
         Keyboard.dismiss();
         return true; // გადავჭერით back მოვლენას მხოლოდ როცა კლავიატურაა გახსნილი
       }
+      if (showRegister) {
+        setShowRegister(false);
+        return true;
+      }
       return false; // სხვაგვარად მივცეთ ნავიგაციას უკანა ნაბიჯი
     });
 
@@ -136,7 +140,18 @@ export default function LoginScreen() {
       hideSub.remove();
       backSub.remove();
     };
-  }, [keyboardVisible]);
+  }, [keyboardVisible, showRegister]);
+
+  // რეგისტრაციის მოდალის გახსნისას კლავიატურის დახურვა
+  useEffect(() => {
+    if (showRegister) {
+      // მცირე დაყოვნება, რომ layout-მა დრო ჰქონდეს განახლებისთვის
+      const timer = setTimeout(() => {
+        Keyboard.dismiss();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showRegister]);
 
   const verifyOTP = async () => {
     const otpString = otp.join('');
@@ -504,21 +519,14 @@ export default function LoginScreen() {
       elevation: 20,
     },
     registerOverlay: {
-      position: 'absolute',
-      top: 0,
-      bottom: 0,
-      left: 0,
-      right: 0,
+      flex: 1,
       backgroundColor: 'rgba(17, 24, 39, 0.82)',
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 18,
-      paddingVertical: 24,
     },
     registerModal: {
       width: '100%',
-      maxWidth: 520,
-      // maxHeight: '90%',
+      maxHeight: '100%',
       backgroundColor: 'rgba(255, 255, 255, 0.98)',
       borderRadius: 28,
       padding: 22,
@@ -587,6 +595,7 @@ export default function LoginScreen() {
     },
     registerScroll: {
       flexGrow: 1,
+      flexShrink: 1,
       gap: 12,
       paddingBottom: 12,
     },
@@ -1102,36 +1111,58 @@ export default function LoginScreen() {
               )}
 
               {showRegister && (
-                <View style={styles.registerOverlay}>
-                  <View style={styles.registerModal}>
-                    <View style={styles.registerHeaderRow}>
-                      <View style={styles.registerHeaderLeft}>
-                        <View style={styles.registerBadge}>
-                          <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
-                          <Text style={styles.registerBadgeText}>ახალი პროფილი</Text>
-                        </View>
-                       
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => setShowRegister(false)}
-                        style={styles.registerCloseButton}
-                        hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
-                      >
-                        <Ionicons name="close" size={20} color="#111827" />
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.registerTitle}>დასრულე რეგისტრაცია</Text>
-                    <Text style={styles.registerSubtitle}>
-                      შეიყვანე სახელი და აირჩიე როლი. შეძლებ ცვლილებას პროფილში მოგვიანებითაც.
-                    </Text>
+                <Modal
+                  visible={showRegister}
+                  transparent
+                  animationType="fade"
+                  onRequestClose={() => {
+                    Keyboard.dismiss();
+                    setShowRegister(false);
+                  }}
+                >
+                  <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.registerOverlay}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                    enabled
+                  >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                      <View style={styles.registerOverlay}>
+                        <TouchableWithoutFeedback>
+                          <View style={styles.registerModal}>
+                            <View style={styles.registerHeaderRow}>
+                              <View style={styles.registerHeaderLeft}>
+                                <View style={styles.registerBadge}>
+                                  <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
+                                  <Text style={styles.registerBadgeText}>ახალი პროფილი</Text>
+                                </View>
+                               
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  Keyboard.dismiss();
+                                  setShowRegister(false);
+                                }}
+                                style={styles.registerCloseButton}
+                                hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+                              >
+                                <Ionicons name="close" size={20} color="#111827" />
+                              </TouchableOpacity>
+                            </View>
+                            <Text style={styles.registerTitle}>დასრულე რეგისტრაცია</Text>
+                            <Text style={styles.registerSubtitle}>
+                              შეიყვანე სახელი და აირჩიე როლი. შეძლებ ცვლილებას პროფილში მოგვიანებითაც.
+                            </Text>
 
-                    <ScrollView
-                      contentContainerStyle={styles.registerScroll}
-                      bounces={false}
-                      showsVerticalScrollIndicator={false}
-                    >
+                            <ScrollView
+                              contentContainerStyle={styles.registerScroll}
+                              bounces={false}
+                              showsVerticalScrollIndicator={false}
+                              keyboardShouldPersistTaps="handled"
+                              keyboardDismissMode="on-drag"
+                            >
                       <View style={styles.registerSectionCard}>
-                        <Text style={styles.registerLabel}>სახელი</Text>
+                        <Text style={styles.registerLabel}>სახელი და გვარი</Text>
                         <View style={[
                           styles.registerInputWrapper,
                           nameInputFocused && styles.registerInputWrapperFocused
@@ -1145,7 +1176,7 @@ export default function LoginScreen() {
                             style={styles.registerInput}
                             value={firstName}
                             onChangeText={setFirstName}
-                            placeholder="მაგ: გიორგი"
+                            placeholder="მაგ: გიორგი გიორგიძე"
                             placeholderTextColor="#9CA3AF"
                             autoCapitalize="words"
                             onFocus={() => setNameInputFocused(true)}
@@ -1289,14 +1320,21 @@ export default function LoginScreen() {
 
                       <TouchableOpacity 
                         style={styles.registerSecondaryButton} 
-                        onPress={() => setShowRegister(false)}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setShowRegister(false);
+                        }}
                         activeOpacity={0.8}
                       >
                         <Text style={styles.registerSecondaryText}>გაუქმება</Text>
                       </TouchableOpacity>
                     </View>
-                  </View>
-                </View>
+                          </View>
+                        </TouchableWithoutFeedback>
+                      </View>
+                    </TouchableWithoutFeedback>
+                  </KeyboardAvoidingView>
+                </Modal>
               )}
             </View>
           </TouchableWithoutFeedback>

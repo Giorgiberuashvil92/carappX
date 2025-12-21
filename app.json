@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marte",
     "slug": "marte",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "carappx",
@@ -104,6 +104,7 @@
             "enableProguardInReleaseBuilds": true,
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
+            "ndkVersion": "28.0.12674087",
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "extraMavenRepos": [

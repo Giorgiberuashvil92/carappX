@@ -956,7 +956,16 @@ export default function BookingScreen() {
       };
 
       // ჯავშნის შექმნა backend-ში
-      await carwashApi.createBooking(bookingData);
+      const booking = await carwashApi.createBooking(bookingData);
+      
+      // Track booking created in Analytics
+      if (booking?.id) {
+        analyticsService.logBookingCreated(
+          booking.id,
+          'carwash',
+          bookingData.servicePrice
+        );
+      }
       
       // Payment success-ის შემთხვევაში სხვანაირი მესიჯი
       if (isPaymentSuccess) {

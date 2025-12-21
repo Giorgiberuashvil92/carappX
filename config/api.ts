@@ -16,23 +16,26 @@ const getLanIpFromHost = (): string | undefined => {
 };
 
 const getApiUrl = () => {
+  // Environment variable override (highest priority)
   const override = process.env.EXPO_PUBLIC_API_URL;
   if (override) {
     return override;
   }
 
-  if (__DEV__) {
-    const ip = getLanIpFromHost();
-    console.log('🌐 IP:', ip);
-    if (ip) {
-      console.log('🌐 Using IP:', ip);
-      return `https://marte-backend-production.up.railway.app`;
-    }
-    console.log('🌐 Using localhost fallback');
+  // Production build - always use production URL
+  if (!__DEV__) {
     return 'https://marte-backend-production.up.railway.app';
   }
 
-  return 'https://marte-backend-production.up.railway.app';
+  // Development mode - use local backend
+  const ip = getLanIpFromHost();
+  console.log('🌐 IP:', ip);
+  if (ip) {
+    console.log('🌐 Using local IP:', ip);
+    return `http://${ip}:3000`;
+  }
+  console.log('🌐 Using localhost fallback');
+  return 'http://localhost:3000';
 };
 
 const API_BASE_URL = getApiUrl();

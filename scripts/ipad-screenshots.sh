@@ -73,3 +73,7 @@ read -n 1
 echo ""
 echo "Opening Simulator..."
 open -a Simulator
+
+
+
+

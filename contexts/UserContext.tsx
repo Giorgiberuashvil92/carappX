@@ -8,6 +8,9 @@ import messaging from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance, AndroidColor } from '@notifee/react-native';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+import { analyticsService } from '../services/analytics';
 
 interface User {
   id: string;
@@ -39,6 +42,35 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Track login history
+  const trackLoginHistory = async (user: User) => {
+    try {
+      const deviceInfo = {
+        platform: Platform.OS,
+        deviceName: Device.deviceName || null,
+        modelName: Device.modelName || null,
+        osVersion: Device.osVersion || null,
+        appVersion: Constants.expoConfig?.version || null,
+      };
+
+      await fetch(`${API_BASE_URL}/login-history/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          phone: user.phone,
+          email: user.email,
+          firstName: user.name,
+          deviceInfo,
+        }),
+      });
+    } catch (error) {
+      console.error('Error tracking login history:', error);
+    }
+  };
+
   // Device token registration function
   const registerDeviceToken = async (userId: string) => {
     try {
@@ -53,15 +85,34 @@ export function UserProvider({ children }: { children: ReactNode }) {
         console.log('📱 [USERCONTEXT] API URL:', API_BASE_URL);
         console.log('📱 [USERCONTEXT] Sending to:', `${API_BASE_URL}/notifications/register-device`);
         
+        // Collect device information
+        const deviceInfo = {
+          deviceName: Device.deviceName || null,
+          modelName: Device.modelName || null,
+          brand: Device.brand || null,
+          manufacturer: Device.manufacturer || null,
+          osName: Device.osName || null,
+          osVersion: Device.osVersion || null,
+          deviceType: Device.deviceType || null,
+          totalMemory: Device.totalMemory || null,
+          appVersion: Constants.expoConfig?.version || null,
+          appBuildNumber: Constants.expoConfig?.ios?.buildNumber || Constants.expoConfig?.android?.versionCode || null,
+          platform: Platform.OS,
+          platformVersion: Platform.Version?.toString() || null,
+        };
+        
+        
         const requestBody = {
           userId,
           token,
           platform: Platform.OS,
+          deviceInfo,
         };
         console.log('📱 [USERCONTEXT] Request body:', {
           userId: requestBody.userId,
           tokenPreview: requestBody.token.substring(0, 50) + '...',
           platform: requestBody.platform,
+          deviceInfo: requestBody.deviceInfo,
         });
         
         const response = await fetch(`${API_BASE_URL}/notifications/register-device`, {
@@ -239,7 +290,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Auto-register device token when user is loaded
+  // Auto-register device token and track login when user is loaded
   useEffect(() => {
     if (user?.id) {
       console.log('🔄 [USERCONTEXT] useEffect triggered, user.id:', user.id);
@@ -250,6 +301,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         role: user.role,
       });
       registerDeviceToken(user.id);
+      // Track app open/login history (async, don't wait for it)
+      trackLoginHistory(user).catch((err) => {
+        console.error('Error tracking login history on app open:', err);
+      });
     } else {
       console.log('⚠️ [USERCONTEXT] useEffect triggered but user.id is missing');
     }
@@ -323,6 +378,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
       
       // Register device token after login
       await registerDeviceToken(frontendUser.id);
+      
+      // Track login history (async, don't wait for it)
+      trackLoginHistory(frontendUser).catch((err) => {
+        console.error('Error tracking login history:', err);
+      });
+      
+      // Track login in Firebase Analytics (fire-and-forget)
+      analyticsService.logUserLogin(frontendUser.id, 'phone');
+      
+      // Set user properties (fire-and-forget)
+      analyticsService.setUserProperties({
+        user_role: frontendUser.role,
+        user_id: frontendUser.id,
+      });
       
       console.log('Login: User saved to storage and state updated');
     } catch (error) {

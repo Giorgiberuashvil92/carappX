@@ -15,7 +15,7 @@ export type ServiceCardProps = {
   showFavorite?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
-  type?: 'carwash' | 'store' | 'dismantler' | 'part' | 'category'; // ახალი ველი
+  type?: 'carwash' | 'store' | 'dismantler' | 'part' | 'category'; 
 };
 
 export default function ServiceCard({ 
@@ -39,9 +39,8 @@ export default function ServiceCard({
     else setFav(v => !v);
   };
 
-  // სერვისის ტიპის მიხედვით ფერის განსაზღვრა (ყველასთვის ერთი ფერი)
   const getTypeColor = (serviceType?: string) => {
-    return 'rgba(99, 102, 241, 0.8)'; // ყველასთვის ერთი ლურჯი ფერი
+    return 'rgba(99, 102, 241, 0.8)'; 
   };
 
   // სერვისის ტიპის მიხედვით იკონის განსაზღვრა
@@ -94,7 +93,7 @@ export default function ServiceCard({
                 <Text style={styles.metaText}>{location}</Text>
               </View>
             )}
-            {price && (
+            {price && price.trim() !== '' && (
               <View style={styles.priceWrap}>
                 <Text style={styles.priceText}>{price}</Text>
                 {!!priceSuffix && <Text style={styles.priceSuffix}>{priceSuffix}</Text>}

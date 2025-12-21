@@ -10,7 +10,15 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "dev:all": "./start-dev.sh",
-    "clean-mongodb": "node scripts/clean-mongodb.js"
+    "clean-mongodb": "node scripts/clean-mongodb.js",
+    "export-tokens": "node scripts/export-device-tokens.js",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:android": "eas build --platform android --profile production",
+    "build:all": "eas build --platform all --profile production",
+    "build:ios:preview": "eas build --platform ios --profile preview",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:ios:dev": "eas build --platform ios --profile development",
+    "build:android:dev": "eas build --platform android --profile development"
   },
   "engines": {
     "node": ">=20.19.4"
@@ -26,6 +34,7 @@
     "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "8.4.1",
+    "@react-native-firebase/analytics": "^23.7.0",
     "@react-native-firebase/app": "^23.5.0",
     "@react-native-firebase/messaging": "^23.0.0",
     "@react-navigation/bottom-tabs": "^7.3.10",
@@ -55,6 +64,7 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.6",
     "react-native-gesture-handler": "~2.24.0",
+    "react-native-image-viewing": "^0.2.2",
     "react-native-maps": "1.20.1",
     "react-native-network-info": "^5.2.1",
     "react-native-qrcode-svg": "^6.3.15",

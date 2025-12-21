@@ -21,6 +21,33 @@ export default function StoryOverlay({ visible, stories, initialIndex, onClose, 
   const currentItem = currentStory?.items[itemIndex];
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hadError, setHadError] = useState(false);
+
+  // Debug: log current item when it changes
+  useEffect(() => {
+    console.log('🔍 StoryOverlay Debug:', {
+      visible,
+      storyIndex,
+      itemIndex,
+      currentStory: currentStory ? {
+        id: currentStory.id,
+        author: currentStory.author?.name,
+        itemsCount: currentStory.items?.length,
+        items: currentStory.items?.map((it: any) => ({
+          id: it.id,
+          type: it.type,
+          uri: it.uri,
+          hasUri: !!it.uri,
+        })),
+      } : null,
+      currentItem: currentItem ? {
+        id: currentItem.id,
+        type: currentItem.type,
+        uri: currentItem.uri,
+        hasUri: !!currentItem.uri,
+        caption: currentItem.caption,
+      } : null,
+    });
+  }, [visible, storyIndex, itemIndex, currentItem?.id, currentStory?.id]);
   // Always open at 80% height
   const minHeight = height * 0.8;
   const maxHeight = height * 0.8;
@@ -253,29 +280,48 @@ export default function StoryOverlay({ visible, stories, initialIndex, onClose, 
               </View>
 
               {/* media */}
-              {currentItem?.type === 'image' ? (
+              {!currentStory?.items || currentStory.items.length === 0 ? (
+                <View style={styles.fallback}> 
+                  <Ionicons name="images-outline" size={48} color="#9CA3AF" />
+                  <Text style={styles.fallbackText}>სთორს არ აქვს კონტენტი</Text>
+                  <Text style={[styles.fallbackText, { fontSize: 12, marginTop: 8, opacity: 0.7 }]}>
+                    სთორი ცარიელია
+                  </Text>
+                </View>
+              ) : currentItem?.type === 'image' && currentItem?.uri ? (
                 <>
                   <Image 
                     source={{ uri: currentItem.uri }} 
                     style={styles.media} 
-                    resizeMode="cover"
-                    onLoad={() => setHadError(false)}
-                    onError={() => { setHadError(true); console.warn('Story image load error:', currentItem.uri); }}
+                    resizeMode="contain"
+                    onLoad={() => {
+                      setHadError(false);
+                      console.log('✅ Story image loaded successfully:', currentItem.uri);
+                    }}
+                    onError={(error) => { 
+                      setHadError(true); 
+                      console.warn('❌ Story image load error:', currentItem.uri, error);
+                    }}
                   />
                   {hadError && (
-                    <>
+                    <View style={styles.fallback}> 
                       <Image 
                         source={require('../../assets/images/car-bg.png')}
                         style={styles.media}
                         resizeMode="cover"
                       />
-                      <View style={styles.fallback}> 
+                      <View style={[styles.fallback, { backgroundColor: 'rgba(0,0,0,0.5)' }]}> 
                         <Ionicons name="image" size={28} color="#9CA3AF" />
                         <Text style={styles.fallbackText}>ვერ იტვირთა სურათი</Text>
                       </View>
-                    </>
+                    </View>
                   )}
                 </>
+              ) : currentItem?.type === 'image' && !currentItem?.uri ? (
+                <View style={styles.fallback}> 
+                  <Ionicons name="image-outline" size={48} color="#9CA3AF" />
+                  <Text style={styles.fallbackText}>სურათი არ მოიძებნა</Text>
+                </View>
               ) : null}
 
               {/* caption */}
