@@ -1,14 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ImageBackground,
   ActivityIndicator,
   TouchableWithoutFeedback,
@@ -16,149 +14,203 @@ import {
   BackHandler,
   ScrollView,
   Modal,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import Constants from 'expo-constants';
-import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../useColorScheme';
 import { useUser } from '../../contexts/UserContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useSubscription } from '../../contexts/SubscriptionContext';
 import SubscriptionModal from '../ui/SubscriptionModal';
 import API_BASE_URL from '../../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Firebase removed – using backend OTP endpoints
+
+// Constants
+const OTP_LENGTH = 4;
+const TEST_PHONE = '557422634';
+const TEST_PASSWORD = '1234';
+const MIN_PHONE_LENGTH = 9;
+
+// Types
+type AuthIntent = 'login' | 'register';
+
+interface ApiError {
+  message?: string;
+}
+
+interface AuthVerifyResponse {
+  user?: {
+    id: string;
+    phone: string;
+    firstName?: string;
+    email?: string;
+    role: string;
+    ownedCarwashes: string[];
+  };
+  intent?: AuthIntent;
+  subscription?: unknown;
+}
+
+interface AuthStartResponse {
+  id?: string;
+  intent?: AuthIntent;
+  code?: string;
+  mockCode?: string;
+  otp?: string;
+}
 
 export default function LoginScreen() {
+  // State
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
-  const [otp, setOTP] = useState(['', '', '', '']);
+  const [otp, setOTP] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [verificationId, setVerificationId] = useState<string | null>(null);
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
-  const [pendingIntent, setPendingIntent] = useState<'login' | 'register' | null>(null);
-  const [showRegister, setShowRegister] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [role, setRole] = useState<'user' | 'partner' | null>(null);
-  const [nameInputFocused, setNameInputFocused] = useState(false);
+  const [pendingIntent, setPendingIntent] = useState<AuthIntent | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showOtpDisabledModal, setShowOtpDisabledModal] = useState(false);
   const [manualOtpCode, setManualOtpCode] = useState<string | null>(null);
-  // Test account password for App Store Review (phone: 557422634, password: 1234)
   const [testPassword, setTestPassword] = useState('');
-  // Firebase removed - using backend OTP only
-  
+
+  // Refs
+  const inputRef0 = useRef<TextInput>(null);
+  const inputRef1 = useRef<TextInput>(null);
+  const inputRef2 = useRef<TextInput>(null);
+  const inputRef3 = useRef<TextInput>(null);
+  const inputRefs = [inputRef0, inputRef1, inputRef2, inputRef3];
+
+  // Hooks
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  
-  const inputRefs = [
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-  ];
-
-  // No Firebase init required
-
-  // Use API_BASE_URL from config (which is already set to Railway backend)
-  const API_URL = API_BASE_URL;
-  
-  console.log('🌐 API URL:', API_URL);
   const { login } = useUser();
-  const { success, error, warning, info } = useToast();
-  const { subscription, updateSubscription } = useSubscription();
+  const { success, error } = useToast();
 
-  // Subscription modal disabled per request
-  const showSubscriptionModalAfterLogin = () => {
-    // setTimeout(() => {
-    //   setShowSubscriptionModal(true);
-    // }, 1000);
-  };
+  // Memoized values
+  const cleanedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
+  const isTestAccount = useMemo(() => cleanedPhone === TEST_PHONE, [cleanedPhone]);
 
-  const formatPhoneNumber = (text: string) => {
+  // Helper functions
+  const formatPhoneNumber = useCallback((text: string): string => {
     const cleaned = text.replace(/\D/g, '');
     const len = cleaned.length;
 
     if (len <= 3) return cleaned;
     if (len <= 5) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
     if (len <= 7) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 5)}-${cleaned.slice(5)}`;
-    // len >= 8
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 5)}-${cleaned.slice(5, 7)}-${cleaned.slice(7, 11)}`;
-  };
+  }, []);
 
-  const handlePhoneChange = (text: string) => {
+  const resetOtpState = useCallback(() => {
+    setOTP(Array(OTP_LENGTH).fill(''));
+    setShowOTP(false);
+    setVerificationId(null);
+    setManualOtpCode(null);
+  }, []);
+
+  // Event handlers
+  const handlePhoneChange = useCallback((text: string) => {
     const formatted = formatPhoneNumber(text.replace(/[^0-9]/g, ''));
     setPhone(formatted);
-    // Clear password if phone number changes away from test account
-    const cleanedPhone = formatted.replace(/[^0-9]/g, '');
-    if (cleanedPhone !== '557422634') {
+    if (!isTestAccount) {
       setTestPassword('');
     }
-  };
+  }, [formatPhoneNumber, isTestAccount]);
 
-  const handleOTPChange = (text: string, index: number) => {
+  const handleOTPChange = useCallback((text: string, index: number) => {
+    if (text.length > 1) return;
+    
     const newOTP = [...otp];
     newOTP[index] = text;
     setOTP(newOTP);
 
-    // ავტომატურად გადასვლა შემდეგ ინფუთზე
-    if (text.length === 1 && index < 3) {
+    if (text.length === 1 && index < OTP_LENGTH - 1) {
       inputRefs[index + 1].current?.focus();
     }
-  };
+  }, [otp, inputRefs]);
 
-  const handleOTPKeyPress = (e: any, index: number) => {
-    // წაშლის შემთხვევაში წინა ინფუთზე გადასვლა
+  const handleOTPKeyPress = useCallback((
+    e: NativeSyntheticEvent<TextInputKeyPressEventData>,
+    index: number
+  ) => {
     if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs[index - 1].current?.focus();
     }
-  };
+  }, [otp, inputRefs]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
 
-    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+    const handleBackPress = () => {
       if (keyboardVisible) {
         Keyboard.dismiss();
-        return true; // გადავჭერით back მოვლენას მხოლოდ როცა კლავიატურაა გახსნილი
-      }
-      if (showRegister) {
-        setShowRegister(false);
         return true;
       }
-      return false; // სხვაგვარად მივცეთ ნავიგაციას უკანა ნაბიჯი
-    });
+      return false;
+    };
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
 
     return () => {
       showSub.remove();
       hideSub.remove();
       backSub.remove();
     };
-  }, [keyboardVisible, showRegister]);
+  }, [keyboardVisible]);
 
-  // რეგისტრაციის მოდალის გახსნისას კლავიატურის დახურვა
-  useEffect(() => {
-    if (showRegister) {
-      // მცირე დაყოვნება, რომ layout-მა დრო ჰქონდეს განახლებისთვის
-      const timer = setTimeout(() => {
-        Keyboard.dismiss();
-      }, 100);
-      return () => clearTimeout(timer);
+  // API functions
+  const handleStartOtp = useCallback(async () => {
+    if (!cleanedPhone || cleanedPhone.length < MIN_PHONE_LENGTH) {
+      error('შეცდომა', 'გთხოვთ შეიყვანოთ სწორი ტელეფონის ნომერი');
+      return;
     }
-  }, [showRegister]);
 
-  const verifyOTP = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE_URL}/auth/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanedPhone }),
+      });
+
+      const data: AuthStartResponse = await res.json();
+
+      if (!res.ok) {
+        const message = (data as ApiError)?.message || 'SMS-ის გაგზავნა ვერ მოხერხდა';
+        throw new Error(message);
+      }
+
+      setVerificationId(data.id || null);
+      setPendingIntent(data.intent || null);
+      setShowOTP(true);
+      success('SMS გაიგზავნა!', `კოდი გაიგზავნა ნომერზე ${phone}`);
+
+      const otpCode = data.code ?? data.mockCode ?? data.otp;
+      if (otpCode) {
+        setManualOtpCode(String(otpCode));
+        setShowOtpDisabledModal(true);
+      } else {
+        setManualOtpCode(null);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'SMS-ის გაგზავნა ვერ მოხერხდა';
+      error('შეცდომა', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [cleanedPhone, phone, error, success]);
+
+  const verifyOTP = useCallback(async () => {
     const otpString = otp.join('');
-    if (otpString.length !== 4) {
+    
+    if (otpString.length !== OTP_LENGTH) {
       error('შეცდომა', 'გთხოვთ შეიყვანოთ სრული კოდი');
       return;
     }
+
     if (!verificationId) {
       error('შეცდომა', 'კოდი ვადაგასულია, სცადეთ ხელახლა');
       return;
@@ -166,170 +218,92 @@ export default function LoginScreen() {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/auth/verify`, {
+      const res = await fetch(`${API_BASE_URL}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otpId: verificationId, code: otpString }),
       });
-      const data = await res.json();
-      setLoading(false);
+
+      const data: AuthVerifyResponse = await res.json();
+
       if (!res.ok) {
-        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'ვერიფიკაცია ვერ მოხერხდა';
-        error('შეცდომა', msg);
+        const message = (data as ApiError)?.message || 'ვერიფიკაცია ვერ მოხერხდა';
+        error('შეცდომა', message);
         return;
       }
-      if (data?.user) {
-        // Check both data.intent from verify endpoint and pendingIntent from start endpoint
-        const isRegisterIntent = data?.intent === 'register' || pendingIntent === 'register';
-        
-        console.log('🔍 OTP Verification Result:', {
-          hasUser: !!data.user,
-          dataIntent: data?.intent,
-          pendingIntent: pendingIntent,
-          isRegisterIntent: isRegisterIntent,
-          userId: data.user.id,
+
+      if (!data.user) {
+        error('შეცდომა', 'მომხმარებელი ვერ მოიძებნა');
+        return;
+      }
+
+      const isRegisterIntent = data.intent === 'register' || pendingIntent === 'register';
+
+      if (isRegisterIntent) {
+        resetOtpState();
+        setPendingIntent(null);
+        success('კოდი დადასტურებულია', 'დასრულეთ რეგისტრაცია');
+        router.push({
+          pathname: '/register',
+          params: { userId: data.user.id },
         });
-        
-        if (isRegisterIntent) {
-          console.log('✅ Showing registration form');
-          setPendingUserId(data.user.id);
-          setShowOTP(false);
-          setShowRegister(true);
-          setPendingIntent(null); // Reset after using
-          success('კოდი დადასტურებულია', 'დასრულეთ რეგისტრაცია');
-        } else {
-          console.log('✅ Proceeding with login');
-          await login(data.user);
-          
-          // Save subscription info if available
-          if (data.subscription) {
-            console.log('📋 Subscription info from auth:', data.subscription);
-            await AsyncStorage.setItem('user_subscription', JSON.stringify(data.subscription));
-          }
-          
-          success('წარმატება!', 'წარმატებით შეხვედით სისტემაში');
-          setShowOTP(false);
-          setVerificationId(null);
-          setPendingIntent(null); // Reset after using
-          router.replace('/(tabs)');
-          // Show subscription modal after login
-          showSubscriptionModalAfterLogin();
-        }
-      }
-    } catch (e) {
-      setLoading(false);
-      error('შეცდომა', 'ვერიფიკაცია ვერ მოხერხდა');
-    }
-  };
-
-  // Firebase OTP helper აღარ გვჭირდება ცალკე
-
-  const handleStartOtp = async () => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!cleanPhone || cleanPhone.length < 9) {
-      error('შეცდომა', 'გთხოვთ შეიყვანოთ სწორი ტელეფონის ნომერი');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_URL}/auth/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleanPhone }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const msg = typeof data === 'object' && data?.message ? String(data.message) : 'SMS-ის გაგზავნა ვერ მოხერხდა';
-        throw new Error(msg);
-      }
-      
-      console.log('📞 OTP Start Response:', {
-        id: data?.id,
-        intent: data?.intent,
-        hasCode: !!(data?.code ?? data?.mockCode ?? data?.otp),
-      });
-      
-      setVerificationId(data?.id || null);
-      setPendingIntent(data?.intent || null);
-      setShowOTP(true);
-      success('SMS გაიგზავნა!', `კოდი გაიგზავნა ნომერზე ${phone}`);
-      const otpCode = data?.code ?? data?.mockCode ?? data?.otp;
-      if (otpCode) {
-        setManualOtpCode(String(otpCode));
-        setShowOtpDisabledModal(true);
       } else {
-        setManualOtpCode(null);
+        await login(data.user);
+
+        if (data.subscription) {
+          await AsyncStorage.setItem('user_subscription', JSON.stringify(data.subscription));
+        }
+
+        success('წარმატება!', 'წარმატებით შეხვედით სისტემაში');
+        resetOtpState();
+        setPendingIntent(null);
+        router.replace('/(tabs)');
       }
-    } catch (err: any) {
-      error('შეცდომა', err?.message || 'SMS-ის გაგზავნა ვერ მოხერხდა');
+    } catch (err) {
+      error('შეცდომა', 'ვერიფიკაცია ვერ მოხერხდა');
     } finally {
       setLoading(false);
     }
-  };
+  }, [otp, verificationId, pendingIntent, error, success, login, resetOtpState]);
 
-
-  const handleLogin = async () => {
-    // App Store Review test account: phone 557422634, password 1234
-    const TEST_PHONE = '557422634';
-    const TEST_PASSWORD = '1234';
-    
-    // Remove dashes from phone for comparison (formatPhoneNumber adds dashes)
-    const cleanedPhone = phone.replace(/[^0-9]/g, '');
-    
-    console.log('🔍 Login attempt:', {
-      phone: phone,
-      cleanedPhone: cleanedPhone,
-      testPhone: TEST_PHONE,
-      isTestAccount: cleanedPhone === TEST_PHONE,
-      hasPassword: !!testPassword.trim()
-    });
-    
-    if (cleanedPhone === TEST_PHONE) {
-      // Test account - require password
+  const handleLogin = useCallback(async () => {
+    if (isTestAccount) {
       if (!testPassword.trim()) {
-        console.log('❌ Test account - password required');
         error('შეცდომა', 'გთხოვთ შეიყვანოთ password');
         return;
       }
-      
+
       if (testPassword.trim() !== TEST_PASSWORD) {
-        console.log('❌ Test account - wrong password:', testPassword.trim());
         error('შეცდომა', 'არასწორი password');
         return;
       }
-      
-      // Test account login without OTP
+
       try {
         setLoading(true);
         const testUser = {
-          id: 'test_user_' + Date.now(),
+          id: `test_user_${Date.now()}`,
           phone: TEST_PHONE,
           firstName: 'Test',
           email: 'test@example.com',
           role: 'customer',
           ownedCarwashes: [],
         };
-        
-        console.log('✅ Test Login - Using static test user:', testUser);
-        setShowOTP(false); // Ensure OTP modal doesn't show for test account
+
+        resetOtpState();
         await login(testUser);
         success('წარმატება!', 'ტესტ რეჟიმში შეხვედით სისტემაში');
         setTestPassword('');
         router.replace('/(tabs)');
-        showSubscriptionModalAfterLogin();
-      } catch (err: any) {
-        console.error('❌ Test login error:', err);
+      } catch (err) {
         error('შეცდომა', 'ტესტ რეჟიმში შესვლა ვერ მოხერხდა');
       } finally {
         setLoading(false);
       }
       return;
     }
-    
-    // Regular OTP flow for other users
+
     await handleStartOtp();
-  };
+  }, [isTestAccount, testPassword, error, success, login, resetOtpState, handleStartOtp]);
 
 
   const styles = StyleSheet.create({
@@ -517,280 +491,6 @@ export default function LoginScreen() {
       shadowOpacity: 0.1,
       shadowRadius: 24,
       elevation: 20,
-    },
-    registerOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(17, 24, 39, 0.82)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    registerModal: {
-      width: '100%',
-      maxHeight: '100%',
-      backgroundColor: 'rgba(255, 255, 255, 0.98)',
-      borderRadius: 28,
-      padding: 22,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 22 },
-      shadowOpacity: 0.26,
-      shadowRadius: 32,
-      elevation: 24,
-      gap: 12,
-      overflow: 'hidden',
-    },
-    registerHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 4,
-    },
-    registerHeaderLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      flex: 1,
-    },
-    registerBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#EEF2FF',
-      borderRadius: 999,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      gap: 6,
-      borderWidth: 1,
-      borderColor: '#E0E7FF',
-    },
-    registerBadgeText: {
-      fontSize: 12,
-      fontFamily: 'Inter_700Bold',
-      color: '#4F46E5',
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-    },
-    registerCloseButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: '#F3F4F6',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-    },
-    registerTitle: {
-      fontSize: 22,
-      fontFamily: 'Inter_700Bold',
-      color: '#111827',
-      letterSpacing: -0.35,
-    },
-    registerSubtitle: {
-      fontSize: 14,
-      color: '#4B5563',
-      lineHeight: 21,
-      fontFamily: 'Inter',
-      marginBottom: 4,
-    },
-    registerScroll: {
-      flexGrow: 1,
-      flexShrink: 1,
-      gap: 12,
-      paddingBottom: 12,
-    },
-    registerSectionCard: {
-      backgroundColor: '#F8FAFC',
-      borderRadius: 18,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      marginTop: 6,
-      gap: 10,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.05,
-      shadowRadius: 12,
-      elevation: 4,
-    },
-    registerLabel: {
-      fontSize: 12,
-      fontFamily: 'Inter_700Bold',
-      color: '#111827',
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-    },
-    registerInputWrapper: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      gap: 10,
-      minHeight: 54,
-    },
-    registerInputWrapperFocused: {
-      borderColor: '#4F46E5',
-      shadowColor: '#4F46E5',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      elevation: 6,
-      backgroundColor: '#F9FAFF',
-    },
-    registerInput: {
-      flex: 1,
-      fontSize: 16,
-      color: '#111827',
-      fontFamily: 'Inter_600SemiBold',
-      paddingVertical: 0,
-    },
-    registerHelper: {
-      fontSize: 12,
-      color: '#9CA3AF',
-      fontFamily: 'Inter',
-    },
-    roleChipsRow: {
-      gap: 12,
-    },
-    roleChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFFFFF',
-      borderRadius: 16,
-      padding: 14,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      gap: 12,
-      marginTop: 8,
-      minHeight: 72,
-    },
-    roleChipActive: {
-      backgroundColor: '#EEF2FF',
-      borderColor: '#4F46E5',
-      shadowColor: '#4F46E5',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.15,
-      shadowRadius: 16,
-      elevation: 8,
-    },
-    roleChipIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 12,
-      backgroundColor: '#F3F4F6',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    roleChipIconActive: {
-      backgroundColor: '#4F46E5',
-    },
-    roleChipTextWrap: {
-      flex: 1,
-      gap: 2,
-    },
-    roleChipTitle: {
-      fontSize: 15,
-      fontFamily: 'Inter_700Bold',
-      color: '#111827',
-      letterSpacing: -0.2,
-    },
-    roleChipTitleActive: {
-      color: '#111827',
-    },
-    roleChipSubtitle: {
-      fontSize: 12,
-      fontFamily: 'Inter',
-      color: '#6B7280',
-      lineHeight: 16,
-    },
-    registerFooter: {
-      marginTop: 10,
-      gap: 12,
-    },
-    registerHintRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: '#ECFDF3',
-      borderColor: '#BBF7D0',
-      borderWidth: 1,
-      borderRadius: 12,
-      padding: 10,
-    },
-    registerHintText: {
-      fontSize: 13,
-      fontFamily: 'Inter',
-      color: '#065F46',
-      flex: 1,
-    },
-    registerPrimaryButton: {
-      backgroundColor: '#111827',
-      borderRadius: 14,
-      paddingVertical: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 8,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.2,
-      shadowRadius: 12,
-      elevation: 6,
-    },
-    registerPrimaryButtonDisabled: {
-      backgroundColor: '#E5E7EB',
-      shadowOpacity: 0,
-      elevation: 0,
-    },
-    registerPrimaryText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontFamily: 'Inter_700Bold',
-      letterSpacing: 0.3,
-    },
-    registerSecondaryButton: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-    },
-    registerSecondaryText: {
-      color: '#111827',
-      fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    roleSegment: {
-      flexDirection: 'row',
-      backgroundColor: '#F3F4F6',
-      borderRadius: 14,
-      padding: 4,
-    },
-    roleSegmentOption: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: 12,
-      borderRadius: 10,
-    },
-    roleSegmentActive: {
-      backgroundColor: '#111827',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.2,
-      shadowRadius: 10,
-      elevation: 6,
-    },
-    roleSegmentText: {
-      fontSize: 15,
-      fontFamily: 'Inter',
-      color: '#111827',
-      letterSpacing: -0.2,
     },
     otpTitle: {
       fontSize: 20,
@@ -1099,242 +799,11 @@ export default function LoginScreen() {
 
                 <TouchableOpacity 
                   style={styles.resendContainer}
-                  onPress={() => {
-                    setOTP(['', '', '', '']);
-                    setShowOTP(false);
-                    setVerificationId(null);
-                  }}
+                  onPress={resetOtpState}
                 >
                   <Text style={styles.resendText}>ხელახლა გაგზავნა</Text>
                 </TouchableOpacity>
               </View>
-              )}
-
-              {showRegister && (
-                <Modal
-                  visible={showRegister}
-                  transparent
-                  animationType="fade"
-                  onRequestClose={() => {
-                    Keyboard.dismiss();
-                    setShowRegister(false);
-                  }}
-                >
-                  <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.registerOverlay}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-                    enabled
-                  >
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                      <View style={styles.registerOverlay}>
-                        <TouchableWithoutFeedback>
-                          <View style={styles.registerModal}>
-                            <View style={styles.registerHeaderRow}>
-                              <View style={styles.registerHeaderLeft}>
-                                <View style={styles.registerBadge}>
-                                  <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
-                                  <Text style={styles.registerBadgeText}>ახალი პროფილი</Text>
-                                </View>
-                               
-                              </View>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  Keyboard.dismiss();
-                                  setShowRegister(false);
-                                }}
-                                style={styles.registerCloseButton}
-                                hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
-                              >
-                                <Ionicons name="close" size={20} color="#111827" />
-                              </TouchableOpacity>
-                            </View>
-                            <Text style={styles.registerTitle}>დასრულე რეგისტრაცია</Text>
-                            <Text style={styles.registerSubtitle}>
-                              შეიყვანე სახელი და აირჩიე როლი. შეძლებ ცვლილებას პროფილში მოგვიანებითაც.
-                            </Text>
-
-                            <ScrollView
-                              contentContainerStyle={styles.registerScroll}
-                              bounces={false}
-                              showsVerticalScrollIndicator={false}
-                              keyboardShouldPersistTaps="handled"
-                              keyboardDismissMode="on-drag"
-                            >
-                      <View style={styles.registerSectionCard}>
-                        <Text style={styles.registerLabel}>სახელი და გვარი</Text>
-                        <View style={[
-                          styles.registerInputWrapper,
-                          nameInputFocused && styles.registerInputWrapperFocused
-                        ]}>
-                          <Ionicons
-                            name="person-circle-outline"
-                            size={22}
-                            color={nameInputFocused ? '#4F46E5' : '#9CA3AF'}
-                          />
-                          <TextInput
-                            style={styles.registerInput}
-                            value={firstName}
-                            onChangeText={setFirstName}
-                            placeholder="მაგ: გიორგი გიორგიძე"
-                            placeholderTextColor="#9CA3AF"
-                            autoCapitalize="words"
-                            onFocus={() => setNameInputFocused(true)}
-                            onBlur={() => setNameInputFocused(false)}
-                          />
-                          <Text style={styles.registerHelper}>{Math.min(firstName.trim().length, 30)}/30</Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.registerSectionCard}>
-                        <Text style={styles.registerLabel}>აირჩიე როლი</Text>
-                        <View style={styles.roleChipsRow}>
-                          <TouchableOpacity
-                            onPress={() => setRole('user')}
-                            activeOpacity={0.85}
-                            style={[
-                              styles.roleChip,
-                              role === 'user' && styles.roleChipActive
-                            ]}
-                          >
-                            <View style={[
-                              styles.roleChipIcon,
-                              role === 'user' && styles.roleChipIconActive
-                            ]}>
-                              <Ionicons
-                                name="person"
-                                size={20}
-                                color={role === 'user' ? '#FFFFFF' : '#111827'}
-                              />
-                            </View>
-                            <View style={styles.roleChipTextWrap}>
-                              <Text style={[
-                                styles.roleChipTitle,
-                                role === 'user' && styles.roleChipTitleActive
-                              ]}>
-                                მომხმარებელი
-                              </Text>
-                              <Text style={styles.roleChipSubtitle}>შეკვეთები და დაჯავშნები</Text>
-                            </View>
-                            {role === 'user' && (
-                              <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />
-                            )}
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            onPress={() => setRole('partner')}
-                            activeOpacity={0.85}
-                            style={[
-                              styles.roleChip,
-                              role === 'partner' && styles.roleChipActive
-                            ]}
-                          >
-                            <View style={[
-                              styles.roleChipIcon,
-                              role === 'partner' && styles.roleChipIconActive
-                            ]}>
-                              <Ionicons
-                                name="business"
-                                size={20}
-                                color={role === 'partner' ? '#FFFFFF' : '#111827'}
-                              />
-                            </View>
-                            <View style={styles.roleChipTextWrap}>
-                              <Text style={[
-                                styles.roleChipTitle,
-                                role === 'partner' && styles.roleChipTitleActive
-                              ]}>
-                                პარტნიორი
-                              </Text>
-                              <Text style={styles.roleChipSubtitle}>ანგარიშები, სერვისები, გაყიდვები</Text>
-                            </View>
-                            {role === 'partner' && (
-                              <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </ScrollView>
-
-                    <View style={styles.registerFooter}>
-                      <View style={styles.registerHintRow}>
-                        <Ionicons name="shield-checkmark-outline" size={18} color="#10B981" />
-                        <Text style={styles.registerHintText}>შესვლის შემდეგ შეგიძლია პროფილის ცვლილება.</Text>
-                      </View>
-
-                      <TouchableOpacity
-                        style={[
-                          styles.registerPrimaryButton,
-                          (loading || !firstName.trim() || !role) && styles.registerPrimaryButtonDisabled
-                        ]}
-                        onPress={async () => {
-                          if (!pendingUserId) {
-                            error('შეცდომა', 'დაბრუნდით თავიდან');
-                            setShowRegister(false);
-                            return;
-                          }
-                          if (!firstName.trim() || !role) {
-                            error('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
-                            return;
-                          }
-                          try {
-                            setLoading(true);
-                            const res = await fetch(`${API_URL}/auth/complete`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ userId: pendingUserId, firstName: firstName.trim(), role }),
-                            });
-                            const data = await res.json();
-                            setLoading(false);
-                            if (!res.ok) {
-                              const msg = typeof data === 'object' && data?.message ? String(data.message) : 'შენახვა ვერ მოხერხდა';
-                              error('შეცდომა', msg);
-                              return;
-                            }
-                            if (data?.user) {
-                              await login(data.user);
-                            }
-                            success('წარმატება!', 'ანგარიში წარმატებით შეიქმნა');
-                            setShowRegister(false);
-                            router.replace('/(tabs)');
-                            showSubscriptionModalAfterLogin();
-                          } catch (e) {
-                            setLoading(false);
-                            error('შეცდომა', 'ქსელური შეცდომა');
-                          }
-                        }}
-                        disabled={loading || !firstName.trim() || !role}
-                      >
-                        {loading ? (
-                          <View style={styles.loadingContainer}>
-                            <ActivityIndicator color="#FFFFFF" />
-                            <Text style={[styles.registerPrimaryText, styles.loadingText]}>შენახვა...</Text>
-                          </View>
-                        ) : (
-                          <>
-                            <Text style={styles.registerPrimaryText}>დასრულება</Text>
-                            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                          </>
-                        )}
-                      </TouchableOpacity>
-
-                      <TouchableOpacity 
-                        style={styles.registerSecondaryButton} 
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          setShowRegister(false);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.registerSecondaryText}>გაუქმება</Text>
-                      </TouchableOpacity>
-                    </View>
-                          </View>
-                        </TouchableWithoutFeedback>
-                      </View>
-                    </TouchableWithoutFeedback>
-                  </KeyboardAvoidingView>
-                </Modal>
               )}
             </View>
           </TouchableWithoutFeedback>

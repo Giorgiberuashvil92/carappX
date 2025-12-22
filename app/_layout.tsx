@@ -227,6 +227,29 @@ function RootLayoutNav() {
               <Stack.Screen name="all-services" options={{headerShown: false}} />
               <Stack.Screen name="all-community" options={{headerShown: false}} />
               <Stack.Screen name="category" options={{headerShown: false}} />
+              <Stack.Screen name="register" options={{headerShown: false}} />
+              <Stack.Screen name="chats" options={{headerShown: false}} />
+              <Stack.Screen name="chat/[chatId]" options={{headerShown: false}} />
+              <Stack.Screen name="partner-chats" options={{headerShown: false}} />
+              <Stack.Screen name="partner-chat/[requestId]" options={{headerShown: false}} />
+              <Stack.Screen name="offers/[requestId]" options={{headerShown: false}} />
+              <Stack.Screen name="mechanic/[id]" options={{headerShown: false}} />
+              <Stack.Screen name="mechanic-detail" options={{headerShown: false}} />
+              <Stack.Screen name="booking-details" options={{headerShown: false}} />
+              <Stack.Screen name="bookings/[carwashId]" options={{headerShown: false}} />
+              <Stack.Screen name="settings/[carwashId]" options={{headerShown: false}} />
+              <Stack.Screen name="analytics/[carwashId]" options={{headerShown: false}} />
+              <Stack.Screen name="partner-dashboard-old" options={{headerShown: false}} />
+              <Stack.Screen name="partner-dashboard-simple" options={{headerShown: false}} />
+              <Stack.Screen name="partner-stack" options={{headerShown: false}} />
+              <Stack.Screen name="personal-info" options={{headerShown: false}} />
+              <Stack.Screen name="payment" options={{headerShown: false}} />
+              <Stack.Screen name="fuel" options={{headerShown: false}} />
+              <Stack.Screen name="racing" options={{headerShown: false}} />
+              <Stack.Screen name="stories" options={{headerShown: false}} />
+              <Stack.Screen name="bog-test" options={{headerShown: false}} />
+              <Stack.Screen name="car-rental/[id]" options={{headerShown: false}} />
+              <Stack.Screen name="car-rental-list" options={{headerShown: false}} />
               </Stack>
             </ThemeProvider>
               </ModalProvider>

@@ -32,6 +32,7 @@ import StoryViewer from '../../components/ui/StoryViewer';
 import StoryOverlay from '../../components/ui/StoryOverlay';
 import NotificationsModal from '../../components/ui/NotificationsModal';
 import RacingBanner from '../../components/ui/RacingBanner';
+import CarRentalCard from '../../components/ui/CarRentalCard';
 import DetailView, { DetailViewProps } from '../../components/DetailView';
 import { useEffect } from 'react';
 import { getResponsiveDimensions, getResponsiveCardWidth } from '../../utils/responsive';
@@ -41,6 +42,7 @@ const { screenWidth, contentWidth, horizontalMargin, isTablet } = getResponsiveD
 const H_MARGIN = 20;
 const H_GAP = 16;
 const POPULAR_CARD_WIDTH = contentWidth - (H_MARGIN * 2);
+const RENTAL_CARD_WIDTH = 280; // Fixed width for CarRentalCard (same as ServiceCard)
 
 
 // Popular services are now fetched from API
@@ -144,6 +146,10 @@ export default function TabOneScreen() {
   const [quickActionsIndex, setQuickActionsIndex] = useState(0);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [selectedService, setSelectedService] = useState<any | null>(null);
+  
+  // Car Rental state
+  const [rentalCars, setRentalCars] = useState<any[]>([]);
+  const [rentalCarsLoading, setRentalCarsLoading] = useState(true);
 
   const quickActionsList = [
     {
@@ -280,11 +286,34 @@ export default function TabOneScreen() {
     }
   };
 
+  // Fetch rental cars function
+  const fetchRentalCars = async (isRefresh = false) => {
+    try {
+      if (!isRefresh) setRentalCarsLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/car-rental/popular?limit=5`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('🚗 Fetched rental cars:', data);
+      setRentalCars(data);
+    } catch (error) {
+      console.error('❌ Error fetching rental cars:', error);
+      setRentalCars([]);
+    } finally {
+      setRentalCarsLoading(false);
+    }
+  };
+
   const onRefresh = React.useCallback(async () => {
     try {
       setRefreshing(true);
       await Promise.all([
         fetchServices(true),
+        fetchRentalCars(true),
         refreshStories(),
         (async () => {
           setOffersLoading(true);
@@ -306,6 +335,7 @@ export default function TabOneScreen() {
 
   React.useEffect(() => {
     fetchServices();
+    fetchRentalCars();
   }, []);
 
   // Initial offers load
@@ -856,6 +886,16 @@ export default function TabOneScreen() {
     popularContainer: {
       paddingHorizontal: 20,
       paddingBottom: 24,
+    },
+    rentalContainer: {
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      marginTop: 8,
+    },
+    rentalContent: {
+      paddingLeft: 20,
+      paddingRight: 20,
+      gap: H_GAP,
     },
     
     chipsRow: {
@@ -1564,6 +1604,58 @@ export default function TabOneScreen() {
 
         <ReminderSection />
         
+      {/* 🚗 Car Rental Section */}
+      <View style={styles.rentalContainer}>
+        <View style={styles.sectionHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Ionicons name="car-sport" size={24} color="#111827" />
+            <Text style={styles.sectionTitle}>მანქანების გაქირავება</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push('/car-rental-list' as any)}>
+            <Text style={styles.sectionAction}>ყველა</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToAlignment="start"
+          snapToInterval={RENTAL_CARD_WIDTH + H_GAP}
+          decelerationRate="fast"
+          contentOffset={{ x: 0, y: 0 }}
+          contentContainerStyle={styles.rentalContent}
+        >
+          {rentalCarsLoading ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>მანქანების ჩატვირთვა...</Text>
+            </View>
+          ) : (
+            rentalCars.map((car) => (
+              <CarRentalCard
+                key={car.id || car._id}
+                id={car.id || car._id}
+                brand={car.brand}
+                model={car.model}
+                year={car.year}
+                category={car.category}
+                pricePerDay={car.pricePerDay}
+                pricePerWeek={car.pricePerWeek}
+                image={car.images?.[0] || car.image}
+                transmission={car.transmission}
+                fuelType={car.fuelType}
+                seats={car.seats}
+                rating={car.rating || 0}
+                reviews={car.reviews || 0}
+                location={car.location}
+                available={car.available}
+                features={car.features}
+                onPress={() => {
+                  router.push(`/car-rental/${car.id || car._id}` as any);
+                }}
+              />
+            ))
+          )}
+        </ScrollView>
+      </View>
 
       {/* Quick filter chips moved to Carwash screen */}
       <View style={styles.popularContainer}>
