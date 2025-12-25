@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Modal,
   Linking,
+  Alert,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,8 @@ import { useUser } from '../../contexts/UserContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import SubscriptionModal from '../../components/ui/SubscriptionModal';
 import API_BASE_URL from '../../config/api';
+import { bogApi } from '../../services/bogApi';
+import BOGPaymentModal from '../../components/ui/BOGPaymentModal';
 import ServiceCard from '../../components/ui/ServiceCard';
 import CommunitySection from '../../components/ui/CommunitySection';
 import ReminderSection from '../../components/ui/ReminderSection';
@@ -37,12 +40,11 @@ import DetailView, { DetailViewProps } from '../../components/DetailView';
 import { useEffect } from 'react';
 import { getResponsiveDimensions, getResponsiveCardWidth } from '../../utils/responsive';
 
-// Get responsive dimensions
 const { screenWidth, contentWidth, horizontalMargin, isTablet } = getResponsiveDimensions();
 const H_MARGIN = 20;
-const H_GAP = 16;
-const POPULAR_CARD_WIDTH = contentWidth - (H_MARGIN * 2);
-const RENTAL_CARD_WIDTH = 280; // Fixed width for CarRentalCard (same as ServiceCard)
+const H_GAP = 10;
+const POPULAR_CARD_WIDTH = getResponsiveDimensions().contentWidth - (H_MARGIN * 2);
+const RENTAL_CARD_WIDTH = 280; 
 
 
 // Popular services are now fetched from API
@@ -69,6 +71,10 @@ export default function TabOneScreen() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [openStoryIndex, setOpenStoryIndex] = useState<number | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const [showBOGPaymentModal, setShowBOGPaymentModal] = useState(false);
+  const [bogPaymentUrl, setBogPaymentUrl] = useState<string>('');
+  const [bogOAuthStatus, setBogOAuthStatus] = useState<any>(null);
+  const [isProcessingTestPayment, setIsProcessingTestPayment] = useState(false);
   
   // Refresh stories when overlay closes (to update seen status)
   const refreshStories = React.useCallback(async () => {
@@ -153,16 +159,6 @@ export default function TabOneScreen() {
 
   const quickActionsList = [
     {
-      key: 'assist',
-      title: 'დახმარება',
-      subtitle: 'ევაკუატორი და გზაზე სწრაფი დახმარება',
-      icon: 'car-sport',
-      colors: ['#2563EB', '#1D4ED8'],
-      pill: '24/7',
-      tag: 'სასწრაფო',
-      route: '/caru-service' as any,
-    },
-    {
       key: 'wash',
       title: 'ავტო სამრეცხაო',
       subtitle: 'ბუქინგი უახლოეს სამრეცხაოში',
@@ -173,11 +169,51 @@ export default function TabOneScreen() {
       route: '/(tabs)/carwash' as any,
     },
     {
+      key: 'fuel',
+      title: 'საწვავის ფასები',
+      subtitle: 'ფასების შედარება და რეკომენდაციები',
+      icon: 'flame',
+      colors: ['#F59E0B', '#D97706'],
+      pill: 'რეალ-ტაიმ',
+      tag: 'ახალი',
+      route: '/fuel-stations' as any,
+    },
+    {
+      key: 'mechanic',
+      title: 'ხელოსანი',
+      subtitle: 'მექანიკოსების ძიება და ჯავშნები',
+      icon: 'build',
+      colors: ['#3B82F6', '#1D4ED8'],
+      pill: 'ჯავშნა',
+      tag: 'სერვისი',
+      route: '/mechanics' as any,
+    },
+    {
+      key: 'parts',
+      title: 'ნაწილები',
+      subtitle: 'ავტონაწილების მოძიება და შეძენა',
+      icon: 'construct',
+      colors: ['#10B981', '#059669'],
+      pill: 'მარკეტპლეისი',
+      tag: 'ძიება',
+      route: '/parts' as any,
+    },
+    {
+      key: 'rental',
+      title: 'მანქანის გაქირავება',
+      subtitle: 'მანქანების გაქირავება და ჯავშნები',
+      icon: 'car-sport',
+      colors: ['#8B5CF6', '#7C3AED'],
+      pill: 'გაქირავება',
+      tag: 'ახალი',
+      route: '/car-rental-list' as any,
+    },
+    {
       key: 'loyalty',
       title: 'ლოიალობის პროგრამა',
       subtitle: 'გულების დაგროვება და ფასდაკლებები',
       icon: 'star',
-      colors: ['#F59E0B', '#D97706'],
+      colors: ['#EC4899', '#DB2777'],
       pill: 'ქულები',
       tag: 'ბონუსი',
       route: '/loyalty' as any,
@@ -336,9 +372,47 @@ export default function TabOneScreen() {
   React.useEffect(() => {
     fetchServices();
     fetchRentalCars();
+    // BOG OAuth status check
+    bogApi.getOAuthStatus().then(setBogOAuthStatus).catch(() => setBogOAuthStatus(null));
   }, []);
 
-  // Initial offers load
+  // Test payment handler (1 ლარი)
+  const handleTestPayment = async () => {
+    if (!user?.id) {
+      Alert.alert('შეცდომა', 'გთხოვთ შეხვიდეთ სისტემაში');
+      return;
+    }
+
+    if (!bogOAuthStatus?.isTokenValid) {
+      Alert.alert('შეცდომა', 'BOG გადახდის სერვისი არ არის ხელმისაწვდომი');
+      return;
+    }
+
+    setIsProcessingTestPayment(true);
+
+    try {
+      const orderData = {
+        callback_url: `${API_BASE_URL}/bog/callback`,
+        external_order_id: `test_payment_${Date.now()}_${user.id}`,
+        total_amount: 1.0,
+        currency: 'GEL',
+        product_id: 'test',
+        description: 'ტესტ გადახდა - 1 ლარი',
+        success_url: `${API_BASE_URL}/payment/success`,
+        fail_url: `${API_BASE_URL}/payment/fail`,
+      };
+
+      const result = await bogApi.createOrder(orderData);
+      setBogPaymentUrl(result.redirect_url);
+      setShowBOGPaymentModal(true);
+    } catch (error) {
+      Alert.alert('შეცდომა', 'გადახდის ინიციალიზაცია ვერ მოხერხდა');
+      console.error('Test payment error:', error);
+    } finally {
+      setIsProcessingTestPayment(false);
+    }
+  };
+
   React.useEffect(() => {
     let active = true;
     (async () => {
@@ -636,8 +710,8 @@ export default function TabOneScreen() {
       marginRight: 10,
     },
     quickActionsContainer: {
-      paddingHorizontal: 8,
-      paddingTop: 18,
+      paddingHorizontal: 2,
+      paddingTop: 10,
       paddingBottom: 10,
       gap: 8,
     },
@@ -893,7 +967,6 @@ export default function TabOneScreen() {
       marginTop: 8,
     },
     rentalContent: {
-      paddingLeft: 20,
       paddingRight: 20,
       gap: H_GAP,
     },
@@ -931,7 +1004,6 @@ export default function TabOneScreen() {
       fontFamily: 'Inter',
     },
     popularContent: {
-      paddingLeft: H_MARGIN,
       paddingRight: H_MARGIN,
       gap: H_GAP,
     },
@@ -1437,30 +1509,12 @@ export default function TabOneScreen() {
                 <Text style={styles.smallLocation}>თბილისი, საქართველო</Text>
               </View>
 
-              {/* Modern Subscription CTA */}
-              {/* დროებით არ გვჭირდება პრემიუმ ღილაკი */}
-              {/* {!hasActiveSubscription && ( */}
-              {/*   <TouchableOpacity
-                  onPress={() => setShowSubscriptionModal(true)}
-                  activeOpacity={0.9}
-                  style={styles.subscriptionCTA}
-                >
-                  <BlurView intensity={35} tint="light" style={styles.subscriptionCTABlur} />
-                  <View style={styles.subscriptionCTAIconWrap}>
-                    <Ionicons name="sparkles" size={16} color={colors.primary} />
-                  </View>
-                  <View style={styles.subscriptionCTAContent}>
-                    <Text style={styles.subscriptionCTATitle}>გახდი პრემიუმ</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.secondary} />
-                </TouchableOpacity>
-              )} */}
+             
               
             </View>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity 
-/* ... */
               style={styles.roundIcon}
               onPress={() => router.push('/map')}
               activeOpacity={0.7}
@@ -1485,10 +1539,7 @@ export default function TabOneScreen() {
 
         {/* ინოვაციური Stories სექცია */}
         <View style={{ 
-          paddingHorizontal: 5, 
-          paddingTop: 10 , 
-          paddingBottom: 24,
-          marginBottom: 8 
+          
         }}>
           
           {/* მარტივი Stories */}
@@ -1502,7 +1553,7 @@ export default function TabOneScreen() {
         </View>
 
         {/* Credo Bank Financing Banner */}
-        <View style={{ paddingHorizontal: 5, marginBottom: 16, marginTop: 16 }}>
+        <View style={{ paddingHorizontal: 2, marginBottom: 16, marginTop: 16 }}>
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => router.push('/financing-info')}
@@ -1527,7 +1578,7 @@ export default function TabOneScreen() {
 
         {/* ახალი სექცია - ჩვენი სერვისები */}
         <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>ჩვენი სერვისები</Text>
+          <Text style={styles.sectionTitle}>კატეგორიები</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1535,7 +1586,7 @@ export default function TabOneScreen() {
             snapToAlignment="start"
             decelerationRate="fast"
             onScroll={(e) => {
-              const cardFull = 230 + 12; // width + gap
+              const cardFull = 230 + 12; 
               const idx = Math.round(e.nativeEvent.contentOffset.x / cardFull);
               setQuickActionsIndex(Math.min(Math.max(idx, 0), quickActionsList.length - 1));
             }}
@@ -1598,6 +1649,9 @@ export default function TabOneScreen() {
             ))}
           </View>
         </View>
+
+        {/* Test Payment Button - 1 ლარი */}
+        
       </View>
 
 
@@ -1607,9 +1661,10 @@ export default function TabOneScreen() {
       {/* 🚗 Car Rental Section */}
       <View style={styles.rentalContainer}>
         <View style={styles.sectionHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Ionicons name="car-sport" size={24} color="#111827" />
-            <Text style={styles.sectionTitle}>მანქანების გაქირავება</Text>
+          <View style={{ display: 'flex',  alignItems: 'center', justifyContent: 'center', }}>
+            <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+              <Text style={{ fontSize: 18, fontWeight: '500', color: '#111827', fontFamily: 'Inter' }}>მანქანების გაქირავება</Text>
+            </View>
           </View>
           <TouchableOpacity onPress={() => router.push('/car-rental-list' as any)}>
             <Text style={styles.sectionAction}>ყველა</Text>
@@ -1857,6 +1912,26 @@ export default function TabOneScreen() {
           );
         })()}
       </Modal>
+
+      {/* BOG Payment Modal */}
+      <BOGPaymentModal
+        visible={showBOGPaymentModal}
+        paymentUrl={bogPaymentUrl}
+        onClose={() => {
+          setShowBOGPaymentModal(false);
+          setBogPaymentUrl('');
+        }}
+        onSuccess={() => {
+          Alert.alert('წარმატება', 'გადახდა წარმატებით განხორციელდა!');
+          setShowBOGPaymentModal(false);
+          setBogPaymentUrl('');
+        }}
+        onError={(error) => {
+          Alert.alert('შეცდომა', error || 'გადახდა ვერ მოხერხდა');
+          setShowBOGPaymentModal(false);
+          setBogPaymentUrl('');
+        }}
+      />
 
     </View>
   );

@@ -247,7 +247,7 @@ export default function PaymentCardScreen() {
 
     try {
       const orderData = {
-        callback_url: `https://carappx.onrender.com/bog/callback`,
+        callback_url: `${API_BASE_URL}/bog/callback`,
         external_order_id: paymentData.orderId || `carapp_${Date.now()}_${user.id}`,
         total_amount: paymentData.amount,
         currency: paymentData.currency,
@@ -255,8 +255,8 @@ export default function PaymentCardScreen() {
         description: paymentData.description,
         success_url: paymentData.successUrl?.startsWith('http') 
           ? paymentData.successUrl 
-          : `https://carappx.onrender.com${paymentData.successUrl || '/payment/success'}`,
-        fail_url: `https://carappx.onrender.com/payment/fail`,
+          : `${API_BASE_URL}${paymentData.successUrl || '/payment/success'}`,
+        fail_url: `${API_BASE_URL}/payment/fail`,
       };
 
       console.log('🔄 BOG შეკვეთის შექმნა...', orderData);

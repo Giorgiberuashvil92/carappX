@@ -440,7 +440,7 @@ export default function CommunityScreen() {
             </View>
             <TextInput
               style={styles.createPostInput}
-              placeholder="რა გაქვს გონებაში?"
+              placeholder="დაწერე რაიმე რაც გაინტერესებს .. "
               placeholderTextColor="#9CA3AF"
               value={newPostText}
               onChangeText={setNewPostText}
@@ -476,14 +476,12 @@ export default function CommunityScreen() {
               <Ionicons name="image-outline" size={20} color="#6B7280" />
               <Text style={styles.createPostActionText}>ფოტო</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.createPostAction}>
-              <Ionicons name="location-outline" size={20} color="#6B7280" />
-              <Text style={styles.createPostActionText}>ლოკაცია</Text>
-            </TouchableOpacity>
+           
             <TouchableOpacity 
-              style={[styles.createPostButton, styles.publishButton, (!newPostText.trim() || isCreatingPost || isUploadingImage) && styles.disabledButton]}
+              style={[styles.publishButton, (!newPostText.trim() || isCreatingPost || isUploadingImage) && styles.disabledButton]}
               disabled={!newPostText.trim() || isCreatingPost || isUploadingImage}
               onPress={createPost}
+              activeOpacity={0.8}
             >
               {isCreatingPost ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -630,14 +628,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   publishButton: {
+    backgroundColor: '#000000',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   publishButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    fontFamily: 'Inter',
+    letterSpacing: 0.1,
   },
   postsContainer: {
     paddingHorizontal: 20,
@@ -733,7 +742,8 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   disabledButton: {
-    opacity: 0.5,
+    opacity: 0.6,
+    shadowOpacity: 0.1,
   },
   loadingContainer: {
     alignItems: 'center',

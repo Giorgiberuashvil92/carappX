@@ -30,7 +30,7 @@ import {
 
   export default function PartsHomeScreen() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'დაშლილები' | 'ნაწილები' | 'მაღაზიები'>('დაშლილები');
+    const [activeTab, setActiveTab] = useState<'დაშლილები' | 'ნაწილები'>('დაშლილები');
     const [showFilterModal, setShowFilterModal] = useState(false);
     
     // Filter states for different tabs
@@ -53,11 +53,6 @@ import {
       location: '',
     });
 
-    const [storesFilters, setStoresFilters] = useState({
-      location: '',
-      type: '',
-      rating: '',
-    });
 
     // Dropdown states
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -70,7 +65,6 @@ import {
     // Real data states
     const [dismantlers, setDismantlers] = useState<any[]>([]);
     const [parts, setParts] = useState<any[]>([]);
-    const [stores, setStores] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -148,23 +142,6 @@ import {
       }
     };
 
-    const loadStores = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await addItemApi.getStores(storesFilters);
-        if (response.success && response.data) {
-          setStores(response.data);
-        } else {
-          setError('მაღაზიების ჩატვირთვა ვერ მოხერხდა');
-        }
-      } catch (error) {
-        console.error('Error loading stores:', error);
-        setError('მაღაზიების ჩატვირთვა ვერ მოხერხდა');
-      } finally {
-        setLoading(false);
-      }
-    };
 
     // Load parts categories from API
     const loadPartsCategories = async () => {
@@ -205,8 +182,6 @@ import {
         loadDismantlers();
       } else if (activeTab === 'ნაწილები') {
         loadParts();
-      } else if (activeTab === 'მაღაზიები') {
-        loadStores();
       }
     }, [activeTab]);
 
@@ -223,11 +198,6 @@ import {
       }
     }, [partsFilters]);
 
-    useEffect(() => {
-      if (activeTab === 'მაღაზიები') {
-        loadStores();
-      }
-    }, [storesFilters]);
 
     // Load car models when brand changes
     useEffect(() => {
@@ -265,7 +235,6 @@ import {
       switch (activeTab) {
         case 'დაშლილები': return dismantlerFilters;
         case 'ნაწილები': return partsFilters;
-        case 'მაღაზიები': return storesFilters;
         default: return dismantlerFilters;
       }
     };
@@ -310,51 +279,12 @@ import {
     };
   };
 
-    const convertStoreToDetailItem = (store: any): DetailItem => {
-      // Get first photo from backend data or use fallback
-      const mainImage = store.photos && store.photos.length > 0 
-        ? store.photos[0] 
-        : store.images && store.images.length > 0 
-          ? store.images[0]
-          : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop';
-      
-      // Create gallery from all photos or fallback to single image
-      const gallery = store.photos && store.photos.length > 0 
-        ? store.photos 
-        : store.images && store.images.length > 0 
-          ? store.images
-          : [mainImage];
-      
-      return {
-        id: store.id,
-        title: store.name,
-        name: store.name,
-        image: mainImage,
-        type: store.type === 'დაშლილები' || store.brand ? 'dismantler' : 'store', // Backend dismantlers have brand field
-        location: store.location,
-        phone: store.phone,
-        workingHours: '09:00 - 18:00',
-        address: store.location,
-        services: ['ნაწილების მიყიდვა', 'კონსულტაცია', 'მონტაჟი', 'გარანტია'],
-        features: ['გამოცდილი პერსონალი', 'ხარისხიანი სერვისი'],
-        gallery: gallery, // Use real photos for gallery
-        specifications: {
-          'ტიპი': store.type || `${store.brand} ${store.model}`,
-          'მდებარეობა': store.location,
-          'ტელეფონი': store.phone || 'მიუთითებელი არ არის',
-        }
-      };
-    };
 
     const handleShowPartDetails = (part: any) => {
       setSelectedDetailItem(convertPartToDetailItem(part));
       setShowDetailModal(true);
     };
 
-    const handleShowStoreDetails = (store: any) => {
-      setSelectedDetailItem(convertStoreToDetailItem(store));
-      setShowDetailModal(true);
-    };
 
     const convertDismantlerToDetailItem = (dismantler: any): DetailItem => {
       // Get first photo from backend data or use fallback
@@ -416,9 +346,6 @@ import {
         case 'part':
           loadParts();
           break;
-        case 'store':
-          loadStores();
-          break;
       }
     };
 
@@ -459,21 +386,6 @@ import {
       });
     }, [parts, searchQuery, partsFilters]);
 
-    // Filtered data for stores (filtering mostly done on backend)
-    const filteredStores = useMemo(() => {
-      let currentStores = activeTab === 'დაშლილები' ? dismantlers : 
-                        activeTab === 'მაღაზიები' ? stores : stores;
-      
-      return currentStores.filter(store => {
-        // Client-side search filtering if needed
-        if (searchQuery && !store.title?.toLowerCase().includes(searchQuery.toLowerCase()) && 
-            !store.name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
-            !store.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
-          return false;
-        }
-        return true;
-      });
-    }, [dismantlers, stores, activeTab, searchQuery]);
 
     // Start card animations
     React.useEffect(() => {
@@ -492,7 +404,6 @@ import {
       switch (tab) {
         case 'დაშლილები': return 'car-outline';
         case 'ნაწილები': return 'cog-outline';
-        case 'მაღაზიები': return 'storefront-outline';
         default: return 'grid-outline';
       }
     };
@@ -568,7 +479,7 @@ import {
             
             {/* Floating Tab Selector */}
             <View style={styles.floatingTabSelector}>
-              {['დაშლილები', 'ნაწილები', 'მაღაზიები'].map((t, idx) => (
+              {['დაშლილები', 'ნაწილები'].map((t, idx) => (
                 <TouchableOpacity
                   key={t}
                   onPress={() => handleTabChange(t as any)}
@@ -646,7 +557,6 @@ import {
                 onPress={() => {
                   if (activeTab === 'დაშლილები') loadDismantlers();
                   else if (activeTab === 'ნაწილები') loadParts();
-                  else if (activeTab === 'მაღაზიები') loadStores();
                 }}
               >
                 <Text style={styles.retryText}>თავიდან ცდა</Text>
@@ -969,153 +879,6 @@ import {
                 </View>
               )}
 
-              {activeTab === 'მაღაზიები' && (
-                <View style={styles.modernSection}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.modernSectionTitle}>ყველა მაღაზია</Text>
-                    <TouchableOpacity style={styles.seeAllBtn}>
-                      <Text style={styles.seeAllText}>რუკა</Text>
-                      <Ionicons name="map-outline" size={16} color="#6366F1" />
-                    </TouchableOpacity>
-                  </View>
-                  {filteredStores.length > 0 ? (
-                    <View style={styles.modernStoresContainer}>
-                      {filteredStores?.map((store, index) => (
-                        <View key={store.id || index} style={styles.modernStoreCard}>
-                          {/* Background Image */}
-                          <ImageBackground 
-                            source={{
-                              uri: store.photos && store.photos.length > 0 
-                                ? store.photos[0] 
-                                : store.images && store.images.length > 0 
-                                  ? store.images[0]
-                                  : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop'
-                            }}
-                            style={styles.modernStoreBackgroundImage}
-                            resizeMode="cover"
-                          >
-                            {/* Gradient Overlay */}
-                            <LinearGradient
-                              colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
-                              style={styles.modernStoreGradientOverlay}
-                            >
-                              {/* Header */}
-                              <View style={styles.modernStoreHeader}>
-                                <View style={styles.modernStoreProfileSection}>
-                                  <View style={styles.modernStoreAvatarPlaceholder}>
-                                    <Image 
-                                      source={{
-                                        uri: store.photos && store.photos.length > 0 
-                                          ? store.photos[0] 
-                                          : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop'
-                                      }} 
-                                      style={styles.modernStoreAvatar} 
-                                    />
-                                  </View>
-                                  <Text style={styles.modernStoreUsername}>{store.name}</Text>
-                                </View>
-                                <TouchableOpacity 
-                                  style={styles.modernStoreLikeButton}
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                  activeOpacity={0.7}
-                                >
-                                  <Ionicons name="heart" size={16} color="#FFFFFF" />
-                                  <Text style={styles.modernStoreActionText}>127</Text>
-                                </TouchableOpacity>
-                              </View>
-                              
-                              {/* Main Card */}
-                              <TouchableOpacity 
-                                style={styles.modernStoreMainCard}
-                                onPress={() => {
-                                  const detailItem = convertStoreToDetailItem(store);
-                                  setSelectedDetailItem(detailItem);
-                                  setShowDetailModal(true);
-                                }}
-                                activeOpacity={0.95}
-                              >
-                                {/* Store Info */}
-                                <View style={styles.modernStoreInfoSection}>
-                                  {/* Store description or other info can go here */}
-                                </View>
-                                
-                                {/* Separator Line */}
-                                <View style={styles.modernStoreSeparator} />
-                                
-                                {/* Store Type Section */}
-                                <View style={styles.modernStoreTypeSection}>
-                                  <View style={styles.modernStoreTypeLeft}>
-                                    {/* Store type info */}
-                                  </View>
-                                  
-                                  {/* Call Button */}
-                                  <TouchableOpacity 
-                                    style={styles.modernStoreCallButton}
-                                    onPress={(e) => {
-                                      e.stopPropagation();
-                                      // Show phone number from store info
-                                      const phoneNumber = store.phone || '555-123-456';
-                                      console.log('Store phone:', phoneNumber);
-                                    }}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Ionicons name="call-outline" size={14} color="#FFFFFF" />
-                                  </TouchableOpacity>
-                                </View>
-                                
-                                {/* Actions Footer */}
-                                <View style={styles.modernStoreActionsFooter}>
-                                  <View style={styles.modernStoreActionsLeft}>
-                                    <TouchableOpacity 
-                                      style={styles.modernStoreActionButton}
-                                      onPress={(e) => {
-                                        e.stopPropagation();
-                                        // Navigate to store details/comments
-                                        console.log('Store comments:', store.name);
-                                      }}
-                                      activeOpacity={0.7}
-                                    >
-                                      <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
-                                    </TouchableOpacity>
-                                    
-                                    <View style={styles.modernStoreLocationButton}>
-                                      <Ionicons name="location-outline" size={16} color="#FFFFFF" />
-                                      <Text style={styles.modernStoreLocationButtonText}>
-                                        {store.location || 'მდებარეობა'}
-                                      </Text>
-                                    </View>
-                                  </View>
-                                  
-                                  <TouchableOpacity 
-                                    style={styles.modernStoreContactButton}
-                                    onPress={(e) => {
-                                      e.stopPropagation();
-                                      // Contact store functionality
-                                      const detailItem = convertStoreToDetailItem(store);
-                                      setSelectedDetailItem(detailItem);
-                                      setShowDetailModal(true);
-                                    }}
-                                    activeOpacity={0.8}
-                                  >
-                                    <Ionicons name="information-outline" size={14} color="#FFFFFF" />
-                                    <Text style={styles.modernStoreContactButtonText}>ინფო</Text>
-                                  </TouchableOpacity>
-                                </View>
-                              </TouchableOpacity>
-                            </LinearGradient>
-                          </ImageBackground>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyText}>მაღაზიები არ მოიძებნა</Text>
-                    </View>
-                  )}
-                </View>
-              )}
             </>
           )}
 
@@ -1158,11 +921,6 @@ import {
                       priceMin: '',
                       priceMax: '',
                       location: '',
-                    });
-                    setStoresFilters({
-                      location: '',
-                      type: '',
-                      rating: '',
                     });
                   }}
                 >
@@ -1329,40 +1087,6 @@ import {
                   </>
                 )}
 
-                {/* Stores Filters */}
-                {activeTab === 'მაღაზიები' && (
-                  <>
-                    <View style={styles.filterSection}>
-                      <Text style={styles.filterSectionTitle}>ტიპი</Text>
-                      <TouchableOpacity style={styles.dropdownButton}>
-                        <Text style={styles.dropdownText}>
-                          {storesFilters.type || 'მაღაზიის ტიპი'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.filterSection}>
-                      <Text style={styles.filterSectionTitle}>რეიტინგი</Text>
-                      <TouchableOpacity style={styles.dropdownButton}>
-                        <Text style={styles.dropdownText}>
-                          {storesFilters.rating || 'მინიმალური რეიტინგი'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.filterSection}>
-                      <Text style={styles.filterSectionTitle}>მდებარეობა</Text>
-                      <TouchableOpacity style={styles.dropdownButton}>
-                        <Text style={styles.dropdownText}>
-                          {storesFilters.location || 'აირჩიეთ ქალაქი'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
 
                 <View style={{ height: 100 }} />
               </ScrollView>
@@ -1376,7 +1100,7 @@ import {
                   <Text style={styles.applyFiltersBtnText}>
                     {activeTab === 'ნაწილები' 
                       ? `ნაწილების ნახვა (${filteredParts.length})` 
-                      : `მაღაზიების ნახვა (${filteredStores.length})`}
+                      : `დაშლილების ნახვა (${dismantlers.length})`}
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -68,6 +68,16 @@ interface Reminder {
   priority?: 'low' | 'medium' | 'high';
 }
 
+interface CarDocument {
+  id: string;
+  carId: string;
+  type: 'techpassport' | 'insurance' | 'registration' | 'inspection' | 'other';
+  title: string;
+  imageUri: string;
+  expiryDate?: Date;
+  createdAt: Date;
+}
+
 interface Achievement {
   id: string;
   title: string;
@@ -255,6 +265,7 @@ export default function GarageScreen() {
     }
   ]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [documents, setDocuments] = useState<CarDocument[]>([]);
   
   const [addCarModalVisible, setAddCarModalVisible] = useState(false);
   const [editCarModalVisible, setEditCarModalVisible] = useState(false);
@@ -263,7 +274,10 @@ export default function GarageScreen() {
   const [reminderModalVisible, setReminderModalVisible] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [achievementsModalVisible, setAchievementsModalVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'stats' | 'achievements'>('overview');
+  const [documentsModalVisible, setDocumentsModalVisible] = useState(false);
+  const [addDocumentModalVisible, setAddDocumentModalVisible] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<CarDocument | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
   const [editMode, setEditMode] = useState(false);
   const [editingCarId, setEditingCarId] = useState<string | null>(null);
   const [editingCarData, setEditingCarData] = useState<Partial<UICar>>({});
@@ -639,9 +653,7 @@ export default function GarageScreen() {
         case 'achievement':
           message = `ახალი მიღწევა გავაკეთე CarAppX-ში! 🏆`;
           break;
-        case 'stats':
-          message = `ჩემი გარაჟის სტატისტიკა:\n${stats.servicesCount} სერვისი\n${stats.totalPoints} ქულა\n${stats.totalCost}₾ დახარჯული`;
-          break;
+       
       }
       
       await Share.share({
@@ -719,9 +731,9 @@ const styles = StyleSheet.create({
       gap: 8,
     },
     tab: {
-      width: (width - 52) / 4 + 20,
-      paddingVertical: 14,
-      paddingHorizontal: 20,
+      minWidth: 120,
+      paddingVertical: 16,
+      paddingHorizontal: 24,
       borderRadius: 16,
       backgroundColor: 'rgba(55, 65, 81, 0.3)',
       alignItems: 'center',
@@ -732,7 +744,7 @@ const styles = StyleSheet.create({
       borderColor: 'rgba(99, 102, 241, 0.3)',
     },
     tabText: {
-      fontSize: 11,
+      fontSize: 15,
       fontWeight: '700',
       color: '#9CA3AF',
     },
@@ -827,7 +839,8 @@ const styles = StyleSheet.create({
       marginBottom: 24,
     },
     carSelectorScroll: {
-    paddingHorizontal: 20,
+      paddingHorizontal: (width - (width * 0.8)) / 2,
+      alignItems: 'center',
     },
     carCard: {
       width: width * 0.8,
@@ -1328,7 +1341,7 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
       fontSize: 18,
-      fontWeight: '700',
+      fontWeight: '500',
       color: '#FFFFFF',
       marginBottom: 16,
       letterSpacing: -0.3,
@@ -1577,11 +1590,11 @@ const styles = StyleSheet.create({
     // Modal
     modal: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.9)',
+      backgroundColor: 'rgba(0,0,0,0.5)',
       justifyContent: 'flex-end',
     },
     modalContent: {
-      backgroundColor: '#1A1A1A',
+      backgroundColor: '#FFFFFF',
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingTop: 8,
@@ -1590,7 +1603,7 @@ const styles = StyleSheet.create({
     modalHandle: {
       width: 40,
       height: 4,
-      backgroundColor: '#4B5563',
+      backgroundColor: '#D1D5DB',
       borderRadius: 2,
       alignSelf: 'center',
       marginBottom: 20,
@@ -1605,11 +1618,12 @@ const styles = StyleSheet.create({
     modalTitle: {
       fontSize: 24,
       fontWeight: '700',
-      color: '#FFFFFF',
+      color: '#111827',
     },
     modalBody: {
       paddingHorizontal: 20,
       paddingBottom: 40,
+      backgroundColor: '#FFFFFF',
     },
     inputGroup: {
       marginBottom: 20,
@@ -1783,6 +1797,197 @@ const styles = StyleSheet.create({
       fontWeight: '600',
       color: '#FFFFFF',
     },
+    // Documents Section
+    documentsSection: {
+      paddingHorizontal: 20,
+      marginBottom: 24,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    addDocumentButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+      borderWidth: 1.5,
+      borderColor: 'rgba(99, 102, 241, 0.4)',
+    },
+    addDocumentButtonText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#6366F1',
+    },
+    documentsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    documentCard: {
+      width: (width - 52) / 2,
+      backgroundColor: 'rgba(55, 65, 81, 0.3)',
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(156, 163, 175, 0.2)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    documentIconContainer: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    documentTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#FFFFFF',
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    documentExpiry: {
+      fontSize: 11,
+      textAlign: 'center',
+    },
+    expiryValid: {
+      color: '#10B981',
+    },
+    expiryExpired: {
+      color: '#EF4444',
+    },
+    emptyDocumentsState: {
+      paddingVertical: 32,
+    },
+    emptyDocumentsCard: {
+      backgroundColor: 'rgba(55, 65, 81, 0.2)',
+      borderRadius: 16,
+      padding: 32,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(156, 163, 175, 0.2)',
+      borderStyle: 'dashed',
+    },
+    emptyDocumentsText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#9CA3AF',
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    emptyDocumentsSubtext: {
+      fontSize: 13,
+      color: '#6B7280',
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    emptyDocumentsButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      backgroundColor: '#6366F1',
+      borderRadius: 12,
+    },
+    emptyDocumentsButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    // Document View Modal
+    documentViewModal: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    documentViewContent: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: '#FFFFFF',
+    },
+    documentViewHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      paddingTop: Platform.OS === 'ios' ? 60 : 40,
+      backgroundColor: '#FFFFFF',
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB',
+    },
+    documentViewTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: '#111827',
+      flex: 1,
+    },
+    documentViewImage: {
+      width: '100%',
+      flex: 1,
+      backgroundColor: '#F9FAFB',
+    },
+    documentViewInfo: {
+      padding: 20,
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#E5E7EB',
+    },
+    documentViewRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F3F4F6',
+    },
+    documentViewLabel: {
+      fontSize: 14,
+      color: '#6B7280',
+      fontWeight: '500',
+    },
+    documentViewValue: {
+      fontSize: 14,
+      color: '#111827',
+      fontWeight: '600',
+    },
+    documentViewActions: {
+      padding: 20,
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#E5E7EB',
+    },
+    documentActionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      borderRadius: 12,
+    },
+    deleteDocumentButton: {
+      backgroundColor: '#EF4444',
+    },
+    documentActionButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
   });
 
   const getDaysUntil = (date: Date) => {
@@ -1850,22 +2055,8 @@ const styles = StyleSheet.create({
                 ისტორია
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
-              onPress={() => setActiveTab('stats')}
-            >
-              <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.tabText, activeTab === 'stats' && styles.activeTabText]}>
-                სტატისტიკა
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.tab, activeTab === 'achievements' && styles.activeTab]}
-              onPress={() => setActiveTab('achievements')}
-            >
-              <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.tabText, activeTab === 'achievements' && styles.activeTabText]}>
-                მიღწევები
-              </Text>
-            </TouchableOpacity>
+           
+            
           </ScrollView>
         </Animated.View>
 
@@ -1877,10 +2068,7 @@ const styles = StyleSheet.create({
             </View>
             <Text style={styles.emptyTitle}>ჯერ მანქანა არ გაქვს დამატებული</Text>
             <Text style={styles.emptySubtitle}>დაამატე პირველი მანქანა და მართე ყველაფერი ერთი ეკრანიდან</Text>
-            <TouchableOpacity style={styles.emptyButton} onPress={() => setAddCarModalVisible(true)}>
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-              <Text style={styles.emptyButtonText}>მანქანის დამატება</Text>
-            </TouchableOpacity>
+           
           </View>
         )}
 
@@ -2063,6 +2251,90 @@ const styles = StyleSheet.create({
                 </View>
               )}
             </View>
+
+            {/* Documents Section */}
+            <View style={styles.documentsSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>დოკუმენტები</Text>
+                <TouchableOpacity 
+                  style={styles.addDocumentButton}
+                  onPress={() => setAddDocumentModalVisible(true)}
+                >
+                  <Ionicons name="add-circle" size={20} color="#6366F1" />
+                  <Text style={styles.addDocumentButtonText}>დამატება</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {documents.filter(d => d.carId === selectedCar.id).length > 0 ? (
+                <View style={styles.documentsGrid}>
+                  {documents
+                    .filter(d => d.carId === selectedCar.id)
+                    .map((doc) => (
+                      <TouchableOpacity
+                        key={doc.id}
+                        style={styles.documentCard}
+                        onPress={() => {
+                          setSelectedDocument(doc);
+                          setDocumentsModalVisible(true);
+                        }}
+                      >
+                        <View style={styles.documentIconContainer}>
+                          <Ionicons 
+                            name={
+                              doc.type === 'techpassport' ? 'document-text-outline' :
+                              doc.type === 'insurance' ? 'shield-checkmark-outline' :
+                              doc.type === 'registration' ? 'car-outline' :
+                              doc.type === 'inspection' ? 'checkmark-circle-outline' :
+                              'folder-outline'
+                            } 
+                            size={24} 
+                            color={
+                              doc.type === 'techpassport' ? '#6366F1' :
+                              doc.type === 'insurance' ? '#10B981' :
+                              doc.type === 'registration' ? '#F59E0B' :
+                              doc.type === 'inspection' ? '#EC4899' :
+                              '#6B7280'
+                            } 
+                          />
+                        </View>
+                        <Text style={styles.documentTitle} numberOfLines={1}>
+                          {doc.title}
+                        </Text>
+                        {doc.expiryDate && (
+                          <Text style={styles.documentExpiry}>
+                            {new Date(doc.expiryDate) > new Date() ? (
+                              <Text style={styles.expiryValid}>
+                                მოქმედია {new Date(doc.expiryDate).toLocaleDateString('ka-GE')}
+                              </Text>
+                            ) : (
+                              <Text style={styles.expiryExpired}>
+                                ვადა გაუვიდა {new Date(doc.expiryDate).toLocaleDateString('ka-GE')}
+                              </Text>
+                            )}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              ) : (
+                <View style={styles.emptyDocumentsState}>
+                  <View style={styles.emptyDocumentsCard}>
+                    <Ionicons name="document-outline" size={40} color="#9CA3AF" />
+                    <Text style={styles.emptyDocumentsText}>დოკუმენტები არ არის</Text>
+                    <Text style={styles.emptyDocumentsSubtext}>
+                      დაამატე ტექპასპორტი, დაზღვევა და სხვა დოკუმენტები
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.emptyDocumentsButton}
+                      onPress={() => setAddDocumentModalVisible(true)}
+                    >
+                      <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+                      <Text style={styles.emptyDocumentsButtonText}>დოკუმენტის დამატება</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
           </>
         )}
 
@@ -2133,138 +2405,8 @@ const styles = StyleSheet.create({
           </View>
         )}
 
-        {activeTab === 'stats' && selectedCar && (
-          <View style={styles.statsContainer}>
-            <Text style={styles.sectionTitle}>სტატისტიკა</Text>
-            <View style={styles.statsGrid}>
-              <Animated.View 
-                style={[
-                  styles.statCard,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ scale: cardScaleAnim }],
-                  },
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
-                  <Ionicons name="cash-outline" size={20} color="#22C55E" />
-                </View>
-                <Text style={styles.statValue}>{stats.totalCost}₾</Text>
-                <Text style={styles.statLabel}>სულ ხარჯი</Text>
-                <Text style={styles.statChange}>↑ 12% ბოლო თვეში</Text>
-              </Animated.View>
-              
-              <Animated.View 
-                style={[
-                  styles.statCard,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ scale: cardScaleAnim }],
-                  },
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
-                  <Ionicons name="trending-up" size={20} color="#F59E0B" />
-                </View>
-                <Text style={styles.statValue}>{stats.avgMonthly}₾</Text>
-                <Text style={styles.statLabel}>საშუალო თვიური</Text>
-              </Animated.View>
-              
-              <Animated.View 
-                style={[
-                  styles.statCard,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ scale: cardScaleAnim }],
-                  },
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
-                  <Ionicons name="construct-outline" size={20} color="#6366F1" />
-                </View>
-                <Text style={styles.statValue}>{stats.servicesCount}</Text>
-                <Text style={styles.statLabel}>სერვისები</Text>
-              </Animated.View>
-              
-              <Animated.View 
-                style={[
-                  styles.statCard,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ scale: cardScaleAnim }],
-                  },
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: 'rgba(236, 72, 153, 0.2)' }]}>
-                  <Ionicons name="star" size={20} color="#EC4899" />
-                </View>
-                <Text style={styles.statValue}>{stats.totalPoints}</Text>
-                <Text style={styles.statLabel}>დაგროვებული ქულები</Text>
-              </Animated.View>
-              
-              <Animated.View 
-                style={[
-                  styles.statCard,
-                  styles.statCardLarge,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ scale: cardScaleAnim }],
-                  },
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                  <MaterialCommunityIcons name="fuel" size={20} color="#10B981" />
-                </View>
-                <Text style={styles.statValue}>{stats.fuelEfficiency} ლ/100კმ</Text>
-                <Text style={styles.statLabel}>საწვავის მოხმარება</Text>
-                <Text style={styles.statChange}>↓ 5% გაუმჯობესება</Text>
-              </Animated.View>
-            </View>
-          </View>
-        )}
 
-        {activeTab === 'achievements' && (
-          <View style={styles.achievementSection}>
-            <Text style={styles.sectionTitle}>მიღწევები</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.achievementsScroll}
-            >
-              {CAR_ACHIEVEMENTS.map((achievement) => (
-                <Animated.View
-                  key={achievement.id}
-                  style={[
-                    styles.achievementCard,
-                    achievement.isUnlocked && styles.unlockedAchievement,
-                    {
-                      opacity: fadeAnim,
-                      transform: [{ scale: cardScaleAnim }],
-                    },
-                  ]}
-                >
-                  <View style={[
-                    styles.achievementIcon,
-                    { backgroundColor: achievement.isUnlocked ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)' }
-                  ]}>
-                    <FontAwesome5 
-                      name={achievement.icon} 
-                      size={20} 
-                      color={achievement.isUnlocked ? '#10B981' : '#6B7280'} 
-                    />
-                  </View>
-                  <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                  {achievement.progress && (
-                    <Text style={styles.achievementProgress}>
-                      {achievement.progress}/{achievement.maxProgress}
-                    </Text>
-                  )}
-                </Animated.View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
+       
         {/* Bottom Spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -2900,6 +3042,449 @@ const styles = StyleSheet.create({
           </View>
         </View>
       </Modal>
+
+      {/* Add Document Modal */}
+      <Modal
+        visible={addDocumentModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAddDocumentModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          style={styles.modal}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>დოკუმენტის დამატება</Text>
+              <TouchableOpacity onPress={() => setAddDocumentModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <AddDocumentForm
+                carId={selectedCar?.id || ''}
+                onSave={(doc) => {
+                  setDocuments([...documents, doc]);
+                  setAddDocumentModalVisible(false);
+                  success('✅ წარმატება!', 'დოკუმენტი წარმატებით დაემატა!');
+                }}
+                onCancel={() => setAddDocumentModalVisible(false)}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* View Document Modal */}
+      <Modal
+        visible={documentsModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setDocumentsModalVisible(false)}
+      >
+        <View style={styles.documentViewModal}>
+          <View style={styles.documentViewContent}>
+            <View style={styles.documentViewHeader}>
+              <Text style={styles.documentViewTitle}>
+                {selectedDocument?.title}
+              </Text>
+              <TouchableOpacity onPress={() => setDocumentsModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            {selectedDocument && (
+              <>
+                <Image 
+                  source={{ uri: selectedDocument.imageUri }} 
+                  style={styles.documentViewImage}
+                  resizeMode="contain"
+                />
+                <View style={styles.documentViewInfo}>
+                  <View style={styles.documentViewRow}>
+                    <Text style={styles.documentViewLabel}>ტიპი:</Text>
+                    <Text style={styles.documentViewValue}>
+                      {selectedDocument.type === 'techpassport' ? 'ტექპასპორტი' :
+                       selectedDocument.type === 'insurance' ? 'დაზღვევა' :
+                       selectedDocument.type === 'registration' ? 'რეგისტრაცია' :
+                       selectedDocument.type === 'inspection' ? 'ტექდათვალიერება' :
+                       'სხვა'}
+                    </Text>
+                  </View>
+                  {selectedDocument.expiryDate && (
+                    <View style={styles.documentViewRow}>
+                      <Text style={styles.documentViewLabel}>ვადის გასვლის თარიღი:</Text>
+                      <Text style={[
+                        styles.documentViewValue,
+                        new Date(selectedDocument.expiryDate) < new Date() && { color: '#EF4444' }
+                      ]}>
+                        {new Date(selectedDocument.expiryDate).toLocaleDateString('ka-GE')}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.documentViewRow}>
+                    <Text style={styles.documentViewLabel}>დამატების თარიღი:</Text>
+                    <Text style={styles.documentViewValue}>
+                      {new Date(selectedDocument.createdAt).toLocaleDateString('ka-GE')}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.documentViewActions}>
+                  <TouchableOpacity 
+                    style={[styles.documentActionButton, styles.deleteDocumentButton]}
+                    onPress={() => {
+                      setDocuments(documents.filter(d => d.id !== selectedDocument.id));
+                      setDocumentsModalVisible(false);
+                      success('✅ წარშლილია', 'დოკუმენტი წარმატებით წაიშალა');
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.documentActionButtonText}>წაშლა</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+// Add Document Form Component
+function AddDocumentForm({ carId, onSave, onCancel }: { 
+  carId: string; 
+  onSave: (doc: CarDocument) => void; 
+  onCancel: () => void;
+}) {
+  const [docType, setDocType] = useState<'techpassport' | 'insurance' | 'registration' | 'inspection' | 'other'>('techpassport');
+  const [docTitle, setDocTitle] = useState('');
+  const [docImageUri, setDocImageUri] = useState<string | null>(null);
+  const [expiryDate, setExpiryDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const { success, error } = useToast();
+
+  const documentTypes = [
+    { value: 'techpassport' as const, label: 'ტექპასპორტი', icon: 'document-text-outline' },
+    { value: 'insurance' as const, label: 'დაზღვევა', icon: 'shield-checkmark-outline' },
+    { value: 'registration' as const, label: 'რეგისტრაცია', icon: 'car-outline' },
+    { value: 'inspection' as const, label: 'ტექდათვალიერება', icon: 'checkmark-circle-outline' },
+    { value: 'other' as const, label: 'სხვა', icon: 'folder-outline' },
+  ];
+
+  const pickDocumentImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        const localUri = result.assets[0].uri;
+        setDocImageUri(localUri);
+        
+        // Upload to cloudinary
+        setIsUploading(true);
+        const uploadResult = await uploadCarImage(localUri);
+        
+        if (uploadResult.success && uploadResult.url) {
+          setDocImageUri(uploadResult.url);
+          success('✅ ფოტო ავტვირთულია', 'დოკუმენტი წარმატებით ავტვირთულია');
+        } else {
+          error('შეცდომა', uploadResult.error || 'ფოტოს ავტვირთვა ვერ მოხერხდა');
+        }
+      }
+    } catch (err) {
+      error('შეცდომა', 'ფოტოს არჩევა ვერ მოხერხდა');
+      console.error('Image picker error:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (!docImageUri) {
+      error('შეცდომა', 'გთხოვთ აირჩიოთ დოკუმენტის ფოტო');
+      return;
+    }
+
+    const title = docTitle || documentTypes.find(t => t.value === docType)?.label || 'დოკუმენტი';
+    
+    const newDoc: CarDocument = {
+      id: Date.now().toString(),
+      carId,
+      type: docType,
+      title,
+      imageUri: docImageUri,
+      expiryDate: expiryDate || undefined,
+      createdAt: new Date(),
+    };
+
+    onSave(newDoc);
+  };
+
+  return (
+    <View style={addDocumentStyles.container}>
+      {/* Document Type Selection */}
+      <View style={addDocumentStyles.section}>
+        <Text style={addDocumentStyles.label}>დოკუმენტის ტიპი</Text>
+        <View style={addDocumentStyles.typeGrid}>
+          {documentTypes.map((type) => (
+            <TouchableOpacity
+              key={type.value}
+              style={[
+                addDocumentStyles.typeButton,
+                docType === type.value && addDocumentStyles.typeButtonActive
+              ]}
+              onPress={() => {
+                setDocType(type.value);
+                setDocTitle(type.label);
+              }}
+            >
+              <Ionicons 
+                name={type.icon as any} 
+                size={24} 
+                color={docType === type.value ? '#6366F1' : '#6B7280'} 
+              />
+              <Text style={[
+                addDocumentStyles.typeButtonText,
+                docType === type.value && addDocumentStyles.typeButtonTextActive
+              ]}>
+                {type.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Document Title */}
+      <View style={addDocumentStyles.section}>
+        <Text style={addDocumentStyles.label}>დასახელება (არასავალდებულო)</Text>
+        <TextInput
+          style={addDocumentStyles.input}
+          placeholder="მაგ: ტექპასპორტი #123456"
+          value={docTitle}
+          onChangeText={setDocTitle}
+          placeholderTextColor="#9CA3AF"
+        />
+      </View>
+
+      {/* Expiry Date */}
+      <View style={addDocumentStyles.section}>
+        <Text style={addDocumentStyles.label}>ვადის გასვლის თარიღი (არასავალდებულო)</Text>
+        <TouchableOpacity
+          style={addDocumentStyles.dateButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Ionicons name="calendar-outline" size={20} color="#6366F1" />
+          <Text style={addDocumentStyles.dateButtonText}>
+            {expiryDate ? expiryDate.toLocaleDateString('ka-GE') : 'აირჩიეთ თარიღი'}
+          </Text>
+        </TouchableOpacity>
+        {showDatePicker && (
+          <DateTimePicker
+            value={expiryDate || new Date()}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setExpiryDate(selectedDate);
+              }
+            }}
+          />
+        )}
+      </View>
+
+      {/* Image Picker */}
+      <View style={addDocumentStyles.section}>
+        <Text style={addDocumentStyles.label}>დოკუმენტის ფოტო *</Text>
+        <TouchableOpacity
+          style={addDocumentStyles.imagePickerButton}
+          onPress={pickDocumentImage}
+          disabled={isUploading}
+        >
+          {docImageUri ? (
+            <View style={addDocumentStyles.imagePreview}>
+              <Image source={{ uri: docImageUri }} style={addDocumentStyles.previewImage} />
+              {isUploading && (
+                <View style={addDocumentStyles.uploadOverlay}>
+                  <ActivityIndicator size="large" color="#6366F1" />
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={addDocumentStyles.imagePickerContent}>
+              {isUploading ? (
+                <ActivityIndicator size="large" color="#6366F1" />
+              ) : (
+                <>
+                  <Ionicons name="camera-outline" size={48} color="#6366F1" />
+                  <Text style={addDocumentStyles.imagePickerText}>დააჭირეთ ფოტოს ასარჩევად</Text>
+                </>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Actions */}
+      <View style={addDocumentStyles.actions}>
+        <TouchableOpacity
+          style={[addDocumentStyles.button, addDocumentStyles.cancelButton]}
+          onPress={onCancel}
+        >
+          <Text style={addDocumentStyles.cancelButtonText}>გაუქმება</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[addDocumentStyles.button, addDocumentStyles.saveButton]}
+          onPress={handleSave}
+          disabled={!docImageUri || isUploading}
+        >
+          <Text style={addDocumentStyles.saveButtonText}>შენახვა</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const addDocumentStyles = StyleSheet.create({
+  container: {
+    padding: 20,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  typeButton: {
+    flex: 1,
+    minWidth: '45%',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    gap: 8,
+  },
+  typeButtonActive: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#6366F1',
+  },
+  typeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  typeButtonTextActive: {
+    color: '#6366F1',
+  },
+  input: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  imagePickerButton: {
+    width: '100%',
+    minHeight: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  imagePickerContent: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  imagePickerText: {
+    fontSize: 14,
+    color: '#6366F1',
+    fontWeight: '600',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 300,
+    position: 'relative',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  saveButton: {
+    backgroundColor: '#6366F1',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});

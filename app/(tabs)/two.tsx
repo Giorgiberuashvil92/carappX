@@ -9,6 +9,7 @@ import {
   Platform,
   Image,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -48,13 +49,13 @@ const PROFILE_MENU_ITEMS = [
     color: '#F59E0B',
   },
   
-  {
-    id: '9',
-    title: 'მხარდაჭერა',
-    subtitle: '24/7 მხარდაჭერა ჩატში',
-    icon: 'headset-outline',
-    color: '#EC4899',
-  },
+  // {
+  //   id: '9',
+  //   title: 'მხარდაჭერა',
+  //   subtitle: '24/7 მხარდაჭერა ჩატში',
+  //   icon: 'headset-outline',
+  //   color: '#EC4899',
+  // },
   {
     id: '2',
     title: 'ჩემი მანქანები',
@@ -62,13 +63,13 @@ const PROFILE_MENU_ITEMS = [
     icon: 'car-outline',
     color: '#10B981',
   },
-  {
-    id: '8',
-    title: 'დაგვიკავშირდით',
-    subtitle: 'ელ-ფოსტა, ტელეფონი, ჩატი',
-    icon: 'mail-outline',
-    color: '#06B6D4',
-  },
+  // {
+  //   id: '8',
+  //   title: 'დაგვიკავშირდით',
+  //   subtitle: 'ელ-ფოსტა, ტელეფონი, ჩატი',
+  //   icon: 'mail-outline',
+  //   color: '#06B6D4',
+  // },
   
 ];
 
@@ -110,286 +111,215 @@ export default function ProfileScreen() {
 
   const handleCameraUpload = () => {
     console.log('Camera upload pressed');
-    // Here you would implement camera functionality
-    // For now, just show a success message
     Alert.alert('წარმატება', 'კამერა გაიხსნა ფოტოს ასაღებად');
   };
 
   const handleGalleryUpload = () => {
     console.log('Gallery upload pressed');
-    // Here you would implement gallery picker functionality
-    // For now, just show a success message
     Alert.alert('წარმატება', 'გალერეა გაიხსნა ფოტოს ასარჩევად');
   };
 
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colorScheme === 'dark' ? '#0A0A0A' : '#F8FAFC',
+      backgroundColor: '#FFFFFF',
     },
-    header: {
+    // Modern Header - Airbnb style
+    modernHeader: {
+      paddingTop: Platform.OS === 'ios' ? 60 : 40,
+      paddingBottom: 24,
       paddingHorizontal: 20,
-      paddingTop: Platform.OS === 'ios' ? 60 : 20,
-      paddingBottom: 20,
-      backgroundColor: colorScheme === 'dark' ? '#0A0A0A' : '#F8FAFC',
+      backgroundColor: '#FFFFFF',
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB',
     },
     headerTop: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 16,
+      marginBottom: 24,
     },
     headerTitle: {
-      fontSize: 28,
-      fontFamily: 'Poppins_700Bold',
-      color: colors.text,
+      fontSize: 18,
+      fontWeight: '500',
+      color: '#111827',
       letterSpacing: -0.5,
     },
     backButton: {
       width: 44,
       height: 44,
       borderRadius: 14,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      backgroundColor: '#F9FAFB',
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      borderColor: '#E5E7EB',
     },
     settingsButton: {
       width: 44,
       height: 44,
       borderRadius: 14,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      backgroundColor: '#F9FAFB',
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
     },
-    content: {
-      flex: 1,
-      paddingHorizontal: 20,
-      paddingTop: 0,
-      paddingBottom: 20,
-    },
-    profileCard: {
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.9)',
-      borderRadius: 20,
-      padding: 20,
-      marginBottom: 20,
-      width: '100%',
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.12,
-      shadowRadius: 20,
-      elevation: 8,
-      borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)',
-    },
-    profileHeader: {
-      flexDirection: 'row',
+    headerProfileSection: {
       alignItems: 'center',
+    },
+    largeAvatarContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
       marginBottom: 16,
-    },
-    avatarContainer: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: colors.primary,
+      backgroundColor: '#F3F4F6',
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 16,
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      elevation: 6,
       position: 'relative',
+      borderWidth: 3,
+      borderColor: '#FFFFFF',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
     },
-    avatarText: {
+    largeAvatarImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 37,
+    },
+    largeAvatarText: {
       fontSize: 24,
-      fontFamily: 'Poppins_700Bold',
-      color: '#FFFFFF',
+      fontWeight: '700',
+      color: '#6366F1',
     },
-    profileInfo: {
-      flex: 1,
+    cameraIconLarge: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      backgroundColor: '#111827',
+      borderRadius: 12,
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: '#FFFFFF',
     },
-    profileName: {
+    headerProfileInfo: {
+      alignItems: 'center',
+    },
+    headerProfileName: {
       fontSize: 20,
-      fontFamily: 'Poppins_700Bold',
-      color: colors.text,
-      marginBottom: 2,
-      lineHeight: 26,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 6,
+      textAlign: 'center',
     },
-    profileEmail: {
+    headerProfileEmail: {
       fontSize: 14,
-      fontFamily: 'Poppins_400Regular',
-      color: colors.secondary,
-      marginBottom: 4,
+      fontWeight: '400',
+      color: '#6B7280',
+      marginBottom: 12,
+      textAlign: 'center',
     },
-    profilePhone: {
+    
+    memberSinceText: {
       fontSize: 13,
-      fontFamily: 'Poppins_500Medium',
-      color: colors.secondary,
-      opacity: 0.8,
+      fontWeight: '500',
+      color: '#6B7280',
     },
     statsContainer: {
       flexDirection: 'row',
       gap: 12,
+      marginTop: 8,
     },
-    statItem: {
-      flex: 1,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.02)',
-      padding: 16,
-      borderRadius: 16,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-    },
+   
+   
     statValue: {
       fontSize: 20,
-      fontFamily: 'Poppins_700Bold',
-      color: colors.text,
-      marginBottom: 2,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 4,
     },
     statLabel: {
       fontSize: 12,
-      fontFamily: 'Poppins_500Medium',
-      color: colors.secondary,
+      fontWeight: '500',
+      color: '#6B7280',
       textAlign: 'center',
-      opacity: 0.8,
     },
-    ratingContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+    content: {
+      flex: 1,
     },
-    ratingText: {
-      fontSize: 14,
-      fontFamily: 'Poppins_600SemiBold',
-      color: colors.text,
-      marginRight: 8,
-    },
-    starsContainer: {
-      flexDirection: 'row',
-      gap: 2,
+    contentContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 24,
     },
     menuSection: {
       marginBottom: 20,
     },
+    menuTitleContainer: {
+      marginBottom: 16,
+    },
     menuTitle: {
       fontSize: 18,
-      fontFamily: 'Poppins_600SemiBold',
-      color: colors.text,
-      marginBottom: 12,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 8,
+    },
+    menuTitleUnderline: {
+      width: 40,
+      height: 2,
+      backgroundColor: '#111827',
+      borderRadius: 1,
     },
     menuItem: {
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.9)',
+      backgroundColor: '#FFFFFF',
       borderRadius: 16,
       padding: 16,
-      marginBottom: 8,
+      marginBottom: 12,
       flexDirection: 'row',
       alignItems: 'center',
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      elevation: 4,
       borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)',
+      borderColor: '#E5E7EB',
     },
     menuItemPressed: {
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.02)',
+      backgroundColor: '#F9FAFB',
       transform: [{ scale: 0.98 }],
     },
     menuItemIcon: {
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 12,
+      backgroundColor: '#F9FAFB',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
     },
     menuItemContent: {
       flex: 1,
     },
     menuItemTitle: {
       fontSize: 15,
-      fontFamily: 'Poppins_600SemiBold',
-      color: colors.text,
-      marginBottom: 1,
+      fontWeight: '600',
+      color: '#111827',
+      marginBottom: 4,
     },
     menuItemSubtitle: {
-      fontSize: 13,
-      fontFamily: 'Poppins_400Regular',
-      color: colors.secondary,
-      opacity: 0.8,
+      fontSize: 12,
+      fontWeight: '400',
+      color: '#6B7280',
     },
     menuItemArrow: {
       marginLeft: 8,
+      opacity: 0.4,
     },
     logoutButton: {
-      backgroundColor: '#EF4444',
-      borderRadius: 16,
-      paddingVertical: 14,
-      alignItems: 'center',
-      marginTop: 8,
-      shadowColor: '#EF4444',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      elevation: 6,
-    },
-    logoutButtonText: {
-      fontSize: 15,
-      fontFamily: 'Poppins_600SemiBold',
-      color: '#FFFFFF',
-    },
-    contactContainer: {
-      marginTop: 16,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-    },
-    contactTitle: {
-      fontSize: 16,
-      fontFamily: 'Poppins_600SemiBold',
-      color: colors.text,
-      marginBottom: 12,
-    },
-    contactButtons: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      alignItems: 'center',
-    },
-    contactButton: {
-      alignItems: 'center',
-      paddingVertical: 10,
-      paddingHorizontal: 15,
-      borderRadius: 12,
-      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-      borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-      minWidth: 80,
-    },
-    contactButtonText: {
-      fontSize: 13,
-      fontFamily: 'Poppins_500Medium',
-      color: colors.primary,
-      marginTop: 5,
-    },
-    cameraIcon: {
-      position: 'absolute',
-      bottom: 0,
-      right: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      borderRadius: 10,
-      width: 24,
-      height: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1.5,
+      borderColor: '#EF4444',
     },
   });
 
@@ -406,33 +336,24 @@ export default function ProfileScreen() {
       return;
     }
     if (item.id === 'loyalty') {
-      // Navigate to loyalty page
       router.push('/loyalty');
     } else if (item.id === 'partner') {
-      // Navigate to partner page
       router.push('/partner');
     } else if (item.id === '8') {
-      // Contact us options
       handleContactOptions();
     } else if (item.id === '9') {
-      // Support chat
       handleSupportChat();
     } else {
-      // Handle other menu items
       console.log('Navigating to:', item.title);
     }
   };
 
   const handleContactOptions = () => {
-    // Show contact options modal or navigate to contact page
     console.log('Contact options opened');
-    // Here you can add modal or navigation logic
   };
 
   const handleSupportChat = () => {
-    // Open support chat
     console.log('Support chat opened');
-    // Here you can integrate with chat service
   };
 
   const handleLogout = async () => {
@@ -456,85 +377,54 @@ export default function ProfileScreen() {
     );
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <Ionicons
-          key={i}
-          name={i <= rating ? 'star' : 'star-outline'}
-          size={16}
-          color={i <= rating ? '#FBBF24' : colors.secondary}
-        />
-      );
-    }
-    return stars;
-  };
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent />
+      
+      {/* Modern White Header - Airbnb style */}
+      <View style={styles.modernHeader}>
         <View style={styles.headerTop}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>პროფილი</Text>
           <TouchableOpacity style={styles.settingsButton}>
-            <Ionicons name="settings-outline" size={24} color={colors.secondary} />
+            <Ionicons name="settings-outline" size={24} color="#111827" />
           </TouchableOpacity>
         </View>
-      </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <TouchableOpacity style={styles.avatarContainer} onPress={handlePhotoUpload}>
-              {userAvatar ? (
-                <Image source={{ uri: userAvatar }} style={{ width: '100%', height: '100%', borderRadius: 30 }} />
-              ) : (
-                <Text style={styles.avatarText}>
-                  {displayName.charAt(0)}
-                </Text>
-              )}
-              <View style={styles.cameraIcon}>
-                <Ionicons name="camera" size={16} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{displayName}</Text>
-              <Text style={styles.profilePhone}>{displayPhone}</Text>
+        {/* Profile Section */}
+        <View style={styles.headerProfileSection}>
+          <TouchableOpacity style={styles.largeAvatarContainer} onPress={handlePhotoUpload}>
+            {userAvatar ? (
+              <Image source={{ uri: userAvatar }} style={styles.largeAvatarImage} />
+            ) : (
+              <Text style={styles.largeAvatarText}>
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            )}
+            <View style={styles.cameraIconLarge}>
+              <Ionicons name="camera" size={16} color="#FFFFFF" />
             </View>
-          </View>
-
-          {/* <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{MOCK_USER_DATA.totalBookings}</Text>
-              <Text style={styles.statLabel}>ჯავშნები</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{MOCK_USER_DATA.totalSpent}</Text>
-              <Text style={styles.statLabel}>დახარჯული</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{MOCK_USER_DATA.rating}</Text>
-              <Text style={styles.statLabel}>შეფასება</Text>
-            </View>
-          </View> */}
-
-         
-
-          {/* Contact Information */}
+          </TouchableOpacity>
           
+          <View style={styles.headerProfileInfo}>
+            <Text style={styles.headerProfileName}>{displayName}</Text>
+            <Text style={styles.headerProfileEmail}>{displayEmail || displayPhone}</Text>
+          
+          </View>
         </View>
 
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          <Text style={styles.menuTitle}>პარამეტრები</Text>
+          
           {PROFILE_MENU_ITEMS.map((item) => (
             <TouchableOpacity
               key={item.id}
@@ -547,33 +437,32 @@ export default function ProfileScreen() {
               onPressOut={() => setPressedButtons(prev => ({ ...prev, [item.id]: false }))}
               activeOpacity={0.8}
             >
-              <View style={[styles.menuItemIcon, { backgroundColor: item.color + '20' }]}>
-                <Ionicons name={item.icon as any} size={24} color={item.color} />
+              <View style={[styles.menuItemIcon, { backgroundColor: '#F9FAFB' }]}>
+                <Ionicons name={item.icon as any} size={22} color={item.color} />
               </View>
               <View style={styles.menuItemContent}>
                 <Text style={styles.menuItemTitle}>{item.title}</Text>
                 <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
               </View>
               <View style={styles.menuItemArrow}>
-                <Ionicons name="chevron-forward" size={20} color={colors.secondary} />
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
               </View>
             </TouchableOpacity>
           ))}
           
-          {/* Logout Button */}
           <TouchableOpacity
             style={[styles.menuItem, styles.logoutButton]}
             onPress={handleLogout}
           >
-            <View style={[styles.menuItemIcon, { backgroundColor: '#EF4444' }]}>
-              <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+            <View style={[styles.menuItemIcon, { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' }]}>
+              <Ionicons name="log-out-outline" size={22} color="#EF4444" />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: '#EF4444' }]}>გასვლა</Text>
               <Text style={styles.menuItemSubtitle}>გამოხვიდეთ ანგარიშიდან</Text>
             </View>
             <View style={styles.menuItemArrow}>
-              <Ionicons name="chevron-forward" size={20} color="#EF4444" />
+              <Ionicons name="chevron-forward" size={18} color="#EF4444" />
             </View>
           </TouchableOpacity>
         </View>

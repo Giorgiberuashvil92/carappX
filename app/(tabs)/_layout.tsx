@@ -45,7 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="marketplace"
         options={{
-          title: 'მაღაზია',
+          title: 'კატეგორიები',
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-bag" color={color} />,
         }}
       />

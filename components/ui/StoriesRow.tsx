@@ -50,9 +50,9 @@ export default function StoriesRow({ stories, onOpen, onCreate, title = 'სთ�
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 16, paddingBottom: 8, paddingTop: 4 },
+  container: { paddingHorizontal: 4, paddingBottom: 8, paddingTop: 4 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  title: { color: '#111827', fontWeight: '700', fontSize: 16 },
+  title: { fontWeight: '500', fontSize: 16 },
   addBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   addText: { color: '#fff', fontSize: 18, marginTop: -2 },
   

@@ -78,3 +78,4 @@ export function getFontScale(): number {
 
 
 
+

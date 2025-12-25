@@ -1332,6 +1332,12 @@ export default function ServicesScreen() {
                                     </Text>
                                   </View>
                                 )}
+                                {(location.verified || location.status === 'verified') && (
+                                  <View style={styles.modernServiceVerifiedBadge}>
+                                    <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                                    <Text style={styles.modernServiceVerifiedText}>ვერიფიცირებული</Text>
+                                  </View>
+                                )}
                               </View>
                             </View>
                           </View>
@@ -1828,8 +1834,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontWeight: '600',
   },
+  modernServiceVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  modernServiceVerifiedText: {
+    fontSize: 10,
+    color: '#111827',
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
 
-  // Promo Cards Styles (Horizontal Scrollable)
   promoCardsContainer: {
     paddingRight: 20,
     gap: 16,

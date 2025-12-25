@@ -10,6 +10,7 @@ import {
   Dimensions,
   Animated,
   Alert,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,35 +24,51 @@ const { width } = Dimensions.get('window');
 const MAIN_CATEGORIES = [
   {
     id: 'parts',
-    title: 'ავტონაწილები',
-    subtitle: 'ზეთები, საბურავები, ფილტრები',
-    icon: 'cog-outline',
+    title: 'ნაწილები',
+    subtitle: 'ავტონაწილების მოძიება და შეძენა',
+    icon: 'construct-outline',
     color: '#3B82F6',
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=400&auto=format&fit=crop',
+    route: '/parts',
+  },
+  {
+    id: 'stores',
+    title: 'ავტომაღაზიები',
+    subtitle: 'მაღაზიები და სერვისები',
+    icon: 'storefront-outline',
+    color: '#EC4899',
+    route: '/stores',
   },
   {
     id: 'mechanics',
     title: 'ხელოსნები',
-    subtitle: 'ელექტრიკოსები, მექანიკოსები',
+    subtitle: 'მექანიკოსები და სპეციალისტები',
     icon: 'build-outline',
     color: '#10B981',
-    image: 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=400&auto=format&fit=crop',
+    route: '/mechanics',
   },
   {
-    id: 'services',
-    title: 'ავტოსერვისები',
-    subtitle: 'დეტეილინგი, სამრეცხაო, სერვისი',
-    icon: 'star-outline',
-    color: '#F59E0B',
-    image: 'https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?q=80&w=400&auto=format&fit=crop',
+    id: 'detailing',
+    title: 'დითეილინგი',
+    subtitle: 'ავტომობილის მოვლა',
+    icon: 'sparkles-outline',
+    color: '#8B5CF6',
+    route: '/detailing',
   },
   {
     id: 'towing',
     title: 'ევაკუატორი',
-    subtitle: '24/7 გადაყვანა, ღამის სერვისი',
-    icon: 'car-outline',
+    subtitle: '24/7 გადაყვანა და გადამოტანა',
+    icon: 'car-sport-outline',
     color: '#EF4444',
-    image: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?q=80&w=400&auto=format&fit=crop',
+    route: '/services',
+  },
+  {
+    id: 'services',
+    title: 'ავტოსერვისები',
+    subtitle: 'სერვისები და მოვლა',
+    icon: 'settings-outline',
+    color: '#F59E0B',
+    route: '/services',
   },
 ];
 
@@ -74,21 +91,22 @@ export default function MarketplaceScreen() {
   // State for featured services
   const [featuredServices, setFeaturedServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
-  // Load latest services
-  const loadLatestServices = async () => {
+  // Load special offers and discounts
+  const loadSpecialOffers = async () => {
     setLoading(true);
     try {
-      // Load latest parts, stores, and dismantlers
+      // Load parts, stores, and dismantlers - filter for items with discounts/special offers
       const [partsResponse, storesResponse, dismantlersResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/parts?sort=createdAt&order=desc&limit=3`),
-        fetch(`${API_BASE_URL}/stores?sort=createdAt&order=desc&limit=3`),
-        fetch(`${API_BASE_URL}/dismantlers?sort=createdAt&order=desc&limit=3`)  
+        fetch(`${API_BASE_URL}/parts?sort=createdAt&order=desc&limit=10`),
+        fetch(`${API_BASE_URL}/stores?sort=createdAt&order=desc&limit=10`),
+        fetch(`${API_BASE_URL}/dismantlers?sort=createdAt&order=desc&limit=10`)  
       ]);
 
       const [parts, stores, dismantlers] = await Promise.all([
@@ -97,55 +115,61 @@ export default function MarketplaceScreen() {
         dismantlersResponse.ok ? dismantlersResponse.json() : []
       ]);
 
-      // Combine all latest items
-      const latestItems = [
+      // Combine all items and filter for special offers
+      const allItems = [
         ...(parts.data || parts || []).map((item: any) => ({
           id: item._id || item.id,
           title: item.title || item.name,
           description: item.description || `${item.brand} ${item.model}`,
-          price: item.price || undefined, // Only show price if exists, no fallback text
+          price: item.price || undefined,
+          originalPrice: item.originalPrice || item.oldPrice || undefined,
+          discount: item.originalPrice && item.price 
+            ? Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)
+            : undefined,
           image: item.images?.[0] || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=600&auto=format&fit=crop',
           rating: 4.5 + Math.random() * 0.5,
           verified: true,
           type: 'part',
-          // Store full item data for navigation
-          itemData: item
+          itemData: item,
+          hasOffer: !!(item.originalPrice || item.discount || item.specialOffer)
         })),
         ...(stores.data || stores || []).map((item: any) => ({
           id: item._id || item.id,
           title: item.name || item.title,
           description: item.description || item.type,
-          price: undefined, // No price for stores
+          price: undefined,
           image: item.images?.[0] || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=400&auto=format&fit=crop',
           rating: 4.5 + Math.random() * 0.5,
           verified: true,
           type: 'store',
-          itemData: item
+          itemData: item,
+          hasOffer: !!(item.specialOffer || item.promotion)
         })),
         ...(dismantlers.data || dismantlers || []).map((item: any) => ({
           id: item._id || item.id,
           title: `${item.brand} ${item.model}`,
           description: `${item.yearFrom}-${item.yearTo} წლები`,
-          price: undefined, // No price for dismantlers
+          price: undefined,
           image: item.photos?.[0] || 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?q=80&w=400&auto=format&fit=crop',
           rating: 4.5 + Math.random() * 0.5,
           verified: true,
           type: 'dismantler',
-          itemData: item
+          itemData: item,
+          hasOffer: !!(item.specialOffer || item.promotion)
         }))
       ];
 
-      // Sort by creation date and take top 6
-      const sortedItems = latestItems
-        .sort((a, b) => Math.random() - 0.5) // Shuffle for variety
-        .slice(0, 6);
+      // Filter items with offers/discounts, or show top items if no discounts
+      const itemsWithOffers = allItems.filter(item => item.hasOffer || item.discount);
+      const finalItems = itemsWithOffers.length > 0 
+        ? itemsWithOffers.sort((a, b) => (b.discount || 0) - (a.discount || 0)).slice(0, 6)
+        : allItems.slice(0, 6); // Fallback to latest items if no offers
 
-      if (sortedItems.length > 0) {
-        setFeaturedServices(sortedItems);
+      if (finalItems.length > 0) {
+        setFeaturedServices(finalItems);
       }
     } catch (error) {
-      console.error('Error loading latest services:', error);
-      // Keep default services on error
+      console.error('Error loading special offers:', error);
     } finally {
       setLoading(false);
     }
@@ -164,61 +188,38 @@ export default function MarketplaceScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Load latest services on mount
-    loadLatestServices();
   }, []);
 
-  const COMING_SOON = new Set(['towing']);
-
-  const handleCategoryPress = (categoryId: string) => {
-    if (COMING_SOON.has(categoryId)) {
-      Alert.alert('მალე იქნება ხელმისაწვდომი', 'ეს სექცია მუშაობის პროცესშია \u2013 მალე დაემატება!');
-      return;
-    }
-    switch (categoryId) {
-      case 'mechanics':
-        router.push('/mechanics');
-        break;
-      case 'parts':
-        router.push('/parts');
-        break;
-      case 'services':
-        router.push('/services');
-        break;
-      case 'towing':
-        router.push('/ai');
-        break;
-      default:
-        break;
+  const handleCategoryPress = (category: any) => {
+    if (category.route) {
+      router.push(category.route as any);
     }
   };
 
   const renderCategoryCard = (category: any, index: number) => {
-    const isComingSoon = COMING_SOON.has(category.id);
     return (
       <TouchableOpacity
         key={category.id}
-        style={[styles.compactCard, isComingSoon && styles.cardDisabled]}
-        onPress={() => handleCategoryPress(category.id)}
-        activeOpacity={0.8}
+        style={styles.categoryCard}
+        onPress={() => handleCategoryPress(category)}
+        activeOpacity={0.7}
       >
-        {isComingSoon ? (
-          <View style={styles.comingSoonPill}>
-            <Ionicons name="time-outline" size={12} color="#6B7280" />
-            <Text style={styles.comingSoonText}>მალე</Text>
-          </View>
-        ) : null}
-        <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
-          <Ionicons name={category.icon as any} size={20} color="#FFFFFF" />
+        <View style={[styles.categoryIconContainer, { backgroundColor: `${category.color}15` }]}>
+          <Ionicons name={category.icon as any} size={24} color={category.color} />
         </View>
-        <Text style={styles.compactTitle}>{category.title}</Text>
-        <Text style={styles.compactSubtitle}>{category.subtitle}</Text>
+        <View style={styles.categoryContent}>
+          <Text style={styles.categoryTitle}>{category.title}</Text>
+          <Text style={styles.categorySubtitle}>{category.subtitle}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
       </TouchableOpacity>
     );
   };
 
   const renderFeaturedCard = (item: any, index: number) => {
+    const hasDiscount = item.discount && item.discount > 0;
+    const hasOffer = item.hasOffer || hasDiscount;
+    
     const handlePress = () => {
       const itemData = item.itemData || {};
       
@@ -296,7 +297,17 @@ export default function MarketplaceScreen() {
         style={styles.featureOverlay}
       />
       <View style={styles.featureBadgesRow}>
-        <View style={styles.badgePillPrimary}><Text style={styles.badgePillPrimaryText}>ახალი</Text></View>
+        {hasDiscount && (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountBadgeText}>-{item.discount}%</Text>
+          </View>
+        )}
+        {hasOffer && !hasDiscount && (
+          <View style={styles.offerBadge}>
+            <Ionicons name="pricetag" size={12} color="#FFFFFF" />
+            <Text style={styles.offerBadgeText}>შეთავაზება</Text>
+          </View>
+        )}
         {item.verified && (
           <View style={styles.badgePillLight}><Ionicons name="checkmark-circle" size={14} color="#10B981" /><Text style={styles.badgePillLightText}>ვერიფიცირებული</Text></View>
         )}
@@ -306,10 +317,15 @@ export default function MarketplaceScreen() {
         <Text style={styles.featureSubtitle} numberOfLines={1}>{item.description}</Text>
         <View style={styles.featureMetaRow}>
           <View style={styles.featureRating}><Ionicons name="star" size={14} color="#F59E0B" /><Text style={styles.featureRatingText}>{item.rating?.toFixed(1)}</Text></View>
-            {/* Only show price for parts */}
-            {item.type === 'part' && item.price && (
-          <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price}</Text></View>
-            )}
+          {/* Price with discount */}
+          {item.type === 'part' && item.price && (
+            <View style={styles.priceContainer}>
+              {item.originalPrice && item.originalPrice > item.price && (
+                <Text style={styles.originalPrice}>{item.originalPrice}₾</Text>
+              )}
+              <Text style={styles.currentPrice}>{item.price}₾</Text>
+            </View>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -318,23 +334,12 @@ export default function MarketplaceScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Hero Header */}
-      <SafeAreaView style={styles.heroSection}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.heroTitle}>მაღაზია</Text>
-            <Text style={styles.heroSubtitle}>
-              ყველაფერი რაც თქვენს ავტომობილს სჭირდება
-            </Text>
-          </View>
-          
-        </View>
+      {/* Compact Header */}
+      <SafeAreaView edges={['top']} style={styles.compactHeader}>
+       
       </SafeAreaView>
-
-      {/* Hero Promo Banner */}
-  
 
       <Animated.ScrollView
         style={styles.content}
@@ -348,32 +353,9 @@ export default function MarketplaceScreen() {
         {/* Categories Section */}
         <View style={styles.categoriesSection}>
           <Text style={styles.sectionTitle}>კატეგორიები</Text>
-          <View style={styles.compactGrid}>
+          <View style={styles.categoriesList}>
             {MAIN_CATEGORIES.map((category, index) => renderCategoryCard(category, index))}
           </View>
-        </View>
-
-        {/* Featured Section */}
-        <View style={styles.featuredSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>ახალი დამატებები</Text>
-            <TouchableOpacity style={styles.seeAllButton} onPress={loadLatestServices}>
-              <Text style={styles.seeAllText}>განახლება</Text>
-              <Ionicons name="refresh" size={16} color="#3B82F6" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.featureCarousel}
-            snapToInterval={Math.round(width * 0.8) + 14}
-            decelerationRate="fast"
-            snapToAlignment="start"
-          >
-            {/* Skeletons while loading */}
-            {loading && [1,2,3].map((i) => <FeaturedSkeleton key={`sk-${i}`} />)}
-            {!loading && featuredServices.map((item: any, index: number) => renderFeaturedCard(item, index))}
-          </ScrollView>
         </View>
 
         {/* Quick Actions removed per request */}
@@ -387,54 +369,85 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F9FAFB',
   },
-  
-  // Hero Section
-  heroSection: {
-    backgroundColor: '#FFFFFF',
-    paddingBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+  // Compact Header
+  compactHeader: {
+    backgroundColor: 'transparent',
   },
-  headerRow: {
+  compactHeaderContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  compactTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.5,
+    marginBottom: 12,
+  },
+  compactSearch: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 40,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  compactSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#111827',
+  },
+  
+  // Modern Header
+  modernHeader: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
   headerLeft: {
     flex: 1,
   },
-  heroTitle: {
-    fontSize: 32,
-    fontWeight: '800',
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
     color: '#111827',
-    letterSpacing: -1,
-    marginBottom: 4,
+    letterSpacing: -0.5,
   },
-  heroSubtitle: {
-    fontSize: 16,
+  headerSubtitle: {
+    fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
-    lineHeight: 22,
+    marginTop: 4,
   },
-  searchButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F9FAFB',
+  searchContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
   },
 
   content: {
@@ -453,68 +466,45 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     letterSpacing: -0.5,
   },
-  compactGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  categoriesList: {
     gap: 12,
   },
-  compactCard: {
-    width: (width - 56) / 2,
+  categoryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-    position: 'relative',
-  },
-  cardDisabled: {
-    opacity: 0.6,
-  },
-  comingSoonPill: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  comingSoonText: {
-    fontSize: 10,
-    color: '#6B7280',
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  categoryIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginRight: 16,
   },
-  compactTitle: {
-    fontSize: 14,
+  categoryContent: {
+    flex: 1,
+  },
+  categoryTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    textAlign: 'center',
     marginBottom: 4,
+    letterSpacing: -0.3,
   },
-  compactSubtitle: {
-    fontSize: 11,
+  categorySubtitle: {
+    fontSize: 13,
     color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: 18,
   },
 
   // Featured Section
@@ -528,6 +518,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 16,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   seeAllButton: {
     flexDirection: 'row',
@@ -665,8 +660,50 @@ const styles = StyleSheet.create({
   featureMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   featureRating: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   featureRatingText: { color: '#FDE68A', fontWeight: '700' },
-  pricePill: { backgroundColor: 'rgba(17,24,39,0.7)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
-  pricePillText: { color: '#FFFFFF', fontWeight: '700' },
+  discountBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  discountBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  offerBadge: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  offerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  originalPrice: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    textDecorationLine: 'line-through',
+    fontWeight: '500',
+  },
+  currentPrice: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 
   // Skeletons
   featureCardSkeleton: {

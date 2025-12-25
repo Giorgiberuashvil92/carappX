@@ -72,3 +72,4 @@ cd marte-backend
 - Production build-ში ავტომატურად production URLs გამოიყენება
 - Environment variables-ით შეიძლება override-ი
 
+

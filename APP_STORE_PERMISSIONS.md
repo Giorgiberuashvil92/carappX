@@ -159,3 +159,4 @@
 **ყველა technical permission დამატებულია!** 
 მხოლოდ App Store Connect-ში და Google Play Console-ში Privacy Policy და Data Collection disclosure-ები დასამატებელია.
 
+

@@ -209,8 +209,11 @@ function RootLayoutNav() {
               <Stack.Screen name="partner" options={{ headerShown: false }} />
               <Stack.Screen name="parts-order" options={{ headerShown: false }} />
               <Stack.Screen name="parts" options={{ headerShown: false }} />
+              <Stack.Screen name="stores" options={{ headerShown: false }} />
+              <Stack.Screen name="detailing" options={{ headerShown: false }} />
               <Stack.Screen name="service-form" options={{ headerShown: false }} />
               <Stack.Screen name="fuel-stations" options={{ headerShown: false }} />
+              <Stack.Screen name="fuel-price-details" options={{ headerShown: false }} />
               <Stack.Screen name="mechanics" options={{ headerShown: false }} />
               <Stack.Screen name="comments" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ headerShown: false }} />

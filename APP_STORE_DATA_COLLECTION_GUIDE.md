@@ -206,3 +206,4 @@
 - **Privacy Policy** - **სავალდებულოა** ორივე platform-ზე
 - **Incorrect Disclosure** - შეიძლება app rejection-ის მიზეზი გახდეს
 
+
