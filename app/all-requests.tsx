@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { requestsApi, type Request } from '@/services/requestsApi';
 import { useUser } from '@/contexts/UserContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -32,7 +33,8 @@ export default function AllRequestsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [requests, setRequests] = useState<Request[]>([]);
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [offersCountMap, setOffersCountMap] = useState<Record<string, number>>({});
+  const [filter, setFilter] = useState<'all' | 'აქტიური' | 'დასრულებული'>('all');
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
   const [scaleAnim] = useState(new Animated.Value(0.9));
@@ -80,12 +82,24 @@ export default function AllRequestsScreen() {
     setLoading(true);
     try {
       // რეალური API-ს გამოძახება
-      const apiRequests = await requestsApi.getRequests(user?.id);
+      const [apiRequests, userOffers] = await Promise.all([
+        requestsApi.getRequests(user?.id),
+        user?.id ? requestsApi.getOffers(undefined, user.id) : Promise.resolve([]),
+      ]);
+
+      const counts: Record<string, number> = {};
+      (userOffers || []).forEach((offer: any) => {
+        const key = offer?.reqId;
+        if (key) counts[key] = (counts[key] || 0) + 1;
+      });
+
       setRequests(apiRequests);
+      setOffersCountMap(counts);
     } catch (error) {
       console.error('Failed to fetch requests from API:', error);
       // თუ API ვერ მუშაობს, ცარიელ სიას ვაბრუნებთ
       setRequests([]);
+      setOffersCountMap({});
     } finally {
       setLoading(false);
     }
@@ -189,7 +203,8 @@ export default function AllRequestsScreen() {
   const getAttentionBadgeColors = (count?: number) => {
     const hasNew = !!count && count > 0;
     if (hasNew) {
-      return { bg: 'rgba(16, 185, 129, 0.2)', text: '#10B981', border: 'rgba(16,185,129,0.35)' };
+      // წითელი, რომ უფრო შეიმჩნიოს ახალი შეთავაზება
+      return { bg: 'rgba(239, 68, 68, 0.18)', text: '#EF4444', border: 'rgba(239, 68, 68, 0.35)' };
     }
     return { bg: 'rgba(99, 102, 241, 0.2)', text: '#6366F1', border: 'rgba(99, 102, 241, 0.3)' };
   };
@@ -203,7 +218,12 @@ export default function AllRequestsScreen() {
   const activeCount = requests.filter(r => r.status === 'active').length;
   const completedCount = requests.filter(r => r.status === 'fulfilled').length;
   const newOffersCount = requests.reduce((sum, r: any) => {
-    const offers = r?.unreadOffersCount ?? r?.offersCount ?? 0;
+    const offers =
+      offersCountMap[r?.id] ??
+      r?.offersCount ??
+      r?.offers?.length ??
+      r?.unreadOffersCount ??
+      0;
     return sum + (offers || 0);
   }, 0);
 
@@ -283,106 +303,113 @@ export default function AllRequestsScreen() {
                   />
                 }
               >
-                {filteredRequests.map((request, index) => (
-                  <Animated.View
-                    key={request.id}
-                    style={[
-                      styles.requestWrapper,
-                      {
-                        transform: [
-                          { 
-                            translateY: slideAnim.interpolate({
-                              inputRange: [0, 50],
-                              outputRange: [0, 50 + (index * 20)],
-                              extrapolate: 'clamp',
-                            })
-                          }
-                        ]
-                      }
-                    ]}
-                  >
-                    <Pressable
-                      style={styles.requestCard}
-                      onPress={() => handleRequestPress(request)}
+                {filteredRequests.map((request, index) => {
+                  const offersCount =
+                    offersCountMap[request.id] ??
+                    (request as any)?.offersCount ??
+                    (request as any)?.offers?.length ??
+                    (request as any)?.unreadOffersCount ??
+                    0;
+                  const badge = getAttentionBadgeColors(offersCount);
+                  const statusChip = getStatusChipColors(request.status as any);
+                  const title =
+                    request.service === 'parts' ? request.partName :
+                    request.service === 'mechanic' ? (request as any).problemName || 'ხელოსანი' :
+                    request.service === 'tow' ? 'ევაკუატორი' :
+                    request.service === 'rental' ? 'ქირაობა' :
+                    request.partName || 'მოთხოვნა';
+
+                  return (
+                    <Animated.View
+                      key={request.id || index}
+                      style={[
+                        styles.requestWrapper,
+                        {
+                          transform: [
+                            { 
+                              translateY: slideAnim.interpolate({
+                                inputRange: [0, 50],
+                                outputRange: [0, 50 + (index * 20)],
+                                extrapolate: 'clamp',
+                              })
+                            }
+                          ]
+                        }
+                      ]}
                     >
-                        <View style={styles.serviceGradient}>
-                        <View style={[styles.accentBar, { backgroundColor: getServiceColor(request.service || 'parts') }]} />
-                        <View style={styles.serviceContent}>
-                          <View style={styles.serviceLeft}>
-                            <View style={styles.serviceIconContainer}>
-                              <Ionicons name={getServiceIcon(request.service || 'parts') as any} size={24} color="#6366F1" />
+                      <Pressable
+                        style={styles.requestCard}
+                        onPress={() => handleRequestPress(request)}
+                      >
+                        <LinearGradient
+                          colors={['#FFFFFF', '#F8FAFC']}
+                          style={styles.requestCardGradient}
+                        >
+                          <View style={styles.requestTopRow}>
+                            <View style={[styles.serviceChip, { borderColor: getServiceColor(request.service || 'parts') + '33', backgroundColor: getServiceColor(request.service || 'parts') + '15' }]}>
+                              <View style={styles.serviceChipIcon}>
+                                <Ionicons name={getServiceIcon(request.service || 'parts') as any} size={16} color={getServiceColor(request.service || 'parts')} />
+                              </View>
+                              <Text style={[styles.serviceChipText, { color: getServiceColor(request.service || 'parts') }]}>
+                                {request.service === 'parts' ? 'ნაწილები' :
+                                  request.service === 'mechanic' ? 'ხელოსანი' :
+                                  request.service === 'tow' ? 'ევაკუატორი' :
+                                  request.service === 'rental' ? 'ქირაობა' : 'სერვისი'}
+                              </Text>
+                            </View>
+                            <View style={[styles.statusBadgeNew, { backgroundColor: statusChip.bg, borderColor: statusChip.border }]}>
+                              <Text style={[styles.statusText, { color: statusChip.text }]}>{request.status}</Text>
                             </View>
                           </View>
-                          <View style={styles.requestInfo}>
-                            <View style={styles.titleRow}>
-                              {Boolean((request as any)?.unreadOffersCount) && (
-                                <View style={styles.unreadDot} />
-                              )}
-                              <Text style={styles.requestTitle}>
-                              {request.service === 'parts' ? request.partName : 
-                               request.service === 'mechanic' ? (request as any).problemName || 'ხელოსანი' :
-                               request.service === 'tow' ? 'ევაკუატორი' :
-                               request.service === 'rental' ? 'ქირაობა' : 
-                               request.partName || 'მოთხოვნა'}
-                              </Text>
-                            </View>
-                            <Text style={styles.requestSubtitle}>
-                              {request?.vehicle?.make && request?.vehicle?.model && request?.vehicle?.year
-                                ? `${request.vehicle.make} ${request.vehicle.model} (${request.vehicle.year})`
-                                : 'მანქანის მონაცემები მიუწვდომელია'}
-                            </Text>
-                            {request.description && (
-                              <Text style={styles.requestDescription} numberOfLines={2}>
-                                {request.description}
-                              </Text>
+
+                          <View style={styles.titleRowNew}>
+                            {Boolean((request as any)?.unreadOffersCount) && <View style={styles.unreadDot} />}
+                            <Text style={styles.requestTitle}>{title}</Text>
+                            {offersCount > 0 && (
+                              <View style={styles.hasOffersBadge}>
+                                <Ionicons name="checkmark-circle" size={16} color="#EF4444" />
+                                <Text style={styles.hasOffersBadgeText}>შეთავაზება აქვს</Text>
+                              </View>
                             )}
-                            <View style={styles.requestFooter}>
-                              <View style={styles.timeContainer}>
-                                <Ionicons name="time-outline" size={10} color="#9CA3AF" />
-                                <Text style={styles.timeText}>{formatTimeAgo(request.createdAt)}</Text>
+                          </View>
+
+                          <Text style={styles.requestSubtitle}>
+                            {request?.vehicle?.make && request?.vehicle?.model && request?.vehicle?.year
+                              ? `${request.vehicle.make} ${request.vehicle.model} (${request.vehicle.year})`
+                              : 'მანქანის მონაცემები მიუწვდომელია'}
+                          </Text>
+
+                          {request.description ? (
+                            <Text style={styles.requestDescription} numberOfLines={2}>
+                              {request.description}
+                            </Text>
+                          ) : null}
+
+                          <View style={styles.requestFooterNew}>
+                            <View style={styles.timeContainer}>
+                              <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+                              <Text style={styles.timeText}>{formatTimeAgo(request.createdAt)}</Text>
+                            </View>
+                            <View style={styles.offersQuick}>
+                              <View style={[styles.offersPill, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+                                <Ionicons name="chatbubbles-outline" size={14} color={badge.text} />
+                                <Text style={[styles.offersCountText, { color: badge.text }]}>{offersCount}</Text>
                               </View>
-                              <View style={styles.statusContainer}>
-                                {(() => {
-                                  const chip = getStatusChipColors(request.status as any);
-                                  return (
-                                    <View style={[styles.statusBadge, { backgroundColor: chip.bg, borderColor: chip.border }]}>
-                                      <Text style={[styles.statusText, { color: chip.text }]}>
-                                        {request.status}
-                                      </Text>
-                                    </View>
-                                  );
-                                })()}
-                              </View>
+                              <Text style={styles.offersLabel}>შეთავაზება{offersCount === 1 ? '' : 'ები'}</Text>
                             </View>
                           </View>
-                          <View style={styles.offersContainer}>
-                            {(() => {
-                              const offersCount = (request as any)?.offersCount
-                                ?? (request as any)?.offers?.length
-                                ?? (request as any)?.unreadOffersCount
-                                ?? 0;
-                              const badge = getAttentionBadgeColors(offersCount);
-                              return (
-                                <View style={styles.offersPillar}>
-                                  <View style={[styles.offersPill, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-                                    <Ionicons name="chatbubbles-outline" size={14} color={badge.text} />
-                                    <Text style={[styles.offersCountText, { color: badge.text }]}>{offersCount}</Text>
-                                  </View>
-                                  <Text style={[styles.offersLabel, { color: offersCount > 0 ? '#9CA3AF' : 'rgba(156,163,175,0.6)' }]}>
-                                    შეთავაზება{offersCount === 1 ? '' : 'ები'}
-                                  </Text>
-                                  <View style={styles.serviceArrow}>
-                                    <Ionicons name="arrow-forward" size={14} color="#6366F1" />
-                                  </View>
-                                </View>
-                              );
-                            })()}
+
+                          <View style={styles.actionRow}>
+                            <Text style={styles.actionText}>გახსენი შეთავაზებები</Text>
+                            <View style={styles.serviceArrow}>
+                              <Ionicons name="arrow-forward" size={16} color="#6366F1" />
+                            </View>
                           </View>
-                        </View>
-                      </View>
-                    </Pressable>
-                  </Animated.View>
-                ))}
+                        </LinearGradient>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })}
                 
                 {filteredRequests.length === 0 && (
                   <Animated.View 
@@ -668,6 +695,49 @@ const styles = StyleSheet.create({
   requestCard: {
     flex: 1,
   },
+  requestCardGradient: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    gap: 10,
+  },
+  requestTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  serviceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  serviceChipIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(99,102,241,0.08)',
+  },
+  serviceChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statusBadgeNew: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   serviceGradient: {
     padding: 14,
     minHeight: 104,
@@ -700,11 +770,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  titleRowNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    flexWrap: 'wrap',
+  },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#10B981',
+  },
+  hasOffersBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  hasOffersBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   serviceLeft: {
     width: 56,
@@ -778,6 +871,12 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 10,
   },
+  requestFooterNew: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -804,6 +903,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  offersQuick: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   offersContainer: {
     position: 'absolute',
@@ -833,6 +937,17 @@ const styles = StyleSheet.create({
   offersLabel: {
     fontSize: 10,
     fontWeight: '600',
+  },
+  actionRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  actionText: {
+    fontSize: 13,
+    color: '#0B64D4',
+    fontWeight: '700',
   },
   serviceArrow: {
     width: 24,

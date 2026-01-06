@@ -1,4 +1,4 @@
-  import React, { useMemo, useState, useRef, useEffect } from 'react';
+  import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -16,7 +16,7 @@ import {
   import { SafeAreaView } from 'react-native-safe-area-context';
   import { Ionicons } from '@expo/vector-icons';
   import { LinearGradient } from 'expo-linear-gradient';
-  import { useRouter } from 'expo-router';
+  import { useRouter, useLocalSearchParams } from 'expo-router';
   import carData from '../data/carData.json';
   import DetailModal, { DetailItem } from '../components/ui/DetailModal';
   import AddModal, { AddModalType } from '../components/ui/AddModal';
@@ -30,6 +30,7 @@ import {
 
   export default function PartsHomeScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
     const [activeTab, setActiveTab] = useState<'დაშლილები' | 'ნაწილები'>('დაშლილები');
     const [showFilterModal, setShowFilterModal] = useState(false);
     
@@ -56,6 +57,7 @@ import {
 
     // Dropdown states
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
     
     // Detail Modal states
     const [showDetailModal, setShowDetailModal] = useState(false);
@@ -67,6 +69,7 @@ import {
     const [parts, setParts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [locations, setLocations] = useState<string[]>([]);
 
     // Car data states - Initialize with JSON data for instant loading
     const [carMakes, setCarMakes] = useState<string[]>([]);
@@ -168,13 +171,25 @@ import {
       }
     };
 
+    const loadLocations = useCallback(async () => {
+      try {
+        const response = await addItemApi.getPartsLocations();
+        if (response.success && response.data) {
+          setLocations(response.data);
+        }
+      } catch (err) {
+        console.error('Error loading locations:', err);
+      }
+    }, []);
+
     // Initialize data on mount
     useEffect(() => {
       setCarMakes(CAR_BRANDS);
       loadPartsCategories();
+      loadLocations();
       // Load initial data
       loadDismantlers();
-    }, []);
+    }, [loadLocations]);
 
     // Load data when tab changes
     useEffect(() => {
@@ -453,7 +468,25 @@ import {
         >
           <SafeAreaView>
             <View style={styles.headerContent}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => {
+                // თუ category-დან მოვიდა (params-დან), category-ზე დაბრუნდეს
+                if (params.fromCategory || params.categoryId || params.categoryType) {
+                  router.push({
+                    pathname: '/category',
+                    params: {
+                      type: params.categoryType || 'part',
+                      categoryId: params.categoryId,
+                      name: params.categoryName,
+                    }
+                  });
+                } else if (router.canGoBack()) {
+                  // თუ არის history, წინა გვერდზე დაბრუნდეს
+                  router.back();
+                } else {
+                  // თუ არ არის history, მთავარზე დაბრუნდეს
+                  router.push('/(tabs)' as any);
+                }
+              }}>
                 <Ionicons name="arrow-back" size={24} color="#111827" />
               </TouchableOpacity>
               
@@ -571,10 +604,7 @@ import {
                 <View style={styles.modernSection}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.modernSectionTitle}>დაშლილების მაღაზიები</Text>
-                    <TouchableOpacity style={styles.seeAllBtn}>
-                      <Text style={styles.seeAllText}>ყველა</Text>
-                      <Ionicons name="chevron-forward" size={16} color="#3B82F6" />
-                    </TouchableOpacity>
+                    
                   </View>
                   {dismantlers.length > 0 ? (
                     <View style={styles.modernDismantlersContainer}>
@@ -735,12 +765,7 @@ import {
                 <View style={styles.modernSection}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.modernSectionTitle}>პოპულარული ნაწილები</Text>
-                    <View style={styles.sectionActions}>
-                      <TouchableOpacity style={styles.seeAllBtn}>
-                        <Text style={styles.seeAllText}>ყველა</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#3B82F6" />
-                      </TouchableOpacity>
-                    </View>
+                    
                   </View>
                   {filteredParts.length > 0 ? (
                     <View style={styles.modernPartsContainer}>
@@ -989,16 +1014,7 @@ import {
                       </View>
                     </View>
 
-                    <View style={styles.filterSection}>
-                      <Text style={styles.filterSectionTitle}>მდგომარეობა</Text>
-                      {renderDropdown(
-                        'dismantler-condition',
-                        dismantlerFilters.condition,
-                        'მდგომარეობა',
-                        CONDITIONS,
-                        (value) => setDismantlerFilters(prev => ({ ...prev, condition: value }))
-                      )}
-                    </View>
+                 
 
                     <View style={styles.filterSection}>
                       <Text style={styles.filterSectionTitle}>მდებარეობა</Text>
@@ -1038,15 +1054,7 @@ import {
                       )}
                     </View>
 
-                    <View style={styles.filterSection}>
-                      <Text style={styles.filterSectionTitle}>მდგომარეობა</Text>
-                      <TouchableOpacity style={styles.dropdownButton}>
-                        <Text style={styles.dropdownText}>
-                          {partsFilters.condition || 'მდგომარეობა'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                    </View>
+                   
 
                     <View style={styles.filterSection}>
                       <Text style={styles.filterSectionTitle}>ფასი (₾)</Text>
@@ -1077,12 +1085,53 @@ import {
 
                     <View style={styles.filterSection}>
                       <Text style={styles.filterSectionTitle}>მდებარეობა</Text>
-                      <TouchableOpacity style={styles.dropdownButton}>
+                      <TouchableOpacity 
+                        style={styles.dropdownButton}
+                        onPress={() => setShowLocationDropdown(!showLocationDropdown)}
+                      >
                         <Text style={styles.dropdownText}>
                           {partsFilters.location || 'აირჩიეთ ქალაქი'}
                         </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                        <Ionicons 
+                          name={showLocationDropdown ? "chevron-up" : "chevron-down"} 
+                          size={16} 
+                          color="#6B7280" 
+                        />
                       </TouchableOpacity>
+                      {showLocationDropdown && (
+                        <View style={styles.dropdownContainer}>
+                          <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                            <TouchableOpacity
+                              style={styles.dropdownItem}
+                              onPress={() => {
+                                setPartsFilters({ ...partsFilters, location: '' });
+                                setShowLocationDropdown(false);
+                              }}
+                            >
+                              <Text style={[styles.dropdownItemText, !partsFilters.location && styles.dropdownItemTextSelected]}>
+                                ყველა ქალაქი
+                              </Text>
+                            </TouchableOpacity>
+                            {locations.map((location, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                style={styles.dropdownItem}
+                                onPress={() => {
+                                  setPartsFilters({ ...partsFilters, location });
+                                  setShowLocationDropdown(false);
+                                }}
+                              >
+                                <Text style={[styles.dropdownItemText, partsFilters.location === location && styles.dropdownItemTextSelected]}>
+                                  {location}
+                                </Text>
+                                {partsFilters.location === location && (
+                                  <Ionicons name="checkmark" size={20} color="#3B82F6" />
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
                     </View>
                   </>
                 )}
@@ -1402,6 +1451,7 @@ import {
           visible={showAddModal}
           onClose={() => setShowAddModal(false)}
           onSave={handleAddItem}
+          defaultType={activeTab === 'დაშლილები' ? 'dismantler' : 'part'}
         />
       </View>
     );
@@ -1906,10 +1956,6 @@ import {
       color: '#111827',
       marginBottom: 12,
     },
-    dropdownContainer: {
-      position: 'relative',
-      zIndex: 1,
-    },
     dropdownButton: {
       backgroundColor: '#FFFFFF',
       borderWidth: 1,
@@ -1936,9 +1982,43 @@ import {
       backgroundColor: '#F9FAFB',
       borderColor: '#E5E7EB',
     },
-    dropdownTextDisabled: {
-      color: '#9CA3AF',
-    },
+  dropdownTextDisabled: {
+    color: '#9CA3AF',
+  },
+  dropdownContainer: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    maxHeight: 200,
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
+  },
+  dropdownItemTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
     dropdownOverlay: {
       position: 'absolute',
       top: 0,

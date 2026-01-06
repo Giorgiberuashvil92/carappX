@@ -17,12 +17,10 @@ class AnalyticsService {
   // Log screen view (fire-and-forget for performance)
   logScreenView(screenName: string, screenClass?: string) {
     if (!this.isEnabled) return;
-    // Fire and forget - don't block UI
     analytics().logScreenView({
       screen_name: screenName,
       screen_class: screenClass || screenName,
     }).catch(() => {
-      // Silently fail - analytics should never block the app
     });
   }
 

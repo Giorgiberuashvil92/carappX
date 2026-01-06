@@ -215,6 +215,7 @@ function RootLayoutNav() {
               <Stack.Screen name="fuel-stations" options={{ headerShown: false }} />
               <Stack.Screen name="fuel-price-details" options={{ headerShown: false }} />
               <Stack.Screen name="mechanics" options={{ headerShown: false }} />
+              <Stack.Screen name="towing" options={{ headerShown: false }} />
               <Stack.Screen name="comments" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ headerShown: false }} />
               <Stack.Screen name="notifications/[id]" options={{ headerShown: false }} />
@@ -227,6 +228,7 @@ function RootLayoutNav() {
               <Stack.Screen name="payment-card" options={{headerShown: false}} />
               <Stack.Screen name="payment-success" options={{headerShown: false}} />
               <Stack.Screen name="carfax-simulation" options={{headerShown: false}} />
+              <Stack.Screen name="carfax-view" options={{headerShown: false}} />
               <Stack.Screen name="all-services" options={{headerShown: false}} />
               <Stack.Screen name="all-community" options={{headerShown: false}} />
               <Stack.Screen name="category" options={{headerShown: false}} />

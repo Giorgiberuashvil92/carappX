@@ -23,19 +23,21 @@ const getApiUrl = () => {
 
   if (__DEV__) {
     const ip = getLanIpFromHost();
-    console.log('🌐 IP:', ip);
+    console.log('🌐 LAN IP:', ip);
     if (ip) {
-      console.log('🌐 Using IP:', ip);
-      return `https://marte-backend-production.up.railway.app`;
+      console.log('🌐 Using LAN IP:', ip);
+      return `http://${ip}:3000`;
     }
     console.log('🌐 Using localhost fallback');
-    return 'https://marte-backend-production.up.railway.app';
+    return 'http://localhost:3000';
   }
 
   return 'https://marte-backend-production.up.railway.app';
 };
 
 const API_BASE_URL = getApiUrl();
+
+console.log('🚀 API Base URL:', API_BASE_URL);
 
 export { API_BASE_URL };
 export default API_BASE_URL;

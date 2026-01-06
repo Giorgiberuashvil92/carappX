@@ -5,35 +5,24 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   StatusBar,
   Dimensions,
   Animated,
-  Linking,
   Modal,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUser } from '../contexts/UserContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import BOGPaymentModal from '../components/ui/BOGPaymentModal';
 import { bogApi } from '../services/bogApi';
 import { carwashApi } from '../services/carwashApi';
 import { API_BASE_URL } from '../config/api';
 
-const { width } = Dimensions.get('window');
-
-interface PaymentMethod {
-  id: string;
-  name: string;
-  type: 'card' | 'bank' | 'bog' | 'crypto';
-  icon: string;
-  color: string;
-  description: string;
-}
+const { width, height } = Dimensions.get('window');
 
 interface PaymentData {
   amount: number;
@@ -42,8 +31,6 @@ interface PaymentData {
   context: string;
   orderId?: string;
   successUrl?: string;
-  failUrl?: string;
-  vinCode?: string;
   isSubscription?: boolean;
   planId?: string;
   planName?: string;
@@ -53,17 +40,17 @@ interface PaymentData {
   metadata?: Record<string, any>;
 }
 
-interface PaymentResult {
-  success: boolean;
-  message: string;
-  transactionId?: string;
-  redirectUrl?: string;
-  data?: any;
+interface SavedCard {
+  payerIdentifier?: string; // masked card number
+  cardType?: string; // mc, visa
+  cardExpiryDate?: string; // 07/29
+  paymentToken?: string;
 }
 
 export default function PaymentCardScreen() {
   const router = useRouter();
   const { user } = useUser();
+  const { subscription, hasActiveSubscription, isPremiumUser, isBasicUser } = useSubscription();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     amount?: string;
@@ -71,37 +58,23 @@ export default function PaymentCardScreen() {
     context?: string;
     orderId?: string;
     successUrl?: string;
-    vinCode?: string;
     isSubscription?: string;
     planId?: string;
     planName?: string;
     planPrice?: string;
     planCurrency?: string;
     planDescription?: string;
-    metadata?: string; // JSON string
+    metadata?: string;
   }>();
 
-  const successUrlParam = params.successUrl
-    ? decodeURIComponent(String(params.successUrl))
-    : undefined;
-
-  const navigateInternal = (target: string) => {
-    const normalized = target.startsWith('/') ? target : `/${target}`;
-    const [pathname, query] = normalized.split('?');
-    const queryParams = Object.fromEntries(new URLSearchParams(query || ''));
-    router.replace({ pathname: pathname as any, params: queryParams as any });
-  };
-
-  // Payment Data-ს შექმნა params-იდან
-  const paymentData: PaymentData = {
+  // Payment Data-ს შექმნა params-იდან ან DB-დან
+  const [paymentData, setPaymentData] = useState<PaymentData>({
     amount: parseFloat(params.amount || '0'),
-    currency: params.planCurrency || 'GEL',
+    currency: params.planCurrency || '₾',
     description: params.description || 'CarApp სერვისი',
     context: params.context || 'general',
     orderId: params.orderId,
-    successUrl: successUrlParam,
-    failUrl: undefined, // განვსაზღვრავთ default-ად
-    vinCode: params.vinCode,
+    successUrl: params.successUrl,
     isSubscription: params.isSubscription === 'true',
     planId: params.planId,
     planName: params.planName,
@@ -111,57 +84,200 @@ export default function PaymentCardScreen() {
     metadata: (() => {
       try {
         return params.metadata ? JSON.parse(params.metadata) : {};
-      } catch (error) {
-        console.warn('⚠️ Metadata parsing შეცდომა:', error);
+      } catch {
         return {};
       }
     })(),
-  };
-  
-  const [selectedMethod, setSelectedMethod] = useState<string>('bog');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [cardholderName, setCardholderName] = useState('');
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [savedCard, setSavedCard] = useState<any | null>(null);
+  });
+
+  const [savedCard, setSavedCard] = useState<SavedCard | null>(null);
   const [loading, setLoading] = useState(false);
-  const [vinCode, setVinCode] = useState(params.vinCode || '');
+  const [loadingCard, setLoadingCard] = useState(true);
+  const [loadingPayment, setLoadingPayment] = useState(true);
   const [showBOGPaymentModal, setShowBOGPaymentModal] = useState(false);
   const [bogPaymentUrl, setBogPaymentUrl] = useState('');
-  const [rememberCard, setRememberCard] = useState(false);
-  const [savedCards, setSavedCards] = useState<any[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bogOAuthStatus, setBogOAuthStatus] = useState<any>(null);
   const [isCheckingBOG, setIsCheckingBOG] = useState<boolean>(false);
   const [visible, setVisible] = useState(true);
-  
-  const isSubscription = (params as any).isSubscription === 'true';
-  const planId = (params as any).planId;
-  const planName = (params as any).planName;
-  const planPrice = (params as any).planPrice;
-  const planCurrency = (params as any).planCurrency;
-  const planDescription = (params as any).planDescription;
-  
+  const [paymentFromDB, setPaymentFromDB] = useState<any | null>(null);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
+  // Payment-ის მონაცემების წამოღება ბაზიდან (განსაკუთრებით subscription-ისთვის)
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    const fetchPaymentData = async () => {
+      if (!user?.id) {
+        setLoadingPayment(false);
+        setLoadingCard(false);
+        return;
+      }
 
-  }, []);
+      try {
+        console.log('💳 ========== FETCHING PAYMENTS FROM DB ==========');
+        console.log('👤 User ID:', user.id);
+        
+        const response = await fetch(`${API_BASE_URL}/api/payments/user/${user.id}`);
+        const result = await response.json();
+
+        console.log('📊 Payments API Response:', result.success ? 'Success' : 'Failed');
+        
+        if (result.success && result.data && result.data.length > 0) {
+          console.log('📦 Total payments found:', result.data.length);
+          
+          // ვიღებთ subscription-ის გადახდას
+          const subscriptionPayment = result.data.find((p: any) => 
+            p.context === 'subscription' && p.status === 'completed'
+          );
+
+          if (subscriptionPayment) {
+            console.log('✅ Subscription payment found!');
+            console.log('📦 Subscription Payment Data:', JSON.stringify(subscriptionPayment, null, 2));
+            console.log('📦 Plan ID:', subscriptionPayment.metadata?.planId);
+            console.log('📦 Plan Name:', subscriptionPayment.metadata?.planName);
+            console.log('📦 Plan Price:', subscriptionPayment.metadata?.planPrice);
+            console.log('📦 Plan Currency:', subscriptionPayment.metadata?.planCurrency);
+            console.log('📦 Plan Period:', subscriptionPayment.metadata?.planPeriod);
+            console.log('📦 Amount:', subscriptionPayment.amount, subscriptionPayment.currency);
+            console.log('📦 Description:', subscriptionPayment.description);
+            
+            setPaymentFromDB(subscriptionPayment);
+            
+            // თუ payment-ში plan-ის მონაცემები არ არის, subscription API-დან ან Context-დან წამოვიღოთ
+            if (!subscriptionPayment.metadata?.planId) {
+              console.log('📋 Payment-ში plan-ის მონაცემები არ არის, subscription API-დან ვიღებთ...');
+              let subscriptionData = null;
+              
+              try {
+                const subResponse = await fetch(`${API_BASE_URL}/api/payments/subscription/user/${user.id}/status`);
+                const subResult = await subResponse.json();
+                
+                if (subResult.success && subResult.data) {
+                  subscriptionData = subResult.data;
+                  console.log('✅ Subscription found from API!');
+                  console.log('📦 Subscription from API:', JSON.stringify(subResult.data, null, 2));
+                } else {
+                  console.log('⚠️ No subscription found in API, trying Context...');
+                }
+              } catch (subError) {
+                console.error('❌ Subscription API-დან წამოღების შეცდომა:', subError);
+                console.log('📋 Trying to get subscription from Context...');
+              }
+              
+              // თუ API-დან არ მოიძებნა, Context-დან ვიღებთ
+              if (!subscriptionData && subscription) {
+                console.log('✅ Subscription found from Context!');
+                console.log('📦 Subscription from Context:', JSON.stringify(subscription, null, 2));
+                console.log('📦 Plan:', subscription.plan);
+                console.log('📦 Price:', subscription.price, subscription.currency);
+                
+                // Context-დან subscription-ის მონაცემების გამოყენება
+                subscriptionData = {
+                  planId: subscription.plan,
+                  planName: subscription.plan === 'basic' ? 'ძირითადი' : subscription.plan === 'premium' ? 'პრემიუმ' : subscription.plan,
+                  planPrice: subscription.price,
+                  currency: subscription.currency === '₾' ? 'GEL' : subscription.currency,
+                  period: subscription.plan === 'basic' ? 'უფასო' : 'თვეში',
+                };
+              }
+              
+              // Payment Data-ს განახლება subscription-ის მონაცემებით
+              if (subscriptionData) {
+                console.log('📦 Using subscription data:', subscriptionData);
+                setPaymentData(prev => ({
+                  ...prev,
+                  amount: subscriptionData.planPrice || subscriptionPayment.amount || prev.amount,
+                  currency: subscriptionData.currency === 'GEL' ? '₾' : subscriptionData.currency || prev.currency,
+                  description: subscriptionPayment.description || prev.description,
+                  context: subscriptionPayment.context || prev.context,
+                  isSubscription: true,
+                  planId: subscriptionData.planId || prev.planId,
+                  planName: subscriptionData.planName || prev.planName,
+                  planPrice: subscriptionData.planPrice?.toString() || prev.planPrice,
+                  planCurrency: subscriptionData.currency === 'GEL' ? '₾' : subscriptionData.currency || prev.planCurrency,
+                  planDescription: subscriptionData.planName 
+                    ? `CarAppX ${subscriptionData.planName} პაკეტი - ${subscriptionData.period || 'თვეში'}`
+                    : prev.planDescription,
+                  metadata: {
+                    ...prev.metadata,
+                    ...subscriptionPayment.metadata,
+                    planId: subscriptionData.planId,
+                    planName: subscriptionData.planName,
+                    planPrice: subscriptionData.planPrice?.toString(),
+                    planCurrency: subscriptionData.currency === 'GEL' ? '₾' : subscriptionData.currency,
+                    planPeriod: subscriptionData.period,
+                  },
+                }));
+              } else {
+                console.log('⚠️ No subscription found in API or Context');
+              }
+            } else {
+              // Payment Data-ს განახლება DB-დან მიღებული მონაცემებით (თუ plan-ის მონაცემები არის)
+              setPaymentData(prev => ({
+                ...prev,
+                amount: subscriptionPayment.amount || prev.amount,
+                currency: subscriptionPayment.currency === 'GEL' ? '₾' : subscriptionPayment.currency || prev.currency,
+                description: subscriptionPayment.description || prev.description,
+                context: subscriptionPayment.context || prev.context,
+                isSubscription: subscriptionPayment.context === 'subscription' || prev.isSubscription,
+                planId: subscriptionPayment.metadata?.planId || prev.planId,
+                planName: subscriptionPayment.metadata?.planName || prev.planName,
+                planPrice: subscriptionPayment.metadata?.planPrice || subscriptionPayment.amount?.toString() || prev.planPrice,
+                planCurrency: subscriptionPayment.metadata?.planCurrency || (subscriptionPayment.currency === 'GEL' ? '₾' : subscriptionPayment.currency) || prev.planCurrency,
+                planDescription: subscriptionPayment.metadata?.planName 
+                  ? `CarAppX ${subscriptionPayment.metadata.planName} პაკეტი - ${subscriptionPayment.metadata?.planPeriod || 'თვეში'}`
+                  : prev.planDescription,
+                metadata: {
+                  ...prev.metadata,
+                  ...subscriptionPayment.metadata,
+                  planId: subscriptionPayment.metadata?.planId,
+                  planName: subscriptionPayment.metadata?.planName,
+                  planPrice: subscriptionPayment.metadata?.planPrice,
+                  planCurrency: subscriptionPayment.metadata?.planCurrency,
+                  planPeriod: subscriptionPayment.metadata?.planPeriod,
+                },
+              }));
+            }
+          } else {
+            console.log('⚠️ No subscription payment found');
+          }
+
+          // ვიღებთ ბოლო წარმატებულ გადახდას ბარათის მონაცემებისთვის
+          const lastPayment = result.data.find((p: any) => 
+            p.status === 'completed' && 
+            (p.payerIdentifier || p.cardType || p.cardExpiryDate)
+          ) || result.data[0];
+
+          if (lastPayment) {
+            console.log('💳 Card data from payment:', {
+              payerIdentifier: lastPayment.payerIdentifier,
+              cardType: lastPayment.cardType,
+              cardExpiryDate: lastPayment.cardExpiryDate,
+            });
+            
+            setSavedCard({
+              payerIdentifier: lastPayment.payerIdentifier,
+              cardType: lastPayment.cardType,
+              cardExpiryDate: lastPayment.cardExpiryDate,
+              paymentToken: lastPayment.paymentToken,
+            });
+          }
+        } else {
+          console.log('⚠️ No payments found in database');
+        }
+        
+        console.log('💳 ================================================');
+      } catch (error) {
+        console.error('❌ Payment მონაცემების წამოღების შეცდომა:', error);
+      } finally {
+        setLoadingPayment(false);
+        setLoadingCard(false);
+      }
+    };
+
+    fetchPaymentData();
+  }, [user?.id]);
 
   // BOG OAuth Status Check
   useEffect(() => {
@@ -170,13 +286,9 @@ export default function PaymentCardScreen() {
       try {
         const status = await bogApi.getOAuthStatus();
         setBogOAuthStatus(status);
-        console.log('🔍 BOG OAuth სტატუსი:', status);
       } catch (error) {
         console.error('❌ BOG OAuth სტატუსის შემოწმების შეცდომა:', error);
-        setBogOAuthStatus({
-          isTokenValid: false,
-          message: 'BOG OAuth სერვისთან კავშირის შეცდომა'
-        });
+        setBogOAuthStatus({ isTokenValid: false });
       } finally {
         setIsCheckingBOG(false);
       }
@@ -184,192 +296,190 @@ export default function PaymentCardScreen() {
 
     checkBOGStatus();
   }, []);
-   
 
-  const formatCardNumber = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    const formatted = cleaned.replace(/(\d{4})(?=\d)/g, '$1 ');
-    return formatted.slice(0, 19);
-  };
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
-  const formatExpiryDate = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
+  // Subscription-ის სტატუსის ლოგირება
+  useEffect(() => {
+    console.log('📋 ========== SUBSCRIPTION STATUS ==========');
+    console.log('👤 User ID:', user?.id);
+    console.log('✅ Has Active Subscription:', hasActiveSubscription);
+    console.log('💎 Is Premium User:', isPremiumUser);
+    console.log('⭐ Is Basic User:', isBasicUser);
+    console.log('📦 Subscription Data:', JSON.stringify(subscription, null, 2));
+    if (subscription) {
+      console.log('📦 Plan:', subscription.plan);
+      console.log('📦 Status:', subscription.status);
+      console.log('📦 Price:', subscription.price, subscription.currency);
+      console.log('📦 Start Date:', subscription.startDate);
+      console.log('📦 End Date:', subscription.endDate);
+      console.log('📦 Auto Renew:', subscription.autoRenew);
+    } else {
+      console.log('⚠️ No subscription found');
     }
-    return cleaned;
-  };
+    console.log('📋 =========================================');
+  }, [subscription, hasActiveSubscription, isPremiumUser, isBasicUser, user?.id]);
 
-  // ზოგადი გადახდის ფუნქცია
-  const processPayment = async (method: string): Promise<PaymentResult> => {
-    try {
-      switch (method) {
-        case 'bog':
-          return await handleBOGPayment();
-        case 'card':
-          return await handleCardPayment();
-        default:
-          throw new Error(`მხარდაჭერილი არ არის გადახდის მეთოდი: ${method}`);
-      }
-    } catch (error) {
-      console.error(`❌ ${method} გადახდის შეცდომა:`, error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'უცნობი შეცდომა',
-      };
-    }
-  };
-
-  // BOG Payment Handler
-  const handleBOGPayment = async (): Promise<PaymentResult> => {
+  const handleBOGPayment = async () => {
     if (!bogOAuthStatus?.isTokenValid) {
-      return {
-        success: false,
-        message: 'BOG OAuth სერვისი არ არის ხელმისაწვდომი',
-      };
+      Alert.alert('შეცდომა', 'BOG OAuth სერვისი არ არის ხელმისაწვდომი');
+      return;
     }
 
     if (!user?.id) {
-      return {
-        success: false,
-        message: 'მომხმარებელი არ არის ავტორიზებული',
-      };
+      Alert.alert('შეცდომა', 'მომხმარებელი არ არის ავტორიზებული');
+      return;
     }
 
     if (paymentData.amount <= 0) {
-      return {
-        success: false,
-        message: 'გადახდის თანხა არასწორია',
-      };
+      Alert.alert('შეცდომა', 'გადახდის თანხა არასწორია');
+      return;
     }
 
     setLoading(true);
 
     try {
+      // თუ subscription აქვს და bogCardToken აქვს, recurring payment გამოვიყენოთ
+      if (subscription?.bogCardToken && paymentData.isSubscription) {
+        console.log('💳 შენახული ბარათით recurring payment-ის განხორციელება...');
+        console.log('📦 BOG Card Token:', subscription.bogCardToken);
+        console.log('📦 Subscription Plan:', subscription.plan);
+        
+        const externalOrderId = paymentData.orderId || `recurring_${subscription.id}_${Date.now()}`;
+        
+        try {
+          const result = await bogApi.processRecurringPayment(subscription.bogCardToken, externalOrderId);
+          console.log('✅ Recurring payment წარმატებით განხორციელდა:', result);
+          
+          // Recurring payment-ის შემთხვევაში redirect_url არ არის საჭირო, გადახდა ავტომატურად ჩამოჭრება
+          Alert.alert(
+            'წარმატება',
+            'გადახდა წარმატებით განხორციელდა შენახული ბარათით!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.back();
+                },
+              },
+            ]
+          );
+          return;
+        } catch (recurringError) {
+          console.error('❌ Recurring payment-ის შეცდომა:', recurringError);
+          // თუ recurring payment ვერ მოხერხდა, ახალი ბარათით გადახდაზე გადავიდეთ
+          Alert.alert(
+            'შეცდომა',
+            'შენახული ბარათით გადახდა ვერ მოხერხდა. გააგრძელეთ ახალი ბარათით.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+
+      // ახალი ბარათით გადახდა
+      console.log('💳 ახალი ბარათით გადახდის ინიციალიზაცია...');
+      
+      // external_order_id-ის შექმნა userId-ს და plan metadata-ს ჩართვით
+      let externalOrderId = paymentData.orderId;
+      if (!externalOrderId) {
+        if (paymentData.context === 'carfax-package') {
+          // CarFAX პაკეტი: carfax_package_userId_timestamp
+          externalOrderId = `carfax_package_${user.id}_${Date.now()}`;
+        } else if (paymentData.isSubscription && paymentData.planId) {
+          // Subscription payment: subscription_planId_timestamp_userId
+          externalOrderId = `subscription_${paymentData.planId}_${Date.now()}_${user.id}`;
+        } else {
+          // Regular payment: carapp_timestamp_userId
+          externalOrderId = `carapp_${Date.now()}_${user.id}`;
+        }
+      } else if (paymentData.context === 'carfax-package' && !externalOrderId.includes('carfax_package')) {
+        // CarFAX პაკეტისთვის prefix-ის დამატება
+        externalOrderId = `carfax_package_${user.id}_${Date.now()}`;
+      } else if (paymentData.isSubscription && paymentData.planId && !externalOrderId.includes('subscription_')) {
+        // თუ orderId არ შეიცავს subscription prefix-ს, დავამატოთ
+        externalOrderId = `subscription_${paymentData.planId}_${Date.now()}_${user.id}`;
+      }
+      
       const orderData = {
         callback_url: `${API_BASE_URL}/bog/callback`,
-        external_order_id: paymentData.orderId || `carapp_${Date.now()}_${user.id}`,
+        external_order_id: externalOrderId,
         total_amount: paymentData.amount,
-        currency: paymentData.currency,
+        currency: paymentData.currency === '₾' ? 'GEL' : paymentData.currency,
         product_id: paymentData.context,
         description: paymentData.description,
-        success_url: paymentData.successUrl?.startsWith('http') 
-          ? paymentData.successUrl 
-          : `${API_BASE_URL}${paymentData.successUrl || '/payment/success'}`,
+        success_url: paymentData.successUrl || `${API_BASE_URL}/payment/success`,
         fail_url: `${API_BASE_URL}/payment/fail`,
+        save_card: paymentData.isSubscription, // Subscription-ისთვის ბარათის დამახსოვრება
       };
 
-      console.log('🔄 BOG შეკვეთის შექმნა...', orderData);
-      console.log('📊 Payment Data:', paymentData);
+      console.log('💳 BOG Order Data:', {
+        ...orderData,
+        save_card: orderData.save_card ? '✅ true (ბარათი დამახსოვრებული იქნება)' : '❌ false',
+      });
 
       const result = await bogApi.createOrder(orderData);
-      
-      console.log('✅ BOG შეკვეთა შეიქმნა:', result);
-      
-      // BOG Payment Modal-ის გახსნა
       setBogPaymentUrl(result.redirect_url);
       setShowBOGPaymentModal(true);
-
-      return {
-        success: true,
-        message: 'BOG გადახდა წარმატებით ინიციალიზებულია',
-        redirectUrl: result.redirect_url,
-        transactionId: result.id,
-        data: result,
-      };
-
     } catch (error) {
       console.error('❌ BOG გადახდის შეცდომა:', error);
-      return {
-        success: false,
-        message: 'BOG გადახდის ინიციალიზაცია ვერ მოხერხდა',
-      };
+      Alert.alert('შეცდომა', 'BOG გადახდის ინიციალიზაცია ვერ მოხერხდა');
     } finally {
       setLoading(false);
     }
   };
 
-  // Card Payment Handler (placeholder)
-  const handleCardPayment = async (): Promise<PaymentResult> => {
-    return {
-      success: false,
-      message: 'ბარათის გადახდა ჯერ არ არის მხარდაჭერილი',
-    };
-  };
-
-  // გადახდის ინფორმაციის შენახვა backend-ში
   const savePaymentInfo = async () => {
     try {
-      if (!user?.id || !paymentData.amount || !paymentData.orderId) {
-        return;
-      }
+      if (!user?.id || !paymentData.amount || !paymentData.orderId) return;
 
       const paymentInfo = {
         userId: user.id,
         orderId: paymentData.orderId,
         amount: paymentData.amount,
-        currency: paymentData.currency,
+        currency: paymentData.currency === '₾' ? 'GEL' : paymentData.currency,
         paymentMethod: 'BOG',
         status: 'completed',
         context: paymentData.context,
         description: paymentData.description,
         paymentDate: new Date().toISOString(),
-        metadata: {
-          serviceId: paymentData.metadata?.serviceId,
-          serviceName: paymentData.metadata?.serviceName,
-          locationId: paymentData.metadata?.locationId,
-          locationName: paymentData.metadata?.locationName,
-          selectedDate: paymentData.metadata?.selectedDate,
-          selectedTime: paymentData.metadata?.selectedTime,
-          bookingType: paymentData.metadata?.bookingType,
-          customerInfo: {
-            name: user.name || 'მომხმარებელი',
-            phone: user.phone || '',
-            email: user.email || ''
-          }
-        }
+        metadata: paymentData.metadata || {},
       };
 
-      console.log('💾 Saving payment info to backend:', paymentInfo);
-      
-      // Backend API call to save payment info
-      const response = await fetch(`${API_BASE_URL}/api/payments`, {
+      await fetch(`${API_BASE_URL}/api/payments`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(paymentInfo),
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Payment info saved successfully:', result);
-      } else {
-        console.error('❌ Failed to save payment info:', response.status);
-      }
     } catch (error) {
       console.error('❌ Error saving payment info:', error);
     }
   };
 
-  const handleTestPayment = () => {
-    const fallback =
-      paymentData.vinCode && paymentData.context === 'carfax'
-        ? `/carfax?paid=1&vinCode=${paymentData.vinCode}`
-        : '/payment-success';
-
-    const target = paymentData.successUrl || fallback;
-    console.log('🧪 Test payment navigate ->', target);
-
-    setVisible(false);
-
-    if (target.startsWith('http')) {
-      Linking.openURL(target);
-    } else {
-      navigateInternal(target);
-    }
+  const getCardTypeName = (type?: string) => {
+    if (!type) return 'ბარათი';
+    if (type.toLowerCase() === 'mc') return 'MasterCard';
+    if (type.toLowerCase() === 'visa') return 'Visa';
+    return type.toUpperCase();
   };
 
+  const formatCardNumber = (identifier?: string) => {
+    if (!identifier) return '**** **** **** ****';
+    // payerIdentifier ჩვეულებრივ არის ****1234 ფორმატში
+    return identifier;
+  };
 
   return (
     <Modal
@@ -382,667 +492,332 @@ export default function PaymentCardScreen() {
       }}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent />
-        
-          <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <Animated.View 
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top,
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => {
-              setVisible(false);
-              router.back();
-            }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#2563EB" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>გადახდის მეთოდი</Text>
-          <View style={styles.headerSpacer} />
-        </Animated.View>
-
-        <Animated.ScrollView 
-          style={styles.content} 
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Hero Section */}
-          <Animated.View 
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <SafeAreaView style={styles.safeArea}>
+          {/* Header */}
+          <Animated.View
             style={[
-              styles.heroWrapper,
+              styles.header,
               {
+                paddingTop: insets.top,
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
               },
             ]}
           >
-            <LinearGradient
-              colors={['#E0ECFF', '#FFFFFF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroSection}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                setVisible(false);
+                router.back();
+              }}
             >
-              <View style={styles.heroIcon}>
-                <Ionicons name="card" size={28} color="#FFFFFF" />
-              </View>
-              <View style={styles.heroBadgeRow}>
-                <View style={styles.heroBadgePill}>
-                  <Ionicons name="lock-closed" size={14} color="#2563EB" />
-                  <Text style={styles.heroBadgeText}>უსაფრთხო გადახდა</Text>
-                </View>
-                {paymentData.vinCode ? (
-                  <View style={styles.heroBadgePill}>
-                    <Ionicons name="car-sport" size={14} color="#2563EB" />
-                    <Text style={styles.heroBadgeText}>{paymentData.vinCode}</Text>
-                  </View>
-                ) : null}
-              </View>
-              <Text style={styles.heroTitle}>
-                {paymentData.isSubscription ? 'Subscription გადახდა' : 'გადახდის მეთოდი'}
-              </Text>
-              <Text style={styles.heroSubtitle}>
-                {paymentData.isSubscription ? 'აირჩიეთ გადახდის მეთოდი' : 'აირჩიეთ ყველაზე მოსახერხებელი ვარიანტი'}
-              </Text>
-
-              {paymentData.isSubscription && paymentData.planName && (
-                <View style={styles.subscriptionSection}>
-                  <Text style={styles.subscriptionTitle}>🚀 {paymentData.planName}</Text>
-                  <Text style={styles.subscriptionPrice}>{paymentData.planPrice} {paymentData.planCurrency}</Text>
-                  {paymentData.planDescription && (
-                    <Text style={styles.subscriptionDescription}>{paymentData.planDescription}</Text>
-                  )}
-                </View>
-              )}
-
-              {paymentData.amount > 0 && !paymentData.isSubscription && (
-                <View style={styles.amountSection}>
-                  <Text style={styles.amountText}>{paymentData.amount} {paymentData.currency}</Text>
-                  {paymentData.description && (
-                    <Text style={styles.descriptionText}>{paymentData.description}</Text>
-                  )}
-                  {paymentData.context && (
-                    <Text style={styles.contextText}>კონტექსტი: {paymentData.context}</Text>
-                  )}
-                  <View style={styles.amountChips}>
-                    <View style={styles.amountChip}>
-                      <Ionicons name="flash" size={14} color="#2563EB" />
-                      <Text style={styles.amountChipText}>დადასტურება წამებში</Text>
-                    </View>
-                    <View style={styles.amountChip}>
-                      <Ionicons name="shield-checkmark" size={14} color="#2563EB" />
-                      <Text style={styles.amountChipText}>ფraud დაცვა</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity style={styles.testPayButton} onPress={handleTestPayment}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2563EB" />
-                    <Text style={styles.testPayText}>სატესტო გადახდა (იმიტაცია)</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </LinearGradient>
-          </Animated.View>        
-
-          {savedCard && (
-            <View style={styles.savedCardSection}>
-              <Text style={styles.sectionTitle}>მიბმული ბარათი</Text>
-              <View style={styles.savedCard}>
-                <View style={styles.cardBackground}>
-                  <View style={styles.cardGradient} />
-                  <View style={styles.cardPattern} />
-                </View>
-                
-                <View style={styles.cardContent}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardType}>{savedCard.type}</Text>
-                    <View style={styles.cardLogo}>
-                      {savedCard.type === 'Visa' ? (
-                        <Text style={styles.cardTypeText}>VISA</Text>
-                      ) : savedCard.type === 'MasterCard' ? (
-                        <View style={styles.mastercardLogo}>
-                          <View style={styles.mastercardCircle1} />
-                          <View style={styles.mastercardCircle2} />
-                        </View>
-                      ) : savedCard.type === 'LOYALTY' ? (
-                        <View style={styles.loyaltyLogo}>
-                          <Text style={styles.loyaltyLogoText}>CA</Text>
-                        </View>
-                      ) : (
-                        <Ionicons name="card" size={20} color="#2563EB" />
-                      )}
-                    </View>
-                  </View>
-                  
-                  <View style={styles.cardNumber}>
-                    <Text style={styles.cardNumberText}>{savedCard.maskedNumber}</Text>
-                  </View>
-                  
-                  <View style={styles.cardFooter}>
-                    <View style={styles.cardHolder}>
-                      <Text style={styles.cardHolderLabel}>CARD HOLDER</Text>
-                      <Text style={styles.cardHolderName}>{savedCard.holder.toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.cardExpiry}>
-                      <Text style={styles.cardExpiryLabel}>VALID THRU</Text>
-                      <Text style={styles.cardExpiryDate}>{savedCard.expiry}</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.payButton}
-                onPress={async () => {
-                  Alert.alert(
-                    'გადახდა',
-                    `გსურთ გადაიხადოთ ${savedCard.maskedNumber} ბარათით?`,
-                    [
-                      { text: 'არა', style: 'cancel' },
-                      { 
-                        text: 'კი', 
-                        onPress: async () => {
-                          if (!user?.id) {
-                            Alert.alert('შეცდომა', 'მომხმარებელი არ არის ავტორიზებული');
-                            return;
-                          }
-
-                          setLoading(true);
-
-                          try {
-                            const cardId = savedCard.id || savedCard._id;
-                            if (!cardId) {
-                              throw new Error('ბარათის ID ვერ მოიძებნა');
-                            }
-
-                            const paymentData = {
-                              userId: user.id,
-                              cardId: cardId,
-                              amount: parseFloat(params.amount || '14.99'),
-                              currency: 'GEL',
-                              description: params.description || 'გადახდა'
-                            };
-
-                            console.log('💳 გადახდის მონაცემები:', paymentData);
-                            console.log('💳 savedCard:', savedCard);
-
-                            // const result = await paymentApi.processPayment(paymentData);
-                            const result = { success: false, message: 'Payment services temporarily disabled' };
-                            
-                            if (result.success) {
-                              console.log('✅ გადახდა განხორციელდა');
-                              
-                              // Success Modal-ის ჩვენება
-                              setShowSuccessModal(true);
-                              
-                              // Success Modal Animation
-                              Animated.parallel([
-                                Animated.timing(fadeAnim, {
-                                  toValue: 1,
-                                  duration: 300,
-                                  useNativeDriver: true,
-                                }),
-                                Animated.spring(scaleAnim, {
-                                  toValue: 1,
-                                  tension: 100,
-                                  friction: 8,
-                                  useNativeDriver: true,
-                                }),
-                              ]).start();
-                              
-                              // 5 წამის შემდეგ ავტომატურად დაბრუნება
-                              setTimeout(() => {
-                                Animated.parallel([
-                                  Animated.timing(fadeAnim, {
-                                    toValue: 0,
-                                    duration: 200,
-                                    useNativeDriver: true,
-                                  }),
-                                  Animated.timing(scaleAnim, {
-                                    toValue: 0.8,
-                                    duration: 200,
-                                    useNativeDriver: true,
-                                  }),
-                                ]).start(() => {
-                                  setShowSuccessModal(false);
-                                  router.back();
-                                });
-                              }, 5000);
-                            } else {
-                              throw new Error(result.message || 'გადახდა ვერ განხორციელდა');
-                            }
-                          } catch (error) {
-                            console.error('❌ გადახდის შეცდომა:', error);
-                            Alert.alert('შეცდომა', 'გადახდა ვერ განხორციელდა');
-                          } finally {
-                            setLoading(false);
-                          }
-                        }
-                      }
-                    ]
-                  );
-                }}
-              >
-                <View style={styles.payButtonContent}>
-                  {loading ? (
-                    <>
-                      <Ionicons name="hourglass" size={20} color="#FFFFFF" />
-                      <Text style={styles.payButtonText}>მუშაობს...</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Ionicons name="card" size={20} color="#FFFFFF" />
-                      <Text style={styles.payButtonText}>გადახდა ამ ბარათით</Text>
-                    </>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ბარათის დამახსოვრების ტოგლი */}
-          <View style={styles.rememberCardSection}>
-            <TouchableOpacity 
-              style={styles.rememberCardToggle}
-              onPress={() => setRememberCard(!rememberCard)}
-              activeOpacity={0.7}
-            >
-              <View style={[
-                styles.toggleSwitch,
-                rememberCard && styles.toggleSwitchActive
-              ]}>
-                <View style={[
-                  styles.toggleThumb,
-                  rememberCard && styles.toggleThumbActive
-                ]} />
-              </View>
-              <View style={styles.rememberCardInfo}>
-                <Text style={styles.rememberCardTitle}>ბარათის დამახსოვრება</Text>
-                <Text style={styles.rememberCardDescription}>
-                  მომავალ გადახდებზე ამ ბარათის გამოყენება
-                </Text>
-              </View>
-              <Ionicons 
-                name="card" 
-                size={20} 
-                color={rememberCard ? "#22C55E" : "#9CA3AF"} 
-              />
+              <Ionicons name="arrow-back" size={20} color="#0B1220" />
             </TouchableOpacity>
+            <Text style={styles.headerTitle}>გადახდა</Text>
+            <View style={styles.headerSpacer} />
+          </Animated.View>
+
+          {/* Progress Indicator */}
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>2 of 3</Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: '66.66%' }]} />
+            </View>
           </View>
 
-          {/* BOG გადახდა */}
-          <View style={styles.methodsSection}>
-            <TouchableOpacity 
-              onPress={async () => {
-                const result = await processPayment('bog');
-                if (!result.success) {
-                  Alert.alert('შეცდომა', result.message);
-                }
-              }}
-              activeOpacity={0.9}
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Payment Details Card */}
+            <Animated.View
               style={[
-                styles.singlePayButton,
-                (!bogOAuthStatus?.isTokenValid || loading) && styles.singlePayButtonDisabled
+                styles.paymentDetailsCard,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
               ]}
-              disabled={!bogOAuthStatus?.isTokenValid || loading}
             >
-              <LinearGradient
-                colors={
-                  !bogOAuthStatus?.isTokenValid 
-                    ? ['#6B7280', '#4B5563'] 
-                    : ['#22C55E', '#16A34A']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.singlePayGradient}
+              <View style={styles.paymentDetailsHeader}>
+                <View style={styles.paymentIcon}>
+                  <Ionicons name="receipt-outline" size={24} color="#6366F1" />
+                </View>
+                <Text style={styles.paymentDetailsTitle}>გადახდის დეტალები</Text>
+              </View>
+
+              <View style={styles.detailsDivider} />
+
+              {/* Subscription Info */}
+              {paymentData.isSubscription && paymentData.planName && (
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>პაკეტი:</Text>
+                    <Text style={styles.detailValue}>{paymentData.planName}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>პერიოდი:</Text>
+                    <Text style={styles.detailValue}>
+                      {paymentData.metadata?.planPeriod || 'თვეში'}
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {/* Amount */}
+              <View style={styles.amountRow}>
+                <Text style={styles.amountLabel}>თანხა:</Text>
+                <Text style={styles.amountValue}>
+                  {paymentData.amount} {paymentData.currency}
+                </Text>
+              </View>
+
+              {/* Description */}
+              {paymentData.description && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>აღწერა:</Text>
+                  <Text style={styles.detailValue}>{paymentData.description}</Text>
+                </View>
+              )}
+
+              {/* Context specific details */}
+              {paymentData.metadata?.serviceName && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>სერვისი:</Text>
+                  <Text style={styles.detailValue}>{paymentData.metadata.serviceName}</Text>
+                </View>
+              )}
+
+              {paymentData.metadata?.locationName && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>ადგილმდებარეობა:</Text>
+                  <Text style={styles.detailValue}>{paymentData.metadata.locationName}</Text>
+                </View>
+              )}
+
+              {paymentData.metadata?.selectedDate && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>თარიღი:</Text>
+                  <Text style={styles.detailValue}>{paymentData.metadata.selectedDate}</Text>
+                </View>
+              )}
+
+              {paymentData.metadata?.selectedTime && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>დრო:</Text>
+                  <Text style={styles.detailValue}>{paymentData.metadata.selectedTime}</Text>
+                </View>
+              )}
+            </Animated.View>
+
+            {/* Saved Card */}
+            {loadingCard ? (
+              <View style={styles.cardLoadingContainer}>
+                <ActivityIndicator size="small" color="#6366F1" />
+                <Text style={styles.cardLoadingText}>ბარათის მონაცემების ჩატვირთვა...</Text>
+              </View>
+            ) : savedCard?.payerIdentifier ? (
+              <Animated.View
+                style={[
+                  styles.savedCardContainer,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  },
+                ]}
               >
-                {loading ? (
+                <Text style={styles.sectionTitle}>შენახული ბარათი</Text>
+                <View style={styles.cardPreview}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTypeText}>
+                      {getCardTypeName(savedCard.cardType)}
+                    </Text>
+                    {savedCard.cardType?.toLowerCase() === 'visa' ? (
+                      <View style={styles.visaLogo}>
+                        <Text style={styles.visaText}>VISA</Text>
+                      </View>
+                    ) : savedCard.cardType?.toLowerCase() === 'mc' ? (
+                      <View style={styles.mastercardLogo}>
+                        <View style={styles.mcCircle1} />
+                        <View style={styles.mcCircle2} />
+                      </View>
+                    ) : (
+                      <Ionicons name="card" size={24} color="#6366F1" />
+                    )}
+                  </View>
+                  <View style={styles.cardNumberContainer}>
+                    <Text style={styles.cardNumberText}>
+                      {formatCardNumber(savedCard.payerIdentifier)}
+                    </Text>
+                  </View>
+                  {savedCard.cardExpiryDate && (
+                    <View style={styles.cardExpiryContainer}>
+                      <Text style={styles.cardExpiryLabel}>ვადის გასვლის თარიღი</Text>
+                      <Text style={styles.cardExpiryText}>{savedCard.cardExpiryDate}</Text>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            ) : null}
+
+            {/* BOG Payment Button */}
+            <Animated.View
+              style={[
+                styles.paymentButtonContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.paymentButton,
+                  (!bogOAuthStatus?.isTokenValid || loading || isCheckingBOG) &&
+                    styles.paymentButtonDisabled,
+                ]}
+                onPress={handleBOGPayment}
+                disabled={!bogOAuthStatus?.isTokenValid || loading || isCheckingBOG}
+                activeOpacity={0.9}
+              >
+                {loading || isCheckingBOG ? (
                   <>
-                    <ActivityIndicator size="small" color="#0B0B0E" />
-                    <Text style={styles.singlePayText}>მუშაობს...</Text>
-                  </>
-                ) : isCheckingBOG ? (
-                  <>
-                    <ActivityIndicator size="small" color="#0B0B0E" />
-                    <Text style={styles.singlePayText}>BOG შემოწმება...</Text>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.paymentButtonText}>
+                      {isCheckingBOG ? 'BOG შემოწმება...' : 'მუშაობს...'}
+                    </Text>
                   </>
                 ) : (
                   <>
-                    <Ionicons name="card" size={20} color="#0B0B0E" />
-                    <Text style={styles.singlePayText}>
-                      {bogOAuthStatus?.isTokenValid ? 'BOG გადახდა' : 'BOG არ მზადაა'}
+                    <Ionicons name="card" size={20} color="#FFFFFF" />
+                    <Text style={styles.paymentButtonText}>
+                      {bogOAuthStatus?.isTokenValid
+                        ? 'BOG გადახდა'
+                        : 'BOG არ მზადაა'}
                     </Text>
                   </>
                 )}
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            {/* BOG Status Indicator */}
-            <View style={styles.bogStatusContainer}>
-              {isCheckingBOG ? (
-                <Text style={styles.bogStatusText}>BOG სერვისის შემოწმება...</Text>
-              ) : bogOAuthStatus?.isTokenValid ? (
-                <Text style={[styles.bogStatusText, styles.bogStatusSuccess]}>
-                  ✅ BOG OAuth მზადაა
-                </Text>
-              ) : (
-                <Text style={[styles.bogStatusText, styles.bogStatusError]}>
-                  ⚠️ BOG OAuth არ მზადაა
-                </Text>
+              </TouchableOpacity>
+
+              {bogOAuthStatus?.isTokenValid && (
+                <View style={styles.securityBadge}>
+                  <Ionicons name="shield-checkmark" size={16} color="#22C55E" />
+                  <Text style={styles.securityText}>უსაფრთხო გადახდა</Text>
+                </View>
               )}
-            </View>
-          </View>
+            </Animated.View>
 
+            <View style={{ height: 30 }} />
+          </ScrollView>
+        </SafeAreaView>
 
-          {/* Security Notice */}
-          <View style={styles.securitySection}>
-            <View style={styles.securityCard}>
-              <Ionicons name="shield-checkmark" size={24} color="#10B981" />
-              <View style={styles.securityInfo}>
-                <Text style={styles.securityTitle}>უსაფრთხო გადახდა</Text>
-                <Text style={styles.securityDescription}>
-                  ყველა გადახდა დაცულია SSL ენკრიფციით
-                </Text>
-              </View>
-            </View>
-          </View>
+        {/* BOG Payment Modal */}
+        <BOGPaymentModal
+          visible={showBOGPaymentModal}
+          paymentUrl={bogPaymentUrl}
+          onClose={() => setShowBOGPaymentModal(false)}
+          onSuccess={async () => {
+            setShowBOGPaymentModal(false);
+            setShowSuccessModal(true);
+            await savePaymentInfo();
 
-          <View style={{ height: 30 }} />
-        </Animated.ScrollView>
+            if (paymentData.context === 'carwash' && paymentData.metadata) {
+            } else {
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                if (paymentData.isSubscription) {
+                  router.replace('/(tabs)');
+                } else {
+                  router.back();
+                }
+              }, 3000);
+            }
+          }}
+          onError={(error) => {
+            console.error('❌ BOG გადახდის შეცდომა:', error);
+            setShowBOGPaymentModal(false);
+            Alert.alert('შეცდომა', 'გადახდა ვერ განხორციელდა');
+          }}
+        />
 
-        {/* Card Modal */}
+        {/* Success Modal */}
         <Modal
-          visible={showCardModal}
-          animationType="slide"
+          visible={showSuccessModal}
           transparent={true}
-          onRequestClose={() => setShowCardModal(false)}
+          animationType="fade"
+          onRequestClose={() => setShowSuccessModal(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>ბარათის მიბმა</Text>
-                <TouchableOpacity 
-                  onPress={() => setShowCardModal(false)}
-                  style={styles.closeButton}
-                >
-                  <Ionicons name="close" size={24} color="#9CA3AF" />
-                </TouchableOpacity>
+          <View style={styles.successModalOverlay}>
+            <View style={styles.successModal}>
+              <View style={styles.successIconContainer}>
+                <Ionicons name="checkmark-circle" size={64} color="#22C55E" />
               </View>
-
-              <ScrollView style={styles.modalBody}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>ბარათის ნომერი</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="1234 5678 9012 3456"
-                    placeholderTextColor="#6B7280"
-                    value={cardNumber}
-                    onChangeText={(text) => setCardNumber(formatCardNumber(text))}
-                    keyboardType="numeric"
-                    maxLength={19}
-                  />
-                </View>
-
-                <View style={styles.row}>
-                  <View style={styles.inputGroupHalf}>
-                    <Text style={styles.inputLabel}>ვადის გასვლის თარიღი</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="MM/YY"
-                      placeholderTextColor="#6B7280"
-                      value={expiryDate}
-                      onChangeText={(text) => setExpiryDate(formatExpiryDate(text))}
-                      keyboardType="numeric"
-                      maxLength={5}
-                    />
-                  </View>
-                  
-                  <View style={styles.inputGroupHalf}>
-                    <Text style={styles.inputLabel}>CVV</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="123"
-                      placeholderTextColor="#6B7280"
-                      value={cvv}
-                      onChangeText={setCvv}
-                      keyboardType="numeric"
-                      maxLength={3}
-                      secureTextEntry
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>ბარათის მფლობელის სახელი</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="შეიყვანეთ სახელი და გვარი"
-                    placeholderTextColor="#6B7280"
-                    value={cardholderName}
-                    onChangeText={setCardholderName}
-                    autoCapitalize="words"
-                  />
-                </View>
-              </ScrollView>
-
-              <View style={styles.modalFooter}>
-                <TouchableOpacity 
-                  style={styles.cancelButton}
-                  onPress={() => setShowCardModal(false)}
-                >
-                  <Text style={styles.cancelButtonText}>გაუქმება</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.submitButton}
-                  onPress={() => {
-                    // ბარათის მიბმა - მოხერხდება მოგვიანებით
-                    Alert.alert('მოხერხდება მალე', 'ბარათის მიბმის ფუნქციონალი მალე იქნება ხელმისაწვდომი');
-                    setShowCardModal(false);
+              <Text style={styles.successTitle}>გადახდა წარმატებულია!</Text>
+              <Text style={styles.successMessage}>
+                თქვენი გადახდა {paymentData.amount} {paymentData.currency} წარმატებით
+                განხორციელდა.
+              </Text>
+              {paymentData.context === 'carwash' && paymentData.metadata ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={async () => {
+                    try {
+                      const bookingData = {
+                        userId: user?.id || '',
+                        locationId: paymentData.metadata?.locationId || '',
+                        locationName: paymentData.metadata?.locationName || '',
+                        locationAddress: paymentData.metadata?.locationName || '',
+                        serviceId: paymentData.metadata?.serviceId || '',
+                        serviceName: paymentData.metadata?.serviceName || '',
+                        servicePrice: paymentData.amount,
+                        bookingDate: new Date(
+                          paymentData.metadata?.selectedDate || Date.now()
+                        ).getTime(),
+                        bookingTime: paymentData.metadata?.selectedTime || '',
+                        carInfo: {
+                          make: 'Toyota',
+                          model: 'Camry',
+                          year: '2020',
+                          licensePlate: 'TB-123-AB',
+                          color: 'შავი',
+                        },
+                        customerInfo: {
+                          name: user?.name || 'მომხმარებელი',
+                          phone: user?.phone || '',
+                          email: user?.email || '',
+                        },
+                      };
+                      await carwashApi.createBooking(bookingData);
+                      setShowSuccessModal(false);
+                      router.back();
+                    } catch (error) {
+                      Alert.alert('შეცდომა', 'ჯავშნის შექმნისას მოხდა შეცდომა');
+                    }
                   }}
                 >
-                  <LinearGradient
-                    colors={['#2563EB', '#1D4ED8']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.submitGradient}
-                  >
-                    <Text style={styles.submitButtonText}>ბარათის მიბმა</Text>
-                  </LinearGradient>
+                  <Text style={styles.successButtonText}>დადასტურება</Text>
                 </TouchableOpacity>
-              </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    // Subscription payment-ის შემთხვევაში მთავარ გვერდზე გადავიდეთ
+                    if (paymentData.isSubscription) {
+                      router.replace('/(tabs)');
+                    } else {
+                      router.back();
+                    }
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </Modal>
-
-      </SafeAreaView>
-      {/* BOG Payment Modal (WebView) */}
-      <BOGPaymentModal
-        visible={showBOGPaymentModal}
-        paymentUrl={bogPaymentUrl}
-        onClose={() => setShowBOGPaymentModal(false)}
-        onSuccess={async () => {
-          console.log('🎉 BOG Payment Success!');
-          console.log('🔹 Closing BOG Modal...');
-          setShowBOGPaymentModal(false);
-          console.log('🔹 BOG Modal closed');
-          
-          if (paymentData.context === 'carwash' && paymentData.metadata) {
-            console.log('🎉 CarWash გადახდა წარმატებულია! ჯავშანი შეიქმნება მომხმარებლის დადასტურების შემდეგ');
-          }
-
-
-          console.log('🔹 Showing Success Modal...');
-          setShowSuccessModal(true);
-          console.log('🔹 Success Modal shown:', showSuccessModal);
-          
-          // Success Modal Animation
-          Animated.parallel([
-            Animated.timing(fadeAnim, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-            Animated.spring(scaleAnim, {
-              toValue: 1,
-              tension: 100,
-              friction: 8,
-              useNativeDriver: true,
-            }),
-          ]).start();
-          
-          // გადახდის ინფორმაციის შენახვა backend-ში
-          await savePaymentInfo();
-
-          // CarWash გადახდის შემთხვევაში მოდალი რჩება ღილაკისთვის
-          if (paymentData.context === 'carwash' && paymentData.metadata) {
-            console.log('🎉 CarWash გადახდა წარმატებულია! მოდალი რჩება დადასტურებისთვის');
-          } else {
-            setTimeout(() => {
-              setShowSuccessModal(false);
-              router.back();
-            }, 3000);
-          }
-        }}
-        onError={(error) => {
-          console.error('❌ BOG გადახდის შეცდომა:', error);
-          setShowBOGPaymentModal(false);
-          router.back();
-        }}
-      />
-
-      {/* Success Modal */}
-      <Modal
-        visible={showSuccessModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
-      >
-        <View style={styles.successModalOverlay}>
-          <Animated.View 
-            style={[
-              styles.successModal,
-              {
-                opacity: fadeAnim,
-                transform: [{ scale: scaleAnim }]
-              }
-            ]}
-          >
-            <LinearGradient
-              colors={['#10B981', '#059669']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.successModalGradient}
-            >
-              <View style={styles.successModalContent}>
-                <View style={styles.successIconContainer}>
-                  <Ionicons name="checkmark-circle" size={80} color="#FFFFFF" />
-                </View>
-                
-                <Text style={styles.successModalTitle}>გადახდა წარმატებულია!</Text>
-                <Text style={styles.successModalMessage}>
-                  თქვენი გადახდა {params.amount}₾ წარმატებით განხორციელდა.
-                </Text>
-                
-                {rememberCard && (
-                  <View style={styles.rememberCardSuccess}>
-                    <Ionicons name="card" size={20} color="#FFFFFF" />
-                    <Text style={styles.rememberCardSuccessText}>
-                      ბარათი დამახსოვრებულია მომავალი გადახდებისთვის
-                    </Text>
-                  </View>
-                )}
-                
-                <View style={styles.successTimerContainer}>
-                  <Text style={styles.successTimerText}>
-                    ავტომატურად დაბრუნდებით 5 წამში...
-                  </Text>
-                </View>
-                
-                {paymentData.context === 'carwash' && paymentData.metadata ? (
-                  // CarWash გადახდის შემთხვევაში "დადასტურება" ღილაკი
-                  <TouchableOpacity
-                    style={styles.successModalButton}
-                    onPress={async () => {
-                      try {
-                        console.log('🚗 CarWash ჯავშნის შექმნა...');
-                        
-                        const bookingData = {
-                          userId: user?.id || '',
-                          locationId: paymentData.metadata?.locationId || '',
-                          locationName: paymentData.metadata?.locationName || '',
-                          locationAddress: paymentData.metadata?.locationName || '',
-                          serviceId: paymentData.metadata?.serviceId || '',
-                          serviceName: paymentData.metadata?.serviceName || '',
-                          servicePrice: paymentData.amount,
-                          bookingDate: new Date(paymentData.metadata?.selectedDate || Date.now()).getTime(),
-                          bookingTime: paymentData.metadata?.selectedTime || '',
-                          carInfo: {
-                            make: 'Toyota',
-                            model: 'Camry',
-                            year: '2020',
-                            licensePlate: 'TB-123-AB',
-                            color: 'შავი'
-                          },
-                          customerInfo: {
-                            name: user?.name || 'მომხმარებელი',
-                            phone: user?.phone || '',
-                            email: user?.email || ''
-                          }
-                        };
-
-                        // CarWash დაჯავშნის შექმნა backend-ში
-                        await carwashApi.createBooking(bookingData);
-                        console.log('✅ CarWash დაჯავშნა წარმატებით შეიქმნა!');
-                        
-                        // მოდალის დახურვა და იმავე გვერდზე დარჩენა
-                        setShowSuccessModal(false);
-                        router.back(); // Payment modal-ის დახურვა
-                      } catch (error) {
-                        console.error('❌ CarWash დაჯავშნის შექმნის შეცდომა:', error);
-                        Alert.alert('შეცდომა', 'ჯავშნის შექმნისას მოხდა შეცდომა');
-                      }
-                    }}
-                  >
-                    <Text style={styles.successModalButtonText}>დადასტურება</Text>
-                  </TouchableOpacity>
-                ) : (
-                  // სხვა შემთხვევებში "კარგი" ღილაკი
-                  <TouchableOpacity
-                    style={styles.successModalButton}
-                    onPress={() => {
-                      Animated.parallel([
-                        Animated.timing(fadeAnim, {
-                          toValue: 0,
-                          duration: 200,
-                          useNativeDriver: true,
-                        }),
-                        Animated.timing(scaleAnim, {
-                          toValue: 0.8,
-                          duration: 200,
-                          useNativeDriver: true,
-                        }),
-                      ]).start(() => {
-                        setShowSuccessModal(false);
-                        router.back(); // Payment modal-ის დახურვა
-                      });
-                    }}
-                  >
-                    <Text style={styles.successModalButtonText}>კარგი</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        </View>
-      </Modal>
-        </View>
       </View>
     </Modal>
   );
@@ -1050,14 +825,6 @@ export default function PaymentCardScreen() {
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
@@ -1069,830 +836,302 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingBottom: 12,
     backgroundColor: '#FFFFFF',
   },
   backButton: {
-    padding: 8,
-    backgroundColor: 'rgba(37, 99, 235, 0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(37, 99, 235, 0.18)',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#0F172A',
-    fontFamily: 'Inter',
+    color: '#0B1220',
+    fontFamily: 'System',
   },
   headerSpacer: {
     width: 40,
   },
+  progressContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  progressText: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontWeight: '500',
+    fontFamily: 'System',
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#6366F1',
+    borderRadius: 2,
+  },
   content: {
     flex: 1,
   },
-  heroWrapper: {
-    paddingHorizontal: 16,
-  },
-  heroSection: {
-    alignItems: 'center',
+  scrollContent: {
     paddingHorizontal: 20,
-    paddingVertical: 26,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#CBD5E1',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    backgroundColor: '#F6F8FF',
+    paddingTop: 16,
   },
-  heroIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
+  paymentDetailsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    padding: 20,
     marginBottom: 16,
-    shadowColor: '#2563EB',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
   },
-  heroBadgeRow: {
+  paymentDetailsHeader: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  paymentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
-  heroBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  heroBadgeText: {
-    color: '#0F172A',
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Inter',
-  },
-  heroTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-    marginBottom: 8,
-    fontFamily: 'Inter',
-  },
-  heroSubtitle: {
-    fontSize: 14,
-    color: '#475569',
-    textAlign: 'center',
-    lineHeight: 20,
-    fontFamily: 'Inter',
-  },
-  amountSection: {
-    marginTop: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  amountText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#2563EB',
-    fontFamily: 'Inter',
-    marginBottom: 4,
-  },
-  descriptionText: {
-    fontSize: 12,
-    color: '#475569',
-    textAlign: 'center',
-    fontFamily: 'Inter',
-  },
-  contextText: {
-    fontSize: 10,
-    color: '#94A3B8',
-    textAlign: 'center',
-    fontFamily: 'Inter',
-    marginTop: 4,
-  },
-  amountChips: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-  },
-  amountChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  amountChipText: {
-    fontSize: 12,
-    color: '#0F172A',
-    fontWeight: '600',
-    fontFamily: 'Inter',
-  },
-  testPayButton: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#E0ECFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#C7DBFF',
-  },
-  testPayText: {
-    color: '#2563EB',
-    fontWeight: '700',
-    fontSize: 13,
-    fontFamily: 'Inter',
-  },
-  subscriptionSection: {
-    marginTop: 16,
-    alignItems: 'center',
-    backgroundColor: 'rgba(37, 99, 235, 0.07)',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(37, 99, 235, 0.16)',
-  },
-  subscriptionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    fontFamily: 'Inter',
-    marginBottom: 8,
-  },
-  subscriptionPrice: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#2563EB',
-    fontFamily: 'Inter',
-    marginBottom: 4,
-  },
-  subscriptionDescription: {
-    fontSize: 12,
-    color: '#475569',
-    textAlign: 'center',
-    fontFamily: 'Inter',
-  },
-  vinSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: '#FFFFFF',
-  },
-  vinInput: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  paymentDetailsTitle: {
     fontSize: 16,
-    color: '#0F172A',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    fontFamily: 'Inter',
-    letterSpacing: 1,
-    marginBottom: 8,
+    fontWeight: '600',
+    color: '#0B1220',
+    fontFamily: 'System',
   },
-  vinHint: {
+  detailsDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 16,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  detailLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontFamily: 'System',
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: 13,
+    color: '#0B1220',
+    fontWeight: '600',
+    fontFamily: 'System',
+    flex: 1,
+    textAlign: 'right',
+  },
+  amountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  amountLabel: {
+    fontSize: 15,
+    color: '#0B1220',
+    fontWeight: '600',
+    fontFamily: 'System',
+  },
+  amountValue: {
+    fontSize: 20,
+    color: '#6366F1',
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  cardLoadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  cardLoadingText: {
     fontSize: 12,
-    color: '#475569',
-    fontFamily: 'Inter',
+    color: '#6B7280',
+    marginTop: 8,
+    fontFamily: 'System',
   },
-  savedCardSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: 'transparent',
+  savedCardContainer: {
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    fontFamily: 'Inter',
-    marginBottom: 16,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0B1220',
+    marginBottom: 12,
+    fontFamily: 'System',
   },
-  savedCard: {
-    width: width - 40,
-    height: 160,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#CBD5E1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 12,
-    marginBottom: 16,
-    position: 'relative',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  cardBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 20,
-    backgroundColor: '#E0ECFF',
-  },
-  cardGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(37, 99, 235, 0.12)',
-    borderRadius: 20,
-  },
-  cardPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
-    borderRadius: 20,
-  },
-  cardContent: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'space-between',
-    position: 'relative',
-    zIndex: 2,
+  cardPreview: {
+    backgroundColor: '#F5F5DC',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#6366F1',
+    padding: 16,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  cardType: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    letterSpacing: 1,
-    fontFamily: 'Inter',
-  },
-  cardChip: {
-    width: 32,
-    height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 4,
-    padding: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipLines: {
-    flexDirection: 'column',
-    gap: 1,
-  },
-  chipLine: {
-    width: 18,
-    height: 1.5,
-    backgroundColor: '#333',
-    borderRadius: 1,
-  },
-  cardLogo: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 16,
   },
   cardTypeText: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#0B1220',
+    fontFamily: 'System',
+  },
+  visaLogo: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#1A1F71',
+    borderRadius: 4,
+  },
+  visaText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
-    letterSpacing: 1,
-  },
-  loyaltyLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E0ECFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loyaltyLogoText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#2563EB',
-    fontFamily: 'Inter',
+    fontFamily: 'System',
   },
   mastercardLogo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: -6,
   },
-  mastercardCircle1: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#2563EB',
+  mcCircle1: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EB001B',
   },
-  mastercardCircle2: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#60A5FA',
-    marginLeft: -6,
+  mcCircle2: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F79E1B',
+    marginLeft: -12,
   },
-  cardNumber: {
-    alignItems: 'center',
-    marginVertical: 20,
+  cardNumberContainer: {
+    marginBottom: 12,
   },
   cardNumberText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#0B1220',
     letterSpacing: 2,
-    fontFamily: 'Inter',
+    fontFamily: 'System',
   },
-  cardFooter: {
+  cardExpiryContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  cardHolder: {
-    flex: 1,
-  },
-  cardHolderLabel: {
-    fontSize: 8,
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-    letterSpacing: 1,
-  },
-  cardHolderName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    fontFamily: 'Inter',
-  },
-  cardExpiry: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   cardExpiryLabel: {
-    fontSize: 8,
+    fontSize: 11,
+    color: '#6B7280',
+    fontFamily: 'System',
+  },
+  cardExpiryText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
-    marginBottom: 4,
-    fontFamily: 'Inter',
-    letterSpacing: 1,
+    color: '#0B1220',
+    fontFamily: 'System',
   },
-  cardExpiryDate: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    fontFamily: 'Inter',
+  paymentButtonContainer: {
+    marginTop: 8,
   },
-  payButton: {
-    backgroundColor: '#2563EB',
-    borderWidth: 1,
-    borderColor: '#1D4ED8',
+  paymentButton: {
+    backgroundColor: '#0B1220',
     borderRadius: 12,
-  },
-  payButtonContent: {
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
     gap: 8,
   },
-  payButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  paymentButtonDisabled: {
+    opacity: 0.5,
+  },
+  paymentButtonText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontSize: 15,
+    fontWeight: '600',
+    fontFamily: 'System',
   },
-  methodsSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: 'transparent',
-  },
-  singlePayButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  singlePayGradient: {
-    paddingVertical: 14,
+  securityBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  singlePayText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0B0B0E',
-    fontFamily: 'Inter',
-  },
-  singlePayButtonDisabled: {
-    opacity: 0.6,
-  },
-  bogStatusContainer: {
     marginTop: 12,
-    alignItems: 'center',
+    gap: 6,
   },
-  bogStatusText: {
+  securityText: {
     fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    textAlign: 'center',
-  },
-  bogStatusSuccess: {
     color: '#22C55E',
-  },
-  bogStatusError: {
-    color: '#EF4444',
-  },
-  methodCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#CBD5E1',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  methodTouchable: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  methodIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E0ECFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  methodInfo: {
-    flex: 1,
-  },
-  methodName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 2,
-    fontFamily: 'Inter',
-  },
-  methodDescription: {
-    fontSize: 12,
-    color: '#475569',
-    fontFamily: 'Inter',
-  },
-  securitySection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  securityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  securityInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  securityTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2563EB',
-    marginBottom: 2,
-    fontFamily: 'Inter',
-  },
-  securityDescription: {
-    fontSize: 12,
-    color: '#475569',
-    fontFamily: 'Inter',
-  },
-  // Modal Styles
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    fontFamily: 'Inter',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  modalBody: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputGroupHalf: {
-    flex: 1,
-    marginRight: 12,
-  },
-  row: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
-    marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'System',
   },
-  input: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#0F172A',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    fontFamily: 'Inter',
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(156, 163, 175, 0.2)',
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
-    fontFamily: 'Inter',
-  },
-  submitButton: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  submitGradient: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-  },
-  // Remember Card Toggle Styles
-  rememberCardSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  rememberCardToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  toggleSwitch: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-    marginRight: 12,
-  },
-  toggleSwitchActive: {
-    backgroundColor: '#2563EB',
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#CBD5E1',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  toggleThumbActive: {
-    transform: [{ translateX: 20 }],
-  },
-  rememberCardInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  rememberCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    marginBottom: 2,
-  },
-  rememberCardDescription: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'Inter',
-    lineHeight: 16,
-  },
-  // Success Modal Styles
   successModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
   successModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
     width: '100%',
-    maxWidth: 350,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  successModalGradient: {
-    padding: 30,
-  },
-  successModalContent: {
+    maxWidth: 320,
     alignItems: 'center',
   },
   successIconContainer: {
-    marginBottom: 20,
-  },
-  successModalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 12,
-    fontFamily: 'Poppins_700Bold',
-  },
-  successModalMessage: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 24,
-    fontFamily: 'Poppins_400Regular',
-  },
-  rememberCardSuccess: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 20,
-    gap: 8,
-  },
-  rememberCardSuccessText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontFamily: 'Poppins_500Medium',
-  },
-  successTimerContainer: {
-    marginBottom: 24,
-  },
-  successTimerText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    fontFamily: 'Poppins_400Regular',
-  },
-  successModalButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  successModalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Poppins_600SemiBold',
-  },
-  // Saved Cards Styles
-  savedCardsSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  savedCardsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
     marginBottom: 16,
-    fontFamily: 'Poppins_600SemiBold',
   },
-  savedCardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0B1220',
+    marginBottom: 8,
+    textAlign: 'center',
+    fontFamily: 'System',
+  },
+  successMessage: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+    fontFamily: 'System',
+  },
+  successButton: {
+    backgroundColor: '#0B1220',
     borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-  },
-  savedCardInfo: {
-    flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
     alignItems: 'center',
-    flex: 1,
   },
-  savedCardDetails: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  savedCardNumber: {
-    fontSize: 16,
-    fontWeight: '600',
+  successButtonText: {
     color: '#FFFFFF',
-    fontFamily: 'Poppins_600SemiBold',
-    marginBottom: 2,
-  },
-  savedCardType: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'Poppins_400Regular',
-  },
-  deleteCardButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  savedCardActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  savedCardActionButton: {
-    padding: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 36,
+    fontSize: 15,
+    fontWeight: '600',
+    fontFamily: 'System',
   },
 });

@@ -18,7 +18,7 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
   const item = story.items[index];
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewsCount, setViewsCount] = useState<number>(0);
-  const [recentViewers, setRecentViewers] = useState<Array<{ userId: string; viewedAt: number }>>([]);
+  const [recentViewers, setRecentViewers] = useState<Array<{ userId: string; userName?: string; viewedAt: number }>>([]);
   const [showViewers, setShowViewers] = useState(false);
 
   const duration = item?.durationMs ?? 5000;
@@ -67,7 +67,7 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
         if (!active) return;
         setViewsCount(Number(json?.viewsCount || 0));
         const list = Array.isArray(json?.data) ? json.data : [];
-        setRecentViewers(list as Array<{ userId: string; viewedAt: number }>);
+        setRecentViewers(list as Array<{ userId: string; userName?: string; viewedAt: number }>);
       } catch {}
     })();
     return () => { active = false; };
@@ -97,12 +97,10 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
             </TouchableWithoutFeedback>
           </View>
 
-          {/* media */}
           {item?.type === 'image' ? (
             <Image source={{ uri: item.uri }} style={styles.media} resizeMode="cover" />
           ) : null}
 
-          {/* caption */}
           {item?.caption ? (
             <View style={styles.captionWrap}>
               <Text style={styles.caption}>{item.caption}</Text>
@@ -127,7 +125,7 @@ export default function StoryViewer({ story, onClose, onNext, onPrev }: Props) {
                 recentViewers.map((v) => (
                   <View key={`${v.userId}-${v.viewedAt}`} style={styles.viewerRow}>
                     <View style={styles.viewerAvatar} />
-                    <Text style={styles.viewerRowText}>{v.userId}</Text>
+                  <Text style={styles.viewerRowText}>{v.userName || v.userId || 'მნახველი'}</Text>
                     <Text style={styles.viewerTime}>{new Date(v.viewedAt).toLocaleTimeString()}</Text>
                   </View>
                 ))

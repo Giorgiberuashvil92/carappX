@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -55,28 +55,50 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const { updateUserRole, addToOwnedCarwashes } = useUser();
-  React.useEffect(() => {
+  
+  const resetModal = useCallback(() => {
+    setCurrentStep({ 
+      step: defaultType ? 'form' : 'type-selection',
+      selectedType: defaultType
+    });
+    setFormData({});
+  }, [defaultType]);
+  
+  useEffect(() => {
+    if (defaultType) {
+      setCurrentStep({ 
+        step: 'form', 
+        selectedType: defaultType 
+      });
+    } else {
+      setCurrentStep({ 
+        step: 'type-selection',
+        selectedType: undefined
+      });
+    }
+  }, [defaultType]);
+  
+  // Reset form when modal opens
+  useEffect(() => {
+    if (visible) {
+      resetModal();
+    }
+  }, [visible, resetModal]);
+  
+  useEffect(() => {
     const unsub = subscribeToLocation((e) => {
       if (e?.type === 'LOCATION_PICKED') {
         setFormData((prev: any) => ({
           ...prev,
           latitude: e.payload.latitude,
           longitude: e.payload.longitude,
-          address: prev?.address || e.payload.address,
+          address: e.payload.address || prev?.address || '',
         }));
         setHideModal(false);
       }
     });
     return unsub;
   }, []);
-
-  const resetModal = () => {
-    setCurrentStep({ 
-      step: defaultType ? 'form' : 'type-selection',
-      selectedType: defaultType
-    });
-    setFormData({});
-  };
 
   const handleClose = () => {
     resetModal();
@@ -156,6 +178,9 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             location: formData.location,
             phone: dismantlerNormalizedPhone,
             name: formData.name,
+            latitude: formData.latitude,
+            longitude: formData.longitude,
+            address: formData.address,
           };
           console.log('Sending dismantler data:', dismantlerData);
           console.log('User ID for dismantler:', user?.id);
@@ -187,6 +212,9 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             partNumber: formData.partNumber,
             warranty: formData.warranty,
             isNegotiable: formData.isNegotiable || false,
+            latitude: formData.latitude,
+            longitude: formData.longitude,
+            address: formData.address,
           };
           console.log('Sending part data:', partData);
           response = await addItemApi.createPart(partData);
@@ -304,6 +332,8 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             avatar: uploadedPhotos.length > 0 ? uploadedPhotos[0] : '',
             description: formData.description,
             isAvailable: true,
+            latitude: formData.latitude,
+            longitude: formData.longitude,
           };
           console.log('Sending mechanic data:', mechanicData);
           const mechanicResponse = await mechanicsApi.createMechanic(mechanicData);
@@ -470,7 +500,8 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'yearTo', label: 'წლამდე', type: 'text', required: true, placeholder: 'მაგ. 2020' },
             { key: 'photos', label: 'ფოტოები', type: 'photo', required: false },
             { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'მანქანის მდგომარეობა, რა ნაწილები გაყიდვაშია...' },
-            { key: 'location', label: 'მისამართი', type: 'location', required: true, placeholder: 'ქალაქი, რაიონი' },
+            { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
+            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
             { key: 'phone', label: 'ტელეფონის ნომერი', type: 'phone', required: true, placeholder: '+995 XXX XXX XXX' },
           ]
         };
@@ -489,7 +520,8 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'condition', label: 'მდგომარეობა', type: 'select', required: true, options: ['ახალი', 'ძალიან კარგი', 'კარგი', 'დამაკმაყოფილებელი'] },
             { key: 'price', label: 'ფასი (ლარი)', type: 'text', required: true, placeholder: 'მაგ. 150' },
             { key: 'images', label: 'ფოტოები', type: 'photo', required: false },
-            { key: 'location', label: 'მისამართი (ქალაქი)', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
+            { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
+            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
             { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'ნაწილის დეტალური აღწერა, მდგომარეობა, ფასდაკლების შესაძლებლობა...' },
           ]
         };
@@ -504,7 +536,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'type', label: 'მაღაზიის ტიპი', type: 'select', required: true, options: ['ავტონაწილები', 'სამართ-დასახურებელი', 'რემონტი', 'სხვა'] },
             { key: 'images', label: 'ფოტოები', type: 'photo', required: false },
             { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
-            { key: 'address', label: 'ზუსტი მისამართი', type: 'location', required: true, placeholder: 'ქუჩა, ნომერი, რაიონი' },
+            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
             { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'მაღაზიის აღწერა, მიწოდებული პროდუქტები, სერვისები...' },
             { key: 'workingHours', label: 'სამუშაო საათები', type: 'text', required: false, placeholder: 'მაგ. 09:00-19:00 (ორშ-პარ)' },
           ]
@@ -518,7 +550,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'phone', label: 'ტელეფონის ნომერი', type: 'phone', required: true, placeholder: '+995 XXX XXX XXX' },
             { key: 'category', label: 'კატეგორია', type: 'select', required: true, options: ['Premium', 'Express', 'Luxury', 'Standard', 'Professional'] },
             { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
-            { key: 'address', label: 'ზუსტი მისამართი', type: 'location', required: true, placeholder: 'ქუჩა, ნომერი, რაიონი' },
+            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
             { key: 'price', label: 'ფასი (ლარი)', type: 'text', required: true, placeholder: 'მაგ. 25' },
             { key: 'rating', label: 'რეიტინგი', type: 'select', required: true, options: ['4.5', '4.6', '4.7', '4.8', '4.9', '5.0'] },
             { key: 'reviews', label: 'რევიუების რაოდენობა', type: 'text', required: true, placeholder: 'მაგ. 150' },
@@ -541,7 +573,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'phone', label: 'ტელეფონის ნომერი', type: 'phone', required: true, placeholder: '+995 XXX XXX XXX' },
             { key: 'specialty', label: 'სპეციალობა', type: 'select', required: true, options: ['ძრავი', 'შემუშავება', 'ელექტრო', 'გადაცემა', 'დიაგნოსტიკა', 'ზოგადი'] },
             { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
-            { key: 'address', label: 'ზუსტი მისამართი', type: 'location', required: true, placeholder: 'ქუჩა, ნომერი, რაიონი' },
+            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
             { key: 'experience', label: 'გამოცდილება', type: 'text', required: true, placeholder: 'მაგ. 5 წელი' },
             { key: 'services', label: 'სერვისები', type: 'textarea', required: true, placeholder: 'ძრავის შეკეთება, დიაგნოსტიკა, ელექტრო სისტემა...' },
             { key: 'avatar', label: 'ფოტო', type: 'photo', required: false },
@@ -669,6 +701,33 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
                       <Ionicons name="location" size={20} color="#3B82F6" />
                       <Text style={styles.mapButtonText}>რუკა</Text>
                     </TouchableOpacity>
+                    {/* Show coordinates if location is picked */}
+                    {(formData.latitude && formData.longitude) && (
+                      <View style={styles.coordinatesContainer}>
+                        <View style={styles.coordinatesRow}>
+                          <Ionicons name="map" size={16} color="#10B981" />
+                          <Text style={styles.coordinatesLabel}>კოორდინატები:</Text>
+                        </View>
+                        <Text style={styles.coordinatesText}>
+                          {formData.latitude.toFixed(6)}, {formData.longitude.toFixed(6)}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.clearLocationBtn}
+                          onPress={() => {
+                            setFormData({
+                              ...formData,
+                              [field.key]: '',
+                              latitude: undefined,
+                              longitude: undefined,
+                              address: undefined,
+                            });
+                          }}
+                        >
+                          <Ionicons name="close-circle" size={18} color="#EF4444" />
+                          <Text style={styles.clearLocationText}>წაშლა</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 ) : field.type === 'textarea' ? (
                   <TextInput
@@ -999,6 +1058,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#3B82F6',
+  },
+  coordinatesContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  coordinatesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  coordinatesLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  coordinatesText: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    color: '#15803D',
+    marginBottom: 8,
+  },
+  clearLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  clearLocationText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#EF4444',
   },
 
   // Dropdown Modal

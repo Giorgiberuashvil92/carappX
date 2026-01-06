@@ -25,6 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AddReminderModal from '../../components/garage/AddReminderModal';
 import { uploadCarImage } from '../../utils/cloudinaryUpload';
+import carData from '../../data/carData.json';
 
 const { width, height } = Dimensions.get('window');
 
@@ -125,47 +126,15 @@ const CAR_ACHIEVEMENTS: Achievement[] = [
 ];
 
 // მანქანების მონაცემები dropdown-ებისთვის
-const CAR_BRANDS = [
-  'BMW', 'Mercedes-Benz', 'Audi', 'Toyota', 'Honda', 'Nissan', 'Hyundai', 'Kia',
-  'Volkswagen', 'Ford', 'Chevrolet', 'Mazda', 'Subaru', 'Lexus', 'Infiniti', 'Acura',
-  'Porsche', 'Jaguar', 'Land Rover', 'Volvo', 'Saab', 'Opel', 'Peugeot', 'Renault',
-  'Fiat', 'Alfa Romeo', 'Lancia', 'Skoda', 'Seat', 'Dacia', 'Lada', 'UAZ'
-];
-
-const CAR_MODELS: { [key: string]: string[] } = {
-  'BMW': ['X1', 'X3', 'X5', 'X7', '1 Series', '2 Series', '3 Series', '4 Series', '5 Series', '6 Series', '7 Series', '8 Series', 'Z4', 'i3', 'i8'],
-  'Mercedes-Benz': ['A-Class', 'B-Class', 'C-Class', 'E-Class', 'S-Class', 'GLA', 'GLB', 'GLC', 'GLE', 'GLS', 'G-Class', 'CLA', 'CLS', 'AMG GT', 'EQC'],
-  'Audi': ['A1', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'Q2', 'Q3', 'Q5', 'Q7', 'Q8', 'TT', 'R8', 'e-tron'],
-  'Toyota': ['Yaris', 'Corolla', 'Camry', 'Prius', 'RAV4', 'Highlander', '4Runner', 'Sequoia', 'Tacoma', 'Tundra', 'Sienna', 'Avalon', 'C-HR', 'Venza'],
-  'Honda': ['Civic', 'Accord', 'Insight', 'CR-V', 'Pilot', 'Passport', 'Ridgeline', 'HR-V', 'Fit', 'Odyssey', 'NSX', 'CR-Z'],
-  'Nissan': ['Versa', 'Sentra', 'Altima', 'Maxima', 'Kicks', 'Rogue', 'Murano', 'Pathfinder', 'Armada', 'Frontier', 'Titan', '370Z', 'GT-R', 'Leaf'],
-  'Hyundai': ['Accent', 'Elantra', 'Sonata', 'Veloster', 'Tucson', 'Santa Fe', 'Palisade', 'Kona', 'Nexo', 'Genesis', 'Ioniq'],
-  'Kia': ['Rio', 'Forte', 'Optima', 'Stinger', 'Soul', 'Sportage', 'Sorento', 'Telluride', 'Niro', 'Cadenza', 'K900'],
-  'Volkswagen': ['Jetta', 'Passat', 'Arteon', 'Golf', 'GTI', 'Beetle', 'Tiguan', 'Atlas', 'ID.4', 'Touareg'],
-  'Ford': ['Fiesta', 'Focus', 'Fusion', 'Mustang', 'EcoSport', 'Escape', 'Edge', 'Explorer', 'Expedition', 'F-150', 'Ranger', 'Bronco'],
-  'Chevrolet': ['Spark', 'Sonic', 'Cruze', 'Malibu', 'Impala', 'Camaro', 'Corvette', 'Trax', 'Equinox', 'Blazer', 'Traverse', 'Tahoe', 'Suburban', 'Silverado'],
-  'Mazda': ['Mazda2', 'Mazda3', 'Mazda6', 'MX-5 Miata', 'CX-3', 'CX-30', 'CX-5', 'CX-9'],
-  'Subaru': ['Impreza', 'Legacy', 'WRX', 'BRZ', 'Crosstrek', 'Forester', 'Outback', 'Ascent'],
-  'Lexus': ['IS', 'ES', 'GS', 'LS', 'UX', 'NX', 'RX', 'GX', 'LX', 'LC', 'RC'],
-  'Infiniti': ['Q50', 'Q60', 'Q70', 'QX30', 'QX50', 'QX60', 'QX80'],
-  'Acura': ['ILX', 'TLX', 'RLX', 'RDX', 'MDX', 'NSX'],
-  'Porsche': ['718', '911', 'Panamera', 'Macan', 'Cayenne', 'Taycan'],
-  'Jaguar': ['XE', 'XF', 'XJ', 'F-PACE', 'E-PACE', 'I-PACE', 'F-TYPE'],
-  'Land Rover': ['Range Rover Evoque', 'Range Rover Velar', 'Range Rover Sport', 'Range Rover', 'Discovery Sport', 'Discovery', 'Defender'],
-  'Volvo': ['S60', 'S90', 'V60', 'V90', 'XC40', 'XC60', 'XC90'],
-  'Saab': ['9-3', '9-5', '9-7X'],
-  'Opel': ['Corsa', 'Astra', 'Insignia', 'Crossland', 'Grandland', 'Mokka'],
-  'Peugeot': ['208', '308', '508', '2008', '3008', '5008'],
-  'Renault': ['Clio', 'Megane', 'Talisman', 'Captur', 'Kadjar', 'Koleos'],
-  'Fiat': ['500', 'Panda', 'Tipo', '500X', '500L'],
-  'Alfa Romeo': ['Giulietta', 'Giulia', 'Stelvio', '4C'],
-  'Lancia': ['Ypsilon', 'Delta'],
-  'Skoda': ['Fabia', 'Octavia', 'Superb', 'Kamiq', 'Karoq', 'Kodiaq'],
-  'Seat': ['Ibiza', 'Leon', 'Toledo', 'Arona', 'Ateca', 'Tarraco'],
-  'Dacia': ['Sandero', 'Logan', 'Duster', 'Lodgy', 'Dokker'],
-  'Lada': ['Granta', 'Vesta', 'XRAY', 'Largus', '4x4'],
-  'UAZ': ['Patriot', 'Hunter', 'Pickup', 'Cargo']
-};
+// Extract brands and models from carData.json (same as parts.tsx)
+const CAR_BRANDS = Object.keys(carData.brands);
+const CAR_MODELS: { [key: string]: string[] } = {};
+Object.keys(carData.brands).forEach((brand) => {
+  const brandData = (carData.brands as any)[brand];
+  if (brandData && brandData.models) {
+    CAR_MODELS[brand] = brandData.models;
+  }
+});
 
 const CAR_SUBMODELS: { [key: string]: { [key: string]: string[] } } = {
   'BMW': {
@@ -1594,7 +1563,7 @@ const styles = StyleSheet.create({
       justifyContent: 'flex-end',
     },
     modalContent: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: '#1F2937',
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingTop: 8,
@@ -1618,12 +1587,12 @@ const styles = StyleSheet.create({
     modalTitle: {
       fontSize: 24,
       fontWeight: '700',
-      color: '#111827',
+      color: '#F9FAFB',
     },
     modalBody: {
       paddingHorizontal: 20,
       paddingBottom: 40,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: '#1F2937',
     },
     inputGroup: {
       marginBottom: 20,

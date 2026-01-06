@@ -26,6 +26,9 @@ interface UserContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
+  shouldOpenPremiumModal: boolean;
+  clearPremiumModalFlag: () => void;
+  setShouldOpenPremiumModal: (value: boolean) => void;
   login: (userData: any) => Promise<void>;
   register: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
@@ -41,6 +44,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [shouldOpenPremiumModal, setShouldOpenPremiumModal] = useState(false);
 
   // Track login history
   const trackLoginHistory = async (user: User) => {
@@ -76,15 +80,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       
       const token = await messaging().getToken();
-      console.log('📱 [USERCONTEXT] Firebase token received:', token ? '✅ Token exists' : '❌ No token');
       
       if (token) {
-        console.log('📱 [USERCONTEXT] Registering device token for user:', userId);
-        console.log('📱 [USERCONTEXT] Token:', token.substring(0, 50) + '...');
-        console.log('📱 [USERCONTEXT] Platform:', Platform.OS);
-        console.log('📱 [USERCONTEXT] API URL:', API_BASE_URL);
-        console.log('📱 [USERCONTEXT] Sending to:', `${API_BASE_URL}/notifications/register-device`);
-        
+       
         // Collect device information
         const deviceInfo = {
           deviceName: Device.deviceName || null,
@@ -193,7 +191,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (type === 'new_request') {
-        router.push('/offers');
+        if (data.requestId) {
+          router.push(`/offers/${data.requestId}`);
+        } else {
+          router.push('/offers');
+        }
         return;
       }
       if (type === 'new_offer') {
@@ -202,6 +204,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
       if (type?.startsWith('ai_')) {
         router.push('/offers');
+        return;
+      }
+      if (type === 'subscription_activated' || screen === 'Premium') {
+        // Navigate to home and trigger premium modal
+        router.push('/');
+        // Set flag to open premium modal
+        setShouldOpenPremiumModal(true);
         return;
       }
       router.push('/notifications');
@@ -447,6 +456,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('user');
+      // ასევე წავშალოთ საბსქრიფშენი, რადგან ის ეკუთვნის ამ იუზერს
+      await AsyncStorage.removeItem('user_subscription');
       setUser(null);
       console.log('User logged out and storage cleared');
     } catch (error) {
@@ -579,11 +590,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const clearPremiumModalFlag = () => {
+    setShouldOpenPremiumModal(false);
+  };
+
   return (
     <UserContext.Provider value={{
       user,
       loading,
       isAuthenticated: !!user,
+      shouldOpenPremiumModal,
+      clearPremiumModalFlag,
+      setShouldOpenPremiumModal,
       login,
       register,
       logout,

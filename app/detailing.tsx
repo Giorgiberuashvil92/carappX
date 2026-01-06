@@ -231,9 +231,7 @@ export default function DetailingScreen() {
             <Text style={styles.heroSubtitle}>მანქანის სრულყოფილი მოვლა</Text>
           </View>
 
-          <TouchableOpacity style={styles.searchButton}>
-            <Ionicons name="search" size={24} color="#111827" />
-          </TouchableOpacity>
+        
         </View>
 
         {/* Search Bar */}

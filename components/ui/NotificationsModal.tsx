@@ -25,9 +25,10 @@ type Props = {
 
 export function NotificationsModal({ visible, onClose }: Props) {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, setShouldOpenPremiumModal } = useUser();
   
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'business' | 'user'>('user');
 
   const formatTimeAgo = (ts: number) => {
     const now = Date.now();
@@ -56,6 +57,8 @@ export function NotificationsModal({ visible, onClose }: Props) {
         const ts = typeof rawTs === 'number' ? rawTs : rawTs ? new Date(rawTs).getTime() : Date.now();
         const status = typeof n.status === 'string' ? n.status.toLowerCase() : (n.read ? 'read' : '');
         const payload = n.payload || {};
+        const target = n.target || {};
+        const payloadData = payload.data || n.data || {};
         return {
           id: String(n._id || n.id),
           title: String(payload.title || n.title || 'შეტყობინება'),
@@ -63,7 +66,16 @@ export function NotificationsModal({ visible, onClose }: Props) {
           type: String(n.type || n.category || 'info'),
           createdAt: ts,
           isRead: status === 'read',
-          data: payload.data || n.data || {},
+          data: {
+            ...payloadData,
+            target: target, // დავამატოთ target ინფორმაცია
+            // დავამატოთ requestId/offerId სხვადასხვა ველებიდან
+            requestId: payloadData.requestId || payloadData.reqId || payloadData.request_id,
+            offerId: payloadData.offerId || payloadData.offer_id,
+            screen: payloadData.screen,
+            chatId: payloadData.chatId || payloadData.chat_id,
+            carwashId: payloadData.carwashId || payloadData.carwash_id,
+          },
         };
       });
       mapped.sort((a, b) => b.createdAt - a.createdAt);
@@ -119,25 +131,114 @@ export function NotificationsModal({ visible, onClose }: Props) {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleNavigation = (data?: AnyObject) => {
-    const d = data || {};
+  const handleNavigation = (notification: NotificationItem) => {
+    const d = notification.data || {};
     const screen = d.screen as string | undefined;
     const requestId = d.requestId as string | undefined;
     const offerId = d.offerId as string | undefined;
     const carwashId = d.carwashId as string | undefined;
     const chatId = d.chatId as string | undefined;
+    const target = d.target || {};
+    
+    // დალოგე notification-ის მონაცემები
+    console.log('🔔 [NOTIFICATIONS] Navigation clicked:', {
+      notificationId: notification.id,
+      notificationType: notification.type,
+      notificationTitle: notification.title,
+      screen,
+      requestId,
+      offerId,
+      chatId,
+      carwashId,
+      target,
+      fullData: d,
+    });
+    
+    // ვალიდაცია: თუ requestId/offerId არ არის, ვერ გადავიდეთ offers/partner-chat გვერდებზე
+    const isValidId = (id: string | undefined): boolean => {
+      if (!id) return false;
+      const str = String(id).trim();
+      return str !== '' && str !== 'undefined' && str !== 'null' && str !== '1' && str.length > 0;
+    };
+    
+    const hasValidRequestId = isValidId(requestId);
+    const hasValidOfferId = isValidId(offerId);
+    
+    console.log('🔔 [NOTIFICATIONS] Validation:', {
+      hasValidRequestId,
+      hasValidOfferId,
+      requestIdValue: requestId,
+      offerIdValue: offerId,
+    });
+    
+    const isBusiness = target.partnerId || target.storeId || target.dismantlerId || 
+                       target.role === 'partner' || target.role === 'store' || target.role === 'dismantler';
+    
+    // notification type-ის მიხედვითაც შევამოწმოთ
+    const isBusinessType = notification.type === 'offer' && isBusiness;
+    const isUserType = notification.type === 'request' || (notification.type === 'offer' && !isBusiness);
+    
+    console.log('🔔 [NOTIFICATIONS] Navigation logic:', {
+      isBusiness,
+      isBusinessType,
+      isUserType,
+      notificationType: notification.type,
+    });
+    
+    if (screen === 'Subscription' || notification.type === 'subscription_activated' || screen === "subscription_activated") {
+      onClose();
+      setShouldOpenPremiumModal(true);
+      return;
+    }
+    
     onClose();
-    if (screen === 'AIRecommendations' || screen === 'PartDetails') {
-      router.push('/offers');
-    } else if (screen === 'RequestDetails' && requestId) {
-      router.push(`/offers/${requestId}`);
-    } else if (screen === 'OfferDetails' && (offerId || requestId)) {
-      router.push(`/offers/${offerId || requestId}`);
-    } else if (screen === 'Bookings' && carwashId) {
-      router.push(`/bookings/${carwashId}`);
-    } else if (screen === 'Chat' && (chatId || offerId)) {
-      router.push(`/chat/${chatId || offerId}`);
-    } else {
+    
+    // ბიზნესის ნოტიფიკაციებისთვის
+    if (isBusiness || isBusinessType) {
+      let route = '';
+      if (screen === 'RequestDetails' && hasValidRequestId) {
+        route = `/partner-chat/${requestId}`;
+      } else if (screen === 'OfferDetails' && (hasValidOfferId || hasValidRequestId)) {
+        route = `/partner-chat/${hasValidOfferId ? offerId : requestId}`;
+      } else if (screen === 'Chat' && (chatId || hasValidOfferId || hasValidRequestId)) {
+        route = `/partner-chat/${chatId || offerId || requestId}`;
+      } else if (target.storeId || target.dismantlerId) {
+        route = '/partner-dashboard';
+      } else if (hasValidRequestId || hasValidOfferId) {
+        route = `/partner-chat/${requestId || offerId}`;
+      } else {
+        route = '/partner-chats';
+      }
+      console.log('🔔 [NOTIFICATIONS] Navigating to BUSINESS route:', route);
+      router.push(route as any);
+    } 
+    // იუზერის ნოტიფიკაციებისთვის
+    else if (isUserType || !isBusiness) {
+      let route = '';
+      if (screen === 'AIRecommendations' || screen === 'PartDetails') {
+        route = '/all-requests';
+      } else if (screen === 'RequestDetails' && hasValidRequestId) {
+        route = `/offers/${requestId}`;
+      } else if (screen === 'OfferDetails' && hasValidRequestId) {
+        // OfferDetails-ისთვის ყოველთვის requestId-ს ვიყენებთ, რადგან /offers/[requestId] გვერდი ელის requestId-ს
+        route = `/offers/${requestId}`;
+      } else if (screen === 'Bookings' && carwashId) {
+        route = `/bookings/${carwashId}`;
+      } else if (screen === 'Chat' && (chatId || hasValidOfferId)) {
+        route = `/chat/${chatId || offerId}`;
+      } else if (hasValidRequestId) {
+        // ყოველთვის requestId-ს ვიყენებთ /offers გვერდისთვის
+        route = `/offers/${requestId}`;
+      } else {
+        // თუ requestId არ არის, უბრალოდ all-requests-ზე გადავიდეთ
+        route = '/all-requests';
+      }
+      console.log('🔔 [NOTIFICATIONS] Navigating to USER route:', route);
+      router.push(route as any);
+    } 
+    // სისტემური და სხვა ნოტიფიკაციები
+    else {
+      console.log('🔔 [NOTIFICATIONS] Navigating to notifications page (system/other)');
       router.push('/notifications');
     }
   };
@@ -185,7 +286,7 @@ export function NotificationsModal({ visible, onClose }: Props) {
                     ]}
                     onPress={() => {
                       markAsRead(notification.id);
-                      handleNavigation(notification.data);
+                      handleNavigation(notification);
                     }}
                     activeOpacity={0.7}
                   >

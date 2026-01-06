@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { requestsApi, type Request, type Offer } from '@/services/requestsApi';
 import { useUser } from '@/contexts/UserContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -32,9 +33,28 @@ export default function OffersScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
   const [scaleAnim] = useState(new Animated.Value(0.9));
+  const [lastViewedTimestamp, setLastViewedTimestamp] = useState<number | null>(null);
 
 
   useEffect(() => {
+    // Load last viewed timestamp
+    const loadLastViewed = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(`offers_lastViewed_${requestId}`);
+        if (stored) {
+          setLastViewedTimestamp(parseInt(stored, 10));
+        } else {
+          // First time viewing - set current time
+          const now = Date.now();
+          setLastViewedTimestamp(now);
+          await AsyncStorage.setItem(`offers_lastViewed_${requestId}`, String(now));
+        }
+      } catch (error) {
+        console.error('Failed to load last viewed timestamp:', error);
+      }
+    };
+    
+    loadLastViewed();
     fetchData();
     
     Animated.parallel([
@@ -55,6 +75,14 @@ export default function OffersScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+  }, [requestId]);
+
+  // Update last viewed timestamp when component unmounts
+  useEffect(() => {
+    return () => {
+      // Save current time as last viewed when leaving the page
+      AsyncStorage.setItem(`offers_lastViewed_${requestId}`, String(Date.now())).catch(() => {});
+    };
   }, [requestId]);
 
   const fetchData = async () => {
@@ -156,7 +184,7 @@ export default function OffersScreen() {
   if (!request) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>იტვირთება...</Text>
         </View>
@@ -168,7 +196,7 @@ export default function OffersScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
           <Animated.View 
@@ -183,62 +211,51 @@ export default function OffersScreen() {
               }
             ]}
           >
-            {/* Hero Section */}
-            <View style={styles.heroSection}>
-              <LinearGradient
-                colors={['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.1)']}
-                style={styles.heroGradient}
+            {/* Header / Summary */}
+            <View style={styles.headerCard}>
+              <Pressable
+                style={styles.backButton}
+                onPress={() => router.back()}
               >
-                <View style={styles.heroContent}>
-                  <Pressable
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                  >
-                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                  </Pressable>
-                  
-                  <Text style={styles.heroTitle}>შეთავაზებები</Text>
-                  <Text style={styles.heroSubtitle}>
-                    {request.partName} • {offers.length} შეთავაზება
-                  </Text>
-                  <View style={styles.heroIconContainer}>
-                    <Ionicons name="chatbubbles" size={24} color="#6366F1" />
-                  </View>
-                </View>
-              </LinearGradient>
+                <Ionicons name="arrow-back" size={22} color="#111827" />
+              </Pressable>
+              <View style={styles.headerTexts}>
+                <Text style={styles.heroTitle}>შეთავაზებები</Text>
+                <Text style={styles.heroSubtitle}>
+                  {request.partName} • {request.vehicle.make} {request.vehicle.model} ({request.vehicle.year})
+                </Text>
+              </View>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{offers.length}</Text>
+                <Text style={styles.countBadgeSub}>შეთავაზება</Text>
+              </View>
             </View>
 
             {/* Request Info */}
             <View style={styles.requestInfoSection}>
-              <Text style={styles.sectionTitle}>მოთხოვნის დეტალები</Text>
               <View style={styles.requestCard}>
-                <LinearGradient
-                  colors={getServiceGradient(request.service) as [string, string]}
-                  style={styles.requestGradient}
-                >
-                  <View style={styles.requestContent}>
-                    <View style={styles.requestIconContainer}>
-                      <Ionicons name={getServiceIcon(request.service) as any} size={28} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.requestDetails}>
-                      <Text style={styles.requestTitle}>{request.partName}</Text>
-                      <Text style={styles.vehicleInfo}>
-                        {request.vehicle.make} {request.vehicle.model} ({request.vehicle.year})
-                      </Text>
-                      {request.description && (
-                        <Text style={styles.requestDescription} numberOfLines={3}>
-                          {request.description}
-                        </Text>
-                      )}
-                      {request.location && (
-                        <View style={styles.locationContainer}>
-                          <Ionicons name="location-outline" size={14} color="rgba(255, 255, 255, 0.8)" />
-                          <Text style={styles.locationText}>{request.location}</Text>
-                        </View>
-                      )}
-                    </View>
+                <View style={styles.requestRow}>
+                  <View style={[styles.requestIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name={getServiceIcon(request.service || 'parts') as any} size={24} color="#4F46E5" />
                   </View>
-                </LinearGradient>
+                  <View style={styles.requestDetails}>
+                    <Text style={styles.requestTitle}>{request.partName}</Text>
+                    <Text style={styles.vehicleInfo}>
+                      {request.vehicle.make} {request.vehicle.model} ({request.vehicle.year})
+                    </Text>
+                    {request.location && (
+                      <View style={styles.locationPill}>
+                        <Ionicons name="location-outline" size={14} color="#4F46E5" />
+                        <Text style={styles.locationPillText}>{request.location}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                {request.description && (
+                  <Text style={styles.requestDescriptionLight} numberOfLines={3}>
+                    {request.description}
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -258,7 +275,25 @@ export default function OffersScreen() {
                   />
                 }
               >
-                {offers.map((offer, index) => (
+                {offers.map((offer, index) => {
+                  const service = (offer as any)?.service || request.service || 'parts';
+                  const price = (offer as any)?.price ?? (offer as any)?.priceGEL;
+                  const currency = (offer as any)?.currency ?? '₾';
+                  const isOnline = Boolean((offer as any)?.isOnline);
+                  const availability = (offer as any)?.availability ?? 'available';
+                  const rating = (offer as any)?.rating ?? '5.0';
+                  const reviewCount = (offer as any)?.reviewCount ?? 0;
+                  const responseTime = (offer as any)?.responseTime ?? `${offer.etaMin || 30} წთ`;
+                  const description = (offer as any)?.description ?? 'აღწერა არ არის მოცემული';
+                  const estimatedTime = (offer as any)?.estimatedTime ?? (offer.etaMin ? `${offer.etaMin} წთ` : undefined);
+                  const location = (offer as any)?.location ?? request.location;
+                  const warranty = (offer as any)?.warranty;
+                  
+                  // Check if offer is new (created after last viewed timestamp)
+                  // TODO: დროებით - ყველა შეთავაზება გამოჩნდება როგორც ახალი
+                  const isNewOffer = true; // lastViewedTimestamp !== null && offer.createdAt > lastViewedTimestamp;
+
+                  return (
                   <Animated.View
                     key={offer.id}
                     style={[
@@ -281,97 +316,109 @@ export default function OffersScreen() {
                       onPress={() => handleOfferPress(offer)}
                     >
                       <LinearGradient
-                        colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-                        style={styles.offerGradient}
+                        colors={['#FFFFFF', '#F8FAFF']}
+                        style={[
+                          styles.offerGradient,
+                          isNewOffer && {
+                            borderColor: '#3B82F6',
+                            borderWidth: 2,
+                          }
+                        ]}
                       >
                         <View style={styles.offerContent}>
-                          {/* Provider Info */}
-                          <View style={styles.providerInfo}>
-                            <View style={styles.providerAvatarContainer}>
-                              <View style={[styles.providerAvatar, { backgroundColor: `${getServiceColor(offer.service)}20` }]}>
-                                <Ionicons 
-                                  name={getServiceIcon(offer.service) as any} 
-                                  size={24} 
-                                  color={getServiceColor(offer.service)} 
-                                />
-                              </View>
-                              {offer.isOnline && <View style={styles.onlineIndicator} />}
-                            </View>
-                            
-                            <View style={styles.providerDetails}>
-                              <View style={styles.providerHeader}>
-                                <Text style={styles.providerName}>{offer.providerName}</Text>
-                                <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(offer.availability) + '20' }]}>
-                                  <Text style={[styles.availabilityText, { color: getAvailabilityColor(offer.availability) }]}>
-                                    {offer.availability === 'available' ? 'ონლაინ' : 
-                                     offer.availability === 'busy' ? 'დაკავებული' : 'ოფლაინ'}
-                                  </Text>
+                          {/* Header with provider + price */}
+                          <View style={styles.offerHeaderRow}>
+                            <View style={styles.providerInfo}>
+                              <View style={styles.providerAvatarContainer}>
+                                <View style={[styles.providerAvatar, { backgroundColor: `${getServiceColor(service)}20` }]}>
+                                  <Ionicons 
+                                    name={getServiceIcon(service) as any} 
+                                    size={24} 
+                                    color={getServiceColor(service)} 
+                                  />
                                 </View>
+                                {isOnline && <View style={styles.onlineIndicator} />}
                               </View>
                               
-                              <View style={styles.ratingContainer}>
-                                <Ionicons name="star" size={14} color="#F59E0B" />
-                                <Text style={styles.ratingText}>{offer.rating}</Text>
-                                <Text style={styles.reviewText}>({offer.reviewCount} შეფასება)</Text>
+                              <View style={styles.providerDetails}>
+                                <View style={styles.providerHeader}>
+                                  <Text style={styles.providerName}>{offer.providerName}</Text>
+                                  <View>
+                                   {isNewOffer && (
+                          <View style={styles.newOfferBadge}>
+                            <Ionicons name="sparkles" size={14} color="#3B82F6" />
+                            <Text style={styles.newOfferBadgeText}>ახალი</Text>
+                          </View>
+                        )}
+
+                                  </View>
+                                </View>
+                                
+                               
+                                
+                                <Text style={styles.responseTime}>პასუხი: {responseTime}</Text>
                               </View>
-                              
-                              <Text style={styles.responseTime}>პასუხი: {offer.responseTime}</Text>
                             </View>
+
                           </View>
 
                           {/* Offer Details */}
                           <View style={styles.offerDetails}>
-                            <Text style={styles.offerDescription} numberOfLines={3}>
-                              {offer.description}
+                            <Text style={styles.offerDescription} numberOfLines={2}>
+                              {description}
                             </Text>
                             
-                            {offer.estimatedTime && (
-                              <View style={styles.timeContainer}>
-                                <Ionicons name="time-outline" size={12} color="rgba(255, 255, 255, 0.6)" />
-                                <Text style={styles.timeText}>{offer.estimatedTime}</Text>
-                              </View>
-                            )}
-                            
-                            {offer.location && (
-                              <View style={styles.locationContainer}>
-                                <Ionicons name="location-outline" size={12} color="rgba(255, 255, 255, 0.6)" />
-                                <Text style={styles.locationText}>{offer.location}</Text>
-                              </View>
-                            )}
-                            
-                            {offer.warranty && (
-                              <View style={styles.warrantyContainer}>
-                                <Ionicons name="shield-checkmark-outline" size={12} color="rgba(255, 255, 255, 0.6)" />
-                                <Text style={styles.warrantyText}>{offer.warranty} გარანტია</Text>
-                              </View>
-                            )}
+                            <View style={styles.offerMetaRow}>
+                              {estimatedTime && (
+                                <View style={styles.metaPill}>
+                                  <Ionicons name="time-outline" size={12} color="#E5E7EB" />
+                                  <Text style={styles.metaText}>{estimatedTime}</Text>
+                                </View>
+                              )}
+                              {location && (
+                                <View style={styles.metaPill}>
+                                  <Ionicons name="location-outline" size={12} color="#E5E7EB" />
+                                  <Text style={styles.metaText}>{location}</Text>
+                                </View>
+                              )}
+                              {warranty && (
+                                <View style={styles.metaPill}>
+                                  <Ionicons name="shield-checkmark-outline" size={12} color="#E5E7EB" />
+                                  <Text style={styles.metaText}>{warranty} გარანტია</Text>
+                                </View>
+                              )}
+                            </View>
                           </View>
 
-                          {/* Price and Action */}
+                          {/* Action */}
                           <View style={styles.offerFooter}>
-                            <View style={styles.priceContainer}>
-                              <Text style={styles.priceAmount}>{offer.price} {offer.currency}</Text>
-                              <Text style={styles.priceLabel}>ღირებულება</Text>
+                            <View style={[styles.priceBadge, { borderColor: `${getServiceColor(service)}50` }]}>
+                              <Text style={styles.priceBadgeAmount}>{price ?? '—'} {currency}</Text>
+                              <Text style={styles.priceBadgeLabel}>ფასი</Text>
                             </View>
-                            
-                            <Pressable
-                              style={styles.chatButton}
-                              onPress={() => handleOfferPress(offer)}
-                            >
-                              <LinearGradient
-                                colors={[getServiceColor(offer.service), getServiceColor(offer.service) + 'CC']}
-                                style={styles.chatButtonGradient}
+                            <Text style={styles.actionHint}>გახსენი ჩატი დეტალებისთვის</Text>
+                            <View style={styles.chatButtonContainer}>
+                             
+                              <Pressable
+                                style={styles.chatButton}
+                                onPress={() => handleOfferPress(offer)}
                               >
-                                <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-                                <Text style={styles.chatButtonText}>ჩატი</Text>
-                              </LinearGradient>
-                            </Pressable>
+                                <LinearGradient
+                                  colors={['#6366F1', '#4F46E5']}
+                                  style={styles.chatButtonGradient}
+                                >
+                                  <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
+                                  <Text style={styles.chatButtonText}>ჩატი</Text>
+                                </LinearGradient>
+                              </Pressable>
+                            </View>
                           </View>
                         </View>
                       </LinearGradient>
                     </Pressable>
                   </Animated.View>
-                ))}
+                  );
+                })}
                 
                 {offers.length === 0 && (
                   <Animated.View 
@@ -404,11 +451,11 @@ export default function OffersScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#F6F7FB',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#F6F7FB',
   },
   content: {
     padding: 20,
@@ -420,114 +467,130 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F6F7FB',
   },
   loadingText: {
     fontSize: 18,
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontWeight: '600',
   },
 
   // Hero Section
-  heroSection: {
-    marginTop: 20,
-  },
-  heroGradient: {
-    borderRadius: 20,
-    padding: 24,
+  headerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-    position: 'relative',
-  },
-  heroContent: {
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   backButton: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerTexts: {
+    flex: 1,
+    gap: 4,
   },
   heroTitle: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    letterSpacing: -0.5,
+    fontSize: 22,
+    color: '#0F172A',
     fontWeight: '800',
-    marginTop: 40,
   },
   heroSubtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    fontWeight: '600',
   },
   heroIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+  },
+  countBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  countBadgeText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#4338CA',
+    lineHeight: 18,
+  },
+  countBadgeSub: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4338CA',
+    opacity: 0.9,
   },
 
   // Request Info
   requestInfoSection: {
-    gap: 20,
+    gap: 12,
   },
   requestCard: {
     borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    padding: 14,
   },
-  requestGradient: {
-    padding: 16,
-    minHeight: 120,
-  },
-  requestContent: {
-    alignItems: 'center',
+  requestRow: {
+    flexDirection: 'row',
     gap: 12,
-    position: 'relative',
+    alignItems: 'center',
   },
   requestIconContainer: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   requestDetails: {
-    alignItems: 'center',
-    gap: 8,
+    gap: 4,
     flex: 1,
+    alignItems: 'flex-start',
   },
   requestTitle: {
     fontSize: 16,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'left',
+    fontWeight: '800',
   },
   vehicleInfo: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
+    color: '#475569',
+    textAlign: 'left',
     fontWeight: '600',
   },
   requestDescription: {
@@ -535,6 +598,13 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     fontWeight: '400',
+    lineHeight: 18,
+  },
+  requestDescriptionLight: {
+    marginTop: 10,
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
     lineHeight: 18,
   },
   locationContainer: {
@@ -545,6 +615,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
+  },
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    marginTop: 6,
+  },
+  locationPillText: {
+    fontSize: 12,
+    color: '#4338CA',
+    fontWeight: '700',
   },
   locationText: {
     fontSize: 11,
@@ -558,53 +645,85 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 24,
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontWeight: '700',
   },
   offersContainer: {
-    maxHeight: 500,
+    // allow full height; outer ScrollView handles scrolling
   },
   offersContent: {
-    gap: 16,
+    gap: 10,
+    paddingBottom: 14,
   },
   offerWrapper: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   offerCard: {
     flex: 1,
   },
   offerGradient: {
-    padding: 20,
+    padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#E5E7EB',
+    position: 'relative',
+  },
+  chatButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  newOfferBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  newOfferBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#3B82F6',
   },
   offerContent: {
-    gap: 16,
+    gap: 8,
+  },
+  offerHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
   },
 
   // Provider Info
   providerInfo: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 16,
+    gap: 10,
   },
   providerAvatarContainer: {
     position: 'relative',
   },
   providerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   onlineIndicator: {
     position: 'absolute',
@@ -619,7 +738,7 @@ const styles = StyleSheet.create({
   },
   providerDetails: {
     flex: 1,
-    gap: 6,
+    gap: 3,
   },
   providerHeader: {
     flexDirection: 'row',
@@ -627,8 +746,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   providerName: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    fontSize: 14.5,
+    color: '#111827',
     fontWeight: '700',
     flex: 1,
   },
@@ -637,11 +756,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
   },
   availabilityText: {
     fontSize: 10,
     fontWeight: '700',
+    color: '#4F46E5',
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -649,18 +770,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   ratingText: {
-    fontSize: 12,
-    color: '#FFFFFF',
+    fontSize: 11,
+    color: '#111827',
     fontWeight: '600',
   },
   reviewText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 10,
+    color: '#6B7280',
     fontWeight: '500',
   },
   responseTime: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 10,
+    color: '#6B7280',
     fontWeight: '500',
   },
 
@@ -669,60 +790,54 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   offerDescription: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12.5,
+    color: '#1F2937',
     fontWeight: '400',
-    lineHeight: 20,
+    lineHeight: 17,
   },
-  timeContainer: {
+  offerMetaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 4,
   },
-  timeText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
-  },
-  warrantyContainer: {
+  metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  warrantyText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
+  metaText: {
+    fontSize: 10.5,
+    color: '#334155',
+    fontWeight: '600',
   },
 
   // Offer Footer
   offerFooter: {
+    marginTop: 4,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  priceContainer: {
-    alignItems: 'flex-start',
-  },
-  priceAmount: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  priceLabel: {
+  actionHint: {
+    color: '#334155',
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   chatButton: {
-    borderRadius: 20,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   chatButtonGradient: {
     flexDirection: 'row',
@@ -732,8 +847,27 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chatButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  priceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 9,
+    borderWidth: 1,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'flex-end',
+    minWidth: 78,
+  },
+  priceBadgeAmount: {
+    fontSize: 15,
+    color: '#1E293B',
+    fontWeight: '800',
+  },
+  priceBadgeLabel: {
+    fontSize: 10.5,
+    color: '#475569',
     fontWeight: '600',
   },
 
@@ -748,19 +882,19 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: '#E0EAFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyTitle: {
     fontSize: 20,
-    color: '#FFFFFF',
+    color: '#0F172A',
     textAlign: 'center',
     fontWeight: '700',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#475569',
     textAlign: 'center',
     lineHeight: 20,
     fontWeight: '500',

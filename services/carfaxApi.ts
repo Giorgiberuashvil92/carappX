@@ -49,6 +49,111 @@ class CarFAXApi {
   private apiKey = '21f47811-7a21-4be4-9ade-a311f7c016c9';
   private backendBase = API_BASE_URL;
 
+  /**
+   * პირდაპირ CarFAX API-სთან დაკავშირება frontend-იდან (testing/debugging-ისთვის)
+   */
+  async getCarFAXReportDirect(vin: string): Promise<{
+    success: boolean;
+    status: number;
+    contentType: string;
+    content: string;
+    rawContent?: string;
+    headers: Record<string, string>;
+    error?: string;
+  }> {
+    try {
+      const url = `${this.baseUrl}/carfax?vin=${encodeURIComponent(vin)}`;
+
+      
+      const headers: Record<string, string> = {
+        'api-key': this.apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'text/html,application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      };
+      
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+      
+      const contentType = response.headers.get('content-type') || '';
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      
+      
+      let content = await response.text();
+     
+      
+      // თუ response არის JSON format-ში, parse-ს გავაკეთოთ და HTML-ს ამოვიღოთ
+      let htmlContent = content;
+      if (contentType.includes('application/json')) {
+        try {
+          const jsonData = JSON.parse(content);
+          console.log('📦 [DIRECT] Parsed JSON type:', typeof jsonData);
+          console.log('📦 [DIRECT] Parsed JSON keys:', Object.keys(jsonData));
+          console.log('📦 [DIRECT] JSON structure preview:', JSON.stringify(jsonData).substring(0, 200));
+          
+          // ვცდილობთ HTML-ის ამოღებას სხვადასხვა შესაძლო ველებიდან
+          if (typeof jsonData === 'string') {
+            htmlContent = jsonData;
+           
+          } else if (jsonData.html && typeof jsonData.html === 'string') {
+            htmlContent = jsonData.html;
+          } else if (jsonData.htmlContent && typeof jsonData.htmlContent === 'string') {
+            htmlContent = jsonData.htmlContent;
+          } else if (jsonData.data) {
+            if (typeof jsonData.data === 'string') {
+              htmlContent = jsonData.data;
+            } else if (jsonData.data.htmlContent && typeof jsonData.data.htmlContent === 'string') {
+              htmlContent = jsonData.data.htmlContent;
+            } else if (jsonData.data.reportData && jsonData.data.reportData.htmlContent) {
+              htmlContent = jsonData.data.reportData.htmlContent;
+            }
+          } else if (jsonData.content && typeof jsonData.content === 'string') {
+            htmlContent = jsonData.content;
+          } else {
+            // თუ არ ვიპოვეთ HTML, დავაბრუნოთ მთლიანი JSON stringified
+            htmlContent = JSON.stringify(jsonData, null, 2);
+          
+          }
+          
+         
+          
+          // ვამოწმებთ, არის თუ არა ეს რეალურად HTML
+          const isHtml = htmlContent.includes('<html') || htmlContent.includes('<!DOCTYPE') || htmlContent.includes('<body');
+        } catch (parseError) {
+          console.error('❌ [DIRECT] JSON parse error:', parseError);
+          // თუ parse-ს ვერ გავაკეთეთ, დავაბრუნოთ original content
+        }
+      }
+      
+      return {
+        success: response.ok,
+        status: response.status,
+        contentType,
+        content: htmlContent, // აბრუნებს HTML content-ს (ან original content-ს თუ JSON parse-ს ვერ გავაკეთეთ)
+        headers: responseHeaders,
+        rawContent: content, // დავამატოთ raw content-იც debug-ისთვის
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ [DIRECT] CarFAX API Error:', errorMessage);
+      return {
+        success: false,
+        status: 0,
+        contentType: '',
+        content: '',
+        rawContent: '',
+        headers: {},
+        error: errorMessage,
+      };
+    }
+  }
+
   async generatePdfFromHtml(
     html: string,
     fileName?: string,
@@ -77,7 +182,59 @@ class CarFAXApi {
     return { buffer, fileName: targetName };
   }
 
-  async getCarFAXReport(vin: string): Promise<CarFAXResponse> {
+  async getCarFAXReport(vin: string, userId?: string): Promise<CarFAXResponse> {
+    if (userId) {
+      try {
+        console.log('🔍 CarFAX მოხსენების მოთხოვნა backend-ის მეშვეობით VIN:', vin, 'userId:', userId);
+        
+        const response = await fetch(`${this.backendBase}/carfax/report`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({ vin }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ CarFAX backend API შეცდომა:', errorData);
+          return {
+            success: false,
+            error: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+            message: errorData.message || 'CarFAX მოხსენების მიღებისას მოხდა შეცდომა',
+            data: undefined
+          } as CarFAXResponse;
+        }
+
+        const data = await response.json();
+        console.log('✅ CarFAX მოხსენება მიღებულია backend-იდან:', data);
+        
+        // Backend-იდან მიღებული response-ის ნორმალიზაცია
+        if (data.success && data.data) {
+          const htmlContent = data.data.reportData?.htmlContent || data.htmlContent;
+          return {
+            success: true,
+            data: data.data,
+            htmlContent: htmlContent,
+            message: data.message,
+          } as CarFAXResponse;
+        }
+        
+        return data as CarFAXResponse;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('❌ CarFAX backend API-სთან დაკავშირების შეცდომა:', errorMessage);
+        return {
+          success: false,
+          error: errorMessage,
+          message: errorMessage,
+          data: undefined
+        } as CarFAXResponse;
+      }
+    }
+
+    // არა-premium მომხმარებლებისთვის პირდაპირ external API-სთან დაკავშირება
     try {
       const url = `${this.baseUrl}/carfax?vin=${encodeURIComponent(vin)}`;
       const headers = {
@@ -366,6 +523,108 @@ class CarFAXApi {
       return data;
     } catch (error) {
       console.error('❌ CarFAX health check შეცდომა:', error);
+      throw error;
+    }
+  }
+
+  async getCarFAXUsage(userId: string): Promise<{
+    totalLimit: number;
+    used: number;
+    remaining: number;
+    lastResetAt: Date;
+  }> {
+    try {
+      console.log('📊 CarFAX გამოყენების მოთხოვნა userId:', userId);
+      
+      const response = await fetch(`${API_BASE_URL}/carfax/usage`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ CarFAX usage API შეცდომა:', errorData);
+        throw new Error(errorData.message || 'CarFAX გამოყენების მიღებისას მოხდა შეცდომა');
+      }
+
+      const data = await response.json();
+      console.log('✅ CarFAX გამოყენება მიღებულია:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ CarFAX usage API-სთან დაკავშირების შეცდომა:', error);
+      throw error;
+    }
+  }
+
+  async incrementCarFAXUsage(userId: string): Promise<{
+    success: boolean;
+    totalLimit: number;
+    used: number;
+    remaining: number;
+    message: string;
+  }> {
+    try {
+      console.log('📊 CarFAX გამოყენების გაზრდა userId:', userId);
+      
+      const response = await fetch(`${API_BASE_URL}/carfax/increment-usage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ CarFAX increment usage API შეცდომა:', errorData);
+        throw new Error(errorData.message || 'CarFAX გამოყენების გაზრდისას მოხდა შეცდომა');
+      }
+
+      const data = await response.json();
+      console.log('✅ CarFAX გამოყენება გაზრდილია:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ CarFAX increment usage API-სთან დაკავშირების შეცდომა:', error);
+      throw error;
+    }
+  }
+
+  async addCarFAXPackage(userId: string, credits: number = 5): Promise<{
+    success: boolean;
+    totalLimit: number;
+    used: number;
+    remaining: number;
+    message: string;
+  }> {
+    try {
+      console.log('📦 CarFAX პაკეტის დამატება userId:', userId, 'credits:', credits);
+      
+      const response = await fetch(`${API_BASE_URL}/carfax/add-package`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({ credits }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ CarFAX package API შეცდომა:', errorData);
+        throw new Error(errorData.message || 'CarFAX პაკეტის დამატებისას მოხდა შეცდომა');
+      }
+
+      const data = await response.json();
+      console.log('✅ CarFAX პაკეტი დაემატა:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ CarFAX package API-სთან დაკავშირების შეცდომა:', error);
       throw error;
     }
   }

@@ -14,6 +14,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -24,6 +25,7 @@ import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import SubscriptionModal from '../../components/ui/SubscriptionModal';
+import PremiumInfoModal from '../../components/ui/PremiumInfoModal';
 import API_BASE_URL from '../../config/api';
 import { bogApi } from '../../services/bogApi';
 import BOGPaymentModal from '../../components/ui/BOGPaymentModal';
@@ -53,9 +55,11 @@ export default function TabOneScreen() {
   const router = useRouter();
   // უბრალოდ light mode გამოვიყენოთ error-ის თავიდან ასაცილებლად
   const colors = Colors['light'];
-  const { user } = useUser();
-  const { subscription, hasActiveSubscription } = useSubscription();
+  const { user, shouldOpenPremiumModal, clearPremiumModalFlag } = useUser();
+  const { subscription, hasActiveSubscription, isPremiumUser } = useSubscription();
   const displayFirstName = user?.name ? user.name.split(' ')[0] : '';
+  const insets = useSafeAreaInsets();
+  const fabBottom = Math.max(96, 20 + insets.bottom);
   const greetingText = React.useMemo(() => {
     const base = displayFirstName ? `გამარჯობა, ${displayFirstName}` : 'გამარჯობა';
     const maxChars = 20;
@@ -75,6 +79,10 @@ export default function TabOneScreen() {
   const [bogPaymentUrl, setBogPaymentUrl] = useState<string>('');
   const [bogOAuthStatus, setBogOAuthStatus] = useState<any>(null);
   const [isProcessingTestPayment, setIsProcessingTestPayment] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [showPremiumInfoModal, setShowPremiumInfoModal] = useState(false);
   
   // Refresh stories when overlay closes (to update seen status)
   const refreshStories = React.useCallback(async () => {
@@ -218,17 +226,19 @@ export default function TabOneScreen() {
       tag: 'ბონუსი',
       route: '/loyalty' as any,
     },
-    {
-      key: 'carfax',
-      title: 'კარფაქსი',
-      subtitle: 'ავტომობილის ისტორიის შემოწმება',
-      icon: 'document-text',
-      colors: ['#111827', '#0F172A'],
-      pill: 'შემოწმება',
-      tag: 'დაცვა',
-      route: '/carfax' as any,
-    },
   ];
+
+  // CarFAX კარდი ცალკე, ქვემოთ
+  const carfaxCard = {
+    key: 'carfax',
+    title: 'კარფაქსი',
+    subtitle: 'ავტომობილის ისტორიის შემოწმება',
+    icon: 'document-text',
+    colors: ['#FFFFFF', '#F9FAFB'],
+    pill: 'შემოწმება',
+    tag: 'დაცვა',
+    route: '/carfax' as any,
+  };
 
   
   // Stories state
@@ -237,6 +247,36 @@ export default function TabOneScreen() {
   useEffect(() => {
     refreshStories();
   }, [refreshStories]);
+
+  // Handle Premium Info Modal opening from push notifications
+  React.useEffect(() => {
+    if (shouldOpenPremiumModal) {
+      // თუ პრემიუმზე ან ძირითადზე არ არის - გახსნას SubscriptionModal (რომ გადავიდეს პრემიუმზე)
+      // თუ პრემიუმზე ან ძირითადზე არის - PremiumInfoModal გაიხსნება automatically via visible prop
+      if (subscription?.plan !== 'premium' && subscription?.plan !== 'basic') {
+        setShowSubscriptionModal(true);
+        clearPremiumModalFlag(); // Clear flag after showing subscription modal
+      } else {
+        // თუ პრემიუმზე ან ძირითადზე არის, PremiumInfoModal გაიხსნება automatically
+        setShowPremiumInfoModal(true);
+      }
+    }
+  }, [shouldOpenPremiumModal, subscription?.plan, clearPremiumModalFlag]);
+
+  // Handle showPremiumInfoModal - თუ plan არის free, გახსნას SubscriptionModal-ის ნაცვლად
+  React.useEffect(() => {
+    if (showPremiumInfoModal) {
+      // თუ plan არის free ან subscription არ არის, PremiumInfoModal-ის ნაცვლად გახსნას SubscriptionModal
+      if (!subscription || subscription.plan === 'free' || (subscription.plan !== 'premium' && subscription.plan !== 'basic')) {
+        // დავხუროთ PremiumInfoModal და გავხსნათ SubscriptionModal
+        setShowPremiumInfoModal(false);
+        // მცირე დაყოვნება რომ state-ები სწორად განახლდეს
+        setTimeout(() => {
+          setShowSubscriptionModal(true);
+        }, 100);
+      }
+    }
+  }, [showPremiumInfoModal, subscription?.plan]);
 
   // Show subscription modal on main page load if user doesn't have active subscription
   React.useEffect(() => {
@@ -341,6 +381,35 @@ export default function TabOneScreen() {
       setRentalCars([]);
     } finally {
       setRentalCarsLoading(false);
+    }
+  };
+
+  const handleSendFeedback = async () => {
+    const message = feedbackText.trim();
+    if (!message) {
+      Alert.alert('შეავსე ტექსტი', 'დაწერე რა პრობლემა ან იდეა გაქვს.');
+      return;
+    }
+    setSendingFeedback(true);
+    try {
+      await fetch(`${API_BASE_URL}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          userId: user?.id,
+          name: user?.name,
+          phone: user?.phone,
+          source: 'home_fab',
+        }),
+      }).catch(() => {});
+      Alert.alert('გაგზავნილია', 'მადლობა ფიდბექისთვის!');
+      setFeedbackText('');
+      setShowFeedbackModal(false);
+    } catch (error) {
+      Alert.alert('შეცდომა', 'ვერ გავაგზავნეთ, სცადე ხელახლა.');
+    } finally {
+      setSendingFeedback(false);
     }
   };
 
@@ -1504,13 +1573,71 @@ export default function TabOneScreen() {
               <Text style={styles.userName} numberOfLines={1}>
                 {greetingText}
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="location-outline" size={14} color={colors.secondary} />
-                <Text style={styles.smallLocation}>თბილისი, საქართველო</Text>
-              </View>
-
-             
-              
+              {subscription && (subscription.plan === 'premium' || subscription.plan === 'basic') && (
+                <TouchableOpacity
+                  onPress={() => {
+                    // ჯერ შევამოწმოთ subscription-ის plan-ი და მერე გავხსნათ შესაბამისი modal
+                    const currentPlan = subscription?.plan;
+                    console.log(subscription?.plan)
+                    if (currentPlan === 'premium' ) {
+                      setShowPremiumInfoModal(true);
+                    } else if (currentPlan === 'basic' ) {
+                      // თუ plan არის free ან subscription არ არის, გახსნას SubscriptionModal
+                      setShowSubscriptionModal(true);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[
+                    styles.subscriptionBadge,
+                    subscription.plan === 'premium' && styles.premiumBadge,
+                    subscription.plan === 'basic' && styles.basicBadge,
+                  ]}>
+                    <LinearGradient
+                      colors={
+                        subscription.plan === 'premium' 
+                          ? ['#F59E0B', '#D97706']
+                          : ['#3B82F6', '#2563EB']
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.subscriptionGradient}
+                    />
+                    <Ionicons 
+                      name={subscription.plan === 'premium' ? 'star' : 'shield-checkmark'} 
+                      size={14} 
+                      color="#FFFFFF" 
+                    />
+                    <Text style={styles.subscriptionText}>
+                      {subscription.plan === 'premium' ? 'პრემიუმ' : 'ძირითადი'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              {(!subscription || subscription.plan === 'free') && (
+                <TouchableOpacity
+                  onPress={() => setShowSubscriptionModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[
+                    styles.subscriptionBadge,
+                    styles.freeBadge,
+                  ]}>
+                    <LinearGradient
+                      colors={['#10B981', '#059669']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.subscriptionGradient}
+                    />
+                    <Ionicons 
+                      name="checkmark-circle" 
+                      size={14} 
+                      color="#FFFFFF" 
+                    />
+                    <Text style={styles.subscriptionText}>უფასო</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
             </View>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1575,6 +1702,165 @@ export default function TabOneScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+        <View style={{ marginTop: 24, marginBottom: 16 }}>
+        <TouchableOpacity
+          style={{
+            width: '100%',
+            height: 100,
+            borderRadius: 20,
+            overflow: 'hidden',
+            backgroundColor: '#FFFFFF',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 8,
+            borderWidth: 1,
+            borderColor: '#E5E7EB',
+          }}
+          activeOpacity={0.9}
+          onPress={() => {
+            // შევამოწმოთ subscription - მხოლოდ premium იუზერებს აქვთ წვდომა
+            if (!subscription || subscription.plan !== 'premium' || !isPremiumUser) {
+              setShowSubscriptionModal(true);
+            } else {
+              router.push('/carfax' as any);
+            }
+          }}
+        >
+          <View style={{
+            flex: 1,
+            paddingHorizontal: 24,
+            paddingVertical: 20,
+            backgroundColor: '#FFFFFF',
+            position: 'relative',
+          }}>
+            {/* Decorative background pattern */}
+            <View style={{
+              position: 'absolute',
+              right: -20,
+              top: -20,
+              width: 120,
+              height: 120,
+              borderRadius: 60,
+              backgroundColor: '#F3F4F6',
+              opacity: 0.5,
+            }} />
+            <View style={{
+              position: 'absolute',
+              right: 40,
+              bottom: -30,
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: '#F9FAFB',
+              opacity: 0.6,
+            }} />
+            
+            <View style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              zIndex: 1,
+            }}>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                flex: 1,
+                gap: 16,
+              }}>
+                <View style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  backgroundColor: '#111827',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  shadowColor: '#111827',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}>
+                  <Ionicons name={carfaxCard.icon as any} size={28} color="#FFFFFF" />
+                </View>
+                <View style={{
+                  flex: 1,
+                  gap: 6,
+                }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    <Text style={{
+                      fontSize: 18,
+                      fontWeight: '800',
+                      color: '#111827',
+                      fontFamily: 'Inter',
+                      letterSpacing: -0.5,
+                    }}>{carfaxCard.title}</Text>
+                    <View style={{
+                      backgroundColor: '#111827',
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderRadius: 6,
+                    }}>
+                      <Text style={{
+                        fontSize: 10,
+                        fontWeight: '700',
+                        color: '#FFFFFF',
+                        fontFamily: 'Inter',
+                        letterSpacing: 0.5,
+                      }}>{carfaxCard.tag}</Text>
+                    </View>
+                  </View>
+                  <Text style={{
+                    fontSize: 13,
+                    color: '#6B7280',
+                    fontFamily: 'Inter',
+                    lineHeight: 18,
+                    fontWeight: '500',
+                  }}>{carfaxCard.subtitle}</Text>
+                </View>
+              </View>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}>
+                <View style={{
+                  backgroundColor: '#F3F4F6',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                }}>
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: '#111827',
+                    fontFamily: 'Inter',
+                    letterSpacing: 0.3,
+                  }}>{carfaxCard.pill}</Text>
+                </View>
+                <View style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: '#111827',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                </View>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
 
         {/* ახალი სექცია - ჩვენი სერვისები */}
         <View style={styles.quickActionsContainer}>
@@ -1657,6 +1943,9 @@ export default function TabOneScreen() {
 
 
         <ReminderSection />
+        
+      {/* CarFAX Card - გრძელი პატარა ქარდი */}
+     
         
       {/* 🚗 Car Rental Section */}
       <View style={styles.rentalContainer}>
@@ -1789,6 +2078,21 @@ export default function TabOneScreen() {
         }}
       />
 
+      {/* Premium Info Modal - opens when shouldOpenPremiumModal is true AND user is on premium/basic plan, OR when badge is clicked */}
+      {/* თუ plan არის free, PremiumInfoModal-ის ნაცვლად გაიხსნება SubscriptionModal */}
+      <PremiumInfoModal
+        visible={
+          Boolean(
+            (shouldOpenPremiumModal && (subscription?.plan === 'premium' || subscription?.plan === 'basic')) ||
+            (showPremiumInfoModal && subscription && (subscription.plan === 'premium' || subscription.plan === 'basic'))
+          )
+        }
+        onClose={() => {
+          clearPremiumModalFlag();
+          setShowPremiumInfoModal(false);
+        }}
+      />
+
       {/* Service Detail Modal */}
       <Modal
         visible={showServiceModal}
@@ -1908,7 +2212,7 @@ export default function TabOneScreen() {
             <DetailView 
               {...detailViewProps} 
               onClose={() => setShowServiceModal(false)}
-            />
+      />
           );
         })()}
       </Modal>
@@ -1933,6 +2237,171 @@ export default function TabOneScreen() {
         }}
       />
 
+      {/* Floating feedback button */}
+      <TouchableOpacity
+        style={[feedbackStyles.fab, { bottom: fabBottom }]}
+        activeOpacity={0.85}
+        onPress={() => setShowFeedbackModal(true)}
+      >
+        <Ionicons name="chatbubble-ellipses" size={22} color="#FFFFFF" />
+        <Text style={feedbackStyles.fabText}>ფიდბექი</Text>
+      </TouchableOpacity>
+
+      {/* Feedback Modal */}
+      <Modal
+        visible={showFeedbackModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFeedbackModal(false)}
+      >
+        <View style={feedbackStyles.modalOverlay}>
+          <View style={[feedbackStyles.modalCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
+            <View style={feedbackStyles.modalHeader}>
+              <Text style={[feedbackStyles.modalTitle, { color: colors.text }]}>მოგვწერე იდეა ან პრობლემა</Text>
+              <TouchableOpacity onPress={() => setShowFeedbackModal(false)} style={feedbackStyles.closeButton}>
+                <Ionicons name="close" size={20} color={colors.secondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[feedbackStyles.modalSubtitle, { color: colors.secondary }]}>
+              მოგვწერე რა მოგეწონა ან რა უნდა გამოვასწოროთ. შენი სახელი: {user?.name || 'სტუმარი'}
+            </Text>
+            <TextInput
+              style={[
+                feedbackStyles.textArea,
+                { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface },
+              ]}
+              placeholder="აღწერე პრობლემა ან გააზიარე იდეა..."
+              placeholderTextColor={colors.placeholder}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              multiline
+              numberOfLines={4}
+            />
+            <View style={feedbackStyles.modalActions}>
+              <TouchableOpacity
+                style={[feedbackStyles.secondaryBtn, { borderColor: colors.border }]}
+                onPress={() => {
+                  setFeedbackText('');
+                  setShowFeedbackModal(false);
+                }}
+                disabled={sendingFeedback}
+              >
+                <Text style={[feedbackStyles.secondaryText, { color: colors.secondary }]}>დახურვა</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[feedbackStyles.primaryBtn, sendingFeedback && { opacity: 0.7 }]}
+                onPress={handleSendFeedback}
+                disabled={sendingFeedback}
+                activeOpacity={0.85}
+              >
+                <Text style={feedbackStyles.primaryText}>{sendingFeedback ? 'იგზავნება...' : 'გაგზავნა'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
+
+const feedbackStyles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    right: 18,
+    bottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#111827',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 50,
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 18,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Inter',
+    marginBottom: 12,
+  },
+  closeButton: {
+    padding: 6,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    fontFamily: 'Inter',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  secondaryBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  secondaryText: {
+    fontFamily: 'Inter',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  primaryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#111827',
+  },
+  primaryText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});

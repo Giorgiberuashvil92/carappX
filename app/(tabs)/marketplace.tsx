@@ -60,7 +60,7 @@ const MAIN_CATEGORIES = [
     subtitle: '24/7 გადაყვანა და გადამოტანა',
     icon: 'car-sport-outline',
     color: '#EF4444',
-    route: '/services',
+    route: '/towing',
   },
   {
     id: 'services',

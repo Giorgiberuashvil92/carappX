@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marte",
     "slug": "marte",
-    "version": "1.0.7",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "carappx",
@@ -40,7 +40,17 @@
           "remote-notification",
           "remote-notification"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.marte.marte",
+              "fb752572961109699"
+            ]
+          }
+        ],
+        "FacebookAppID": "752572961109699",
+        "FacebookDisplayName": "Marte"
       }
     },
     "android": {
@@ -97,7 +107,10 @@
             "modular_headers": true,
             "forceStaticLinking": [
               "RNFBApp"
-            ]
+            ],
+            "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+      }
           },
           "android": {
             "compileSdkVersion": 35,

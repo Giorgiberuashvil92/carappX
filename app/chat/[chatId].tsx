@@ -593,8 +593,8 @@ export default function SpecificChatScreen() {
                             const requestId = chatId?.replace('chat-', '') || '';
                             router.push(`/financing-request?requestId=${encodeURIComponent(requestId)}&amount=${encodeURIComponent(String(latestOfferPrice))}`);
                           }}>
-                            <Ionicons name="card" size={14} color="#10B981" />
-                            <Text style={styles.financeInlineChipText}>განვადება</Text>
+                            {/* <Ionicons name="card" size={14} color="white" /> */}
+                            {/* <Text style={styles.financeInlineChipText}>განვადება</Text> */}
                           </Pressable>
                         </View>
                       )}
@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  financeBannerTitle: { color: '#065F46', fontWeight: '700' },
+  financeBannerTitle: { color: 'white', fontWeight: '700' },
   financeBannerSub: { color: '#047857', fontSize: 12 },
   financeBannerCta: {
     paddingHorizontal: 12,
@@ -941,12 +941,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(16,185,129,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.35)'
+    // backgroundColor: 'rgba(16,185,129,0.15)',
+    // borderWidth: 1,
+    // borderColor: 'rgba(16,185,129,0.35)'
   },
   financeInlineChipText: {
-    color: '#A7F3D0',
+    color: 'white',
     fontWeight: '700',
     fontSize: 12,
   },
@@ -1009,7 +1009,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   messageWrapper: {
-    maxWidth: '85%',
+    maxWidth: '90%',
   },
   userMessage: {
     alignSelf: 'flex-end',
@@ -1020,40 +1020,36 @@ const styles = StyleSheet.create({
   messageContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+    gap: 6,
   },
   messageBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
     maxWidth: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
   },
   userBubble: {
-    backgroundColor: '#3B82F6',
-    borderBottomRightRadius: 8,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderBottomLeftRadius: 20,
+    backgroundColor: '#4F46E5',
+    borderBottomRightRadius: 10,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomLeftRadius: 16,
   },
   assistantBubble: {
-    backgroundColor: '#F3F4F6',
-    borderBottomLeftRadius: 8,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderBottomRightRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 10,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#E5E7EB',
   },
-  messageText: { fontSize: 16, color: '#111827', lineHeight: 22, fontWeight: '400', marginBottom: 6, letterSpacing: 0.2 },
-  messageTime: { fontSize: 11, color: '#9CA3AF', fontWeight: '500', letterSpacing: 0.3 },
+  messageText: { fontSize: 15, color: '#111827', lineHeight: 20, fontWeight: '400', marginBottom: 4, letterSpacing: 0.1 },
+  messageTime: { fontSize: 10, color: '#9CA3AF', fontWeight: '500', letterSpacing: 0.2 },
   assistantAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1061,10 +1057,10 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   userAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#3B82F6',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#4F46E5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1073,28 +1069,28 @@ const styles = StyleSheet.create({
   // Typing Indicator
   typingWrapper: {
     alignSelf: 'flex-start',
-    maxWidth: '85%',
+    maxWidth: '90%',
   },
   typingContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+    gap: 6,
   },
   typingAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   typingBubble: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
-    borderBottomLeftRadius: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderBottomLeftRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -1104,8 +1100,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typingDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
     backgroundColor: '#9CA3AF',
   },

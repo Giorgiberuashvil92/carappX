@@ -55,7 +55,7 @@ export default function PartnerChatScreen() {
   const [slideAnim] = useState(new Animated.Value(50));
   
   const scrollViewRef = useRef<ScrollView>(null);
-  const partnerId = user?.id || 'demo-partner-123'; // Use real user ID
+  const partnerId = user?.id || ''; // Use real user ID
   const [showFinanceBanner, setShowFinanceBanner] = useState(true);
   const [showFinanceModal, setShowFinanceModal] = useState(false);
   const [finAmount, setFinAmount] = useState('');
@@ -389,20 +389,7 @@ export default function PartnerChatScreen() {
             showsVerticalScrollIndicator={false}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
-            {showFinanceBanner && (
-              <View style={styles.financeBanner}>
-                <View style={styles.financeBannerIcon}>
-                  <Ionicons name="card" size={18} color="#10B981" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.financeBannerTitle}>გნებავთ მომხმარებელმა განვადება?</Text>
-                  <Text style={styles.financeBannerSub}>შეავსეთ განაცხადი მის სახელზე.</Text>
-                </View>
-                <Pressable style={styles.financeBannerCta} onPress={() => setShowFinanceModal(true)}>
-                  <Text style={styles.financeBannerCtaText}>განვადება</Text>
-                </Pressable>
-              </View>
-            )}
+           
             {request && (
               <View style={styles.requestInfoCard}>
                 <LinearGradient

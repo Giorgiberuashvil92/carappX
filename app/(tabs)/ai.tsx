@@ -137,9 +137,18 @@ export default function AILandingScreen() {
   const hasStore =
     !!(sellerStatus?.counts?.stores && sellerStatus.counts.stores > 0) ||
     !!(sellerStatus?.ownedStores && sellerStatus.ownedStores.length > 0);
+  const hasDismantlers =
+    !!(sellerStatus?.counts?.dismantlers && sellerStatus.counts.dismantlers > 0) ||
+    !!(sellerStatus?.ownedDismantlers && sellerStatus.ownedDismantlers.length > 0);
+  const hasSellerAssets =
+    hasStore ||
+    hasDismantlers ||
+    !!(sellerStatus?.ownedParts && sellerStatus.ownedParts.length > 0);
   const chatUnread =
     (sellerStatus?.matchingRequests && sellerStatus.matchingRequests.length) || 0;
   const hasCar = !!selectedCar;
+
+
 
   const services = [
     {
@@ -202,9 +211,6 @@ export default function AILandingScreen() {
           ]}
         >
           {/* Hero Section */}
-          
-
-          {/* Car Selection */}
           <Animated.View style={styles.carSection}>
             <Pressable 
               style={styles.carCard}
@@ -252,26 +258,8 @@ export default function AILandingScreen() {
             </Pressable>
           </Animated.View>
 
-          {/* Quick Links */}
-          <View style={styles.quickLinksContainer}>
-            {hasStore && (
-              <Pressable
-                style={styles.quickLink}
-                onPress={() => router.push('/partner-dashboard?partnerType=store')}
-              >
-                <LinearGradient
-                  colors={['rgba(16, 185, 129, 0.2)', 'rgba(5, 150, 105, 0.2)']}
-                  style={styles.quickLinkGradient}
-                >
-                  <Ionicons name="business" size={18} color="#FFFFFF" />
-                  <Text style={styles.quickLinkText}>მაღაზიის პანელი</Text>
-                </LinearGradient>
-              </Pressable>
-            )}
-          </View>
-
           {/* AI Helper */}
-          <Pressable style={styles.aiCard} onPress={() => router.push('/service-form?service=parts')}>
+          <Pressable style={styles.aiCard}>
             <View style={styles.aiLeft}>
               <View style={styles.aiIcon}>
                 <Ionicons name="sparkles" size={20} color="#111827" />
@@ -284,10 +272,10 @@ export default function AILandingScreen() {
                 )}
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#111827" />
+            
           </Pressable>
 
-          {/* Chat entry */}
+          {/* Chat entry - ყველა მოთხოვნა */}
           <Pressable
             style={styles.chatCard}
             onPress={() => router.push('/all-requests')}
@@ -303,41 +291,17 @@ export default function AILandingScreen() {
                 </Text>
               </View>
             </View>
-            <View style={styles.chatBadge}>
+            <View style={[
+              styles.chatBadge,
+              { backgroundColor: chatUnread === 0 ? '#22C55E' : '#EF4444' }
+            ]}>
               <Text style={styles.chatBadgeText}>{chatUnread}</Text>
             </View>
           </Pressable>
 
-          {/* Finance Banner */}
-          <Animated.View style={styles.financeBannerSection}>
-            <LinearGradient
-              colors={['#10B981', '#059669']}
-              style={styles.financeBannerGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.financeBannerContent}>
-                <View style={styles.financeBannerIcon}>
-                  <Ionicons name="card" size={24} color="#FFFFFF" />
-                </View>
-                <View style={styles.financeBannerText}>
-                  <Text style={styles.financeBannerTitle}>განვადება 0% პროცენტით</Text>
-                  <Text style={styles.financeBannerSubtitle}>
-                    ყველა სერვისზე ხელმისაწვდომია
-                  </Text>
-                </View>
-                <View style={styles.financeBannerBadge}>
-                  <Text style={styles.financeBannerBadgeText}>0%</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-
-        {/* Seller Panel */}
-
           {/* Services Grid */}
           <View style={styles.servicesSection}>
-            <Text style={styles.sectionTitle}>რა გჭირდებათ?</Text>
+            <Text style={styles.sectionTitle}>სერვისები</Text>
             <View style={styles.servicesGrid}>
               {services.map((service) => (
                 <View
@@ -442,6 +406,7 @@ export default function AILandingScreen() {
           }
         }}
       />
+
     </SafeAreaView>
   );
 }
@@ -801,7 +766,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: 'rgba(17, 24, 39, 0.7)',
+    backgroundColor: '#0F172A',
     borderRadius: 24,
     padding: 24,
     maxHeight: '80%',

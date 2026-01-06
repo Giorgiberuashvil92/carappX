@@ -25,6 +25,11 @@ import type { LocationObject } from 'expo-location';
 import Colors from '../constants/Colors';
 import { useColorScheme } from '../components/useColorScheme';
 import Chip from '@/components/ui/Chip';
+import API_BASE_URL from '../config/api';
+import { addItemApi } from '../services/addItemApi';
+import { carwashLocationApi } from '../services/carwashLocationApi';
+import { categoriesApi, Category } from '../services/categoriesApi';
+import { mechanicsApi } from '../services/mechanicsApi';
 // Replacing external Chip with local glassy pills
 
 const { width, height } = Dimensions.get('window');
@@ -119,6 +124,80 @@ const CAR_WASH_LOCATIONS = [
   },
 ];
 
+// Picker Location Info Component with Reverse Geocoding
+const PickerLocationInfo: React.FC<{ latitude: number; longitude: number; onConfirm: (address: string) => void }> = ({ latitude, longitude, onConfirm }) => {
+  const [address, setAddress] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAddress = async () => {
+      try {
+        setLoading(true);
+        const result = await ExpoLocation.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        });
+        
+        if (result && result.length > 0) {
+          const location = result[0];
+          const parts = [
+            location.street,
+            location.streetNumber,
+            location.district,
+            location.city,
+            location.region,
+          ].filter(Boolean);
+          const fullAddress = parts.join(', ') || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          setAddress(fullAddress);
+        } else {
+          setAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+        }
+      } catch (error) {
+        console.error('Reverse geocoding error:', error);
+        setAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAddress();
+  }, [latitude, longitude]);
+
+  const handleConfirm = () => {
+    onConfirm(address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+  };
+
+  return (
+    <View style={{ position: 'absolute', left: 16, right: 16, bottom: 16, gap: 10 }}>
+      <View style={{ backgroundColor: 'rgba(17,24,39,0.9)', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Ionicons name="location" size={18} color="#22C55E" />
+          <Text style={{ color: '#E5E7EB', fontSize: 13, fontWeight: '600' }}>მდებარეობა</Text>
+        </View>
+        {loading ? (
+          <Text style={{ color: '#9CA3AF', fontSize: 12 }}>მისამართის განსაზღვრა...</Text>
+        ) : (
+          <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14, marginBottom: 8 }}>
+            {address}
+          </Text>
+        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
+          <Ionicons name="map" size={14} color="#9CA3AF" />
+          <Text style={{ color: '#9CA3AF', fontSize: 11, fontFamily: 'monospace' }}>
+            {latitude.toFixed(6)}, {longitude.toFixed(6)}
+          </Text>
+        </View>
+      </View>
+      <TouchableOpacity
+        style={{ backgroundColor: '#22C55E', paddingVertical: 16, borderRadius: 14, alignItems: 'center', shadowColor: '#22C55E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 }}
+        onPress={handleConfirm}
+      >
+        <Text style={{ color: '#0B0B0E', fontWeight: '700', fontSize: 16 }}>არჩევა</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export default function MapScreen() {
   const router = useRouter();
   const navParams = useLocalSearchParams<{ lat?: string; lng?: string; storeName?: string; picker?: string; pin?: string }>();
@@ -137,23 +216,16 @@ export default function MapScreen() {
   });
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<Supercluster | null>(null);
-  const [activeCategory, setActiveCategory] = useState<'All' | 'Premium' | 'Express' | 'Luxury'>('All');
-  const [openNow, setOpenNow] = useState<boolean>(false);
-  const [partnersOnly, setPartnersOnly] = useState<boolean>(false);
-  const [minRating, setMinRating] = useState<number>(0);
   const [sortBy, setSortBy] = useState<'nearest' | 'topRated'>('nearest');
-  const [radiusKm, setRadiusKm] = useState<number>(3);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
-  const [isDealsOpen, setIsDealsOpen] = useState<boolean>(false);
-  const [dealsOnly, setDealsOnly] = useState<boolean>(false);
-  const [queues, setQueues] = useState<Record<string, { length: number; avgMinsPerTicket: number }>>(() => {
-    const map: Record<string, { length: number; avgMinsPerTicket: number }> = {};
-    CAR_WASH_LOCATIONS.forEach(l => { map[l.id] = l.queue || { length: 0, avgMinsPerTicket: 6 }; });
-    return map;
-  });
-  const [tickets, setTickets] = useState<Record<string, { ticketNumber: number; issuedAt: number; arrived?: boolean }>>({});
-  const [, forceTick] = useState<number>(0);
+  const [radiusKm, setRadiusKm] = useState<number>(50); // დიდი რადიუსი რომ ყველა ჩანდეს
+  
+  // API data states
+  const [allLocations, setAllLocations] = useState<any[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  
+  // Categories for filtering - extracted from locations
+  const [availableCategories, setAvailableCategories] = useState<Array<{name: string; color: string; type?: string}>>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const styles = StyleSheet.create({
     container: {
@@ -417,33 +489,33 @@ export default function MapScreen() {
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: 'rgba(17,24,39,0.92)',
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
-      paddingTop: 18,
-      paddingBottom: 28,
-      paddingHorizontal: 18,
+      backgroundColor: 'rgba(17,24,39,0.95)',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: 14,
+      paddingBottom: 16,
+      paddingHorizontal: 16,
       borderTopWidth: 1,
       borderTopColor: 'rgba(255,255,255,0.08)',
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: -20 },
-      shadowOpacity: 0.4,
-      shadowRadius: 40,
+      shadowOffset: { width: 0, height: -10 },
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
       elevation: 120,
       zIndex: 2000,
     },
     infoHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 24,
+      alignItems: 'center',
+      marginBottom: 12,
     },
     infoTitle: {
-      fontSize: 20,
+      fontSize: 16,
       fontFamily: 'Poppins_700Bold',
       color: '#F3F4F6',
       flex: 1,
-      lineHeight: 26,
+      lineHeight: 20,
     },
     closeButton: {
       width: 44,
@@ -687,6 +759,169 @@ export default function MapScreen() {
     return stars;
   };
 
+
+  // კატეგორიის მიხედვით ფერის განსაზღვრა
+  const getCategoryColor = (category: string, type?: string): string => {
+    if (!category) {
+      // თუ კატეგორია არ არის, type-ის მიხედვით
+      switch (type) {
+        case 'carwash':
+          return '#3B82F6'; // ლურჯი
+        case 'store':
+          return '#F59E0B'; // ყვითელი/ნარინჯისფერი
+        case 'service':
+          return '#EF4444'; // წითელი
+        case 'mechanic':
+          return '#10B981'; // მწვანე
+        default:
+          return '#6B7280'; // ნაცრისფერი
+      }
+    }
+
+    const categoryLower = category.toLowerCase();
+    
+    // სამრეცხაო - ლურჯი
+    if (categoryLower.includes('სამრეცხაო') || categoryLower.includes('carwash') || categoryLower.includes('wash')) {
+      return '#3B82F6';
+    }
+    
+    // ავტოსერვისები - წითელი
+    if (categoryLower.includes('ავტოსერვის') || categoryLower.includes('auto service') || categoryLower.includes('service')) {
+      return '#EF4444';
+    }
+    
+    // მაღაზიები - ყვითელი/ნარინჯისფერი
+    if (categoryLower.includes('მაღაზია') || categoryLower.includes('store') || categoryLower.includes('shop')) {
+      return '#F59E0B';
+    }
+    
+    // მექანიკოსები - მწვანე
+    if (categoryLower.includes('მექანიკ') || categoryLower.includes('mechanic') || categoryLower.includes('ხელოსან')) {
+      return '#10B981';
+    }
+    
+    // დეტეილინგი - იისფერი
+    if (categoryLower.includes('დეტეილ') || categoryLower.includes('detailing')) {
+      return '#8B5CF6';
+    }
+    
+    if (categoryLower.includes('ევაკუატორი') || categoryLower.includes('towing')) {
+      return '#EF4444';
+    }
+    
+    // ნაწილები - ლურჯი
+    if (categoryLower.includes('ნაწილ') || categoryLower.includes('part')) {
+      return '#3B82F6';
+    }
+    
+    // ზეთები - ნარინჯისფერი
+    if (categoryLower.includes('ზეთ') || categoryLower.includes('oil') || categoryLower.includes('ლუბრიკანტ')) {
+      return '#F97316'; // ნარინჯისფერი
+    }
+    
+    // Default - ნაცრისფერი
+    return '#6B7280';
+  };
+
+  // Load locations from API
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        setLoadingLocations(true);
+        console.log('🗺️ [MAP] Loading locations from API...');
+        
+        // Use new /services/map endpoint that returns all services with coordinates
+        const response = await fetch(`${API_BASE_URL}/services/map`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch services');
+        }
+
+        const result = await response.json();
+        const services = result.success ? result.data : [];
+
+        console.log('🗺️ [MAP] Received services:', services.length);
+        console.log('🗺️ [MAP] Sample service:', services[0]);
+
+        const allLocationsData: any[] = services
+          .filter((service: any) => {
+            // Filter out services without valid coordinates
+            return service.latitude != null && 
+                   service.longitude != null &&
+                   typeof service.latitude === 'number' &&
+                   typeof service.longitude === 'number';
+          })
+          .map((service: any) => {
+            // Map the service to the format expected by the map component
+            return {
+              id: service.id || String(service._id) || `service-${Math.random()}`,
+              name: service.title || service.name || 'სერვისი',
+              address: service.address || service.location || '',
+              rating: service.rating || 0,
+              reviews: service.reviews || 0,
+              price: service.price || undefined,
+              services: Array.isArray(service.services) ? service.services : [],
+              isOpen: service.isOpen !== undefined ? service.isOpen : true,
+              category: service.category || 'სერვისი',
+              phone: service.phone || '',
+              image: service.images?.[0] 
+                ? { uri: service.images[0] } 
+                : PLACEHOLDER_IMAGE,
+              coordinates: { 
+                latitude: Number(service.latitude), 
+                longitude: Number(service.longitude) 
+              },
+              isPartner: false,
+              isFeatured: false,
+              offer: '',
+              waitTime: service.waitTime,
+              type: service.type || 'service',
+              workingHours: service.workingHours,
+              features: service.features,
+            };
+          });
+
+        console.log('🗺️ [MAP] Processed locations with coordinates:', allLocationsData.length);
+        console.log('🗺️ [MAP] Sample location:', allLocationsData[0]);
+        
+        if (allLocationsData.length > 0) {
+          setAllLocations(allLocationsData);
+          
+          // Extract unique categories from locations
+          const categoryMap = new Map<string, {name: string; color: string; type?: string}>();
+          
+          allLocationsData.forEach((location: any) => {
+            const categoryName = location.category || location.type || 'სხვა';
+            if (!categoryMap.has(categoryName)) {
+              const categoryColor = getCategoryColor(categoryName, location.type);
+              categoryMap.set(categoryName, {
+                name: categoryName,
+                color: categoryColor,
+                type: location.type,
+              });
+            }
+          });
+          
+          const uniqueCategories = Array.from(categoryMap.values());
+          console.log('🗺️ [MAP] Extracted categories:', uniqueCategories.length);
+          setAvailableCategories(uniqueCategories);
+        } else {
+          console.warn('🗺️ [MAP] No locations with coordinates found, using fallback');
+          setAllLocations(CAR_WASH_LOCATIONS);
+          setAvailableCategories([]);
+        }
+      } catch (error) {
+        console.error('🗺️ [MAP] Error loading locations:', error);
+        // Fallback to hardcoded locations
+        setAllLocations(CAR_WASH_LOCATIONS);
+      } finally {
+        setLoadingLocations(false);
+      }
+    };
+
+    loadLocations();
+  }, []);
+
   // Initialize supercluster
   useEffect(() => {
     const cluster = new Supercluster({
@@ -755,42 +990,21 @@ export default function MapScreen() {
 
   const onMyLocation = async () => {
     try {
-      if (userLocation) {
-        const newRegion = {
-          latitude: userLocation.coords.latitude,
-          longitude: userLocation.coords.longitude,
-          latitudeDelta: 0.002,
-          longitudeDelta: 0.002,
-        };
-        setMapRegion(newRegion);
-        mapRef.current?.animateCamera(
-          { center: { latitude: userLocation.coords.latitude, longitude: userLocation.coords.longitude }, zoom: 50 },
-          { duration: 800 }
-        );
-        return;
-      }
-
-      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Location permission denied');
-        return;
-      }
-      
-      const location = await ExpoLocation.getCurrentPositionAsync({});
-      setUserLocation(location);
+      // Always use static Tbilisi location
+      const tbilisiCoords = { latitude: 41.7151, longitude: 44.8271 };
       const newRegion = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude: tbilisiCoords.latitude,
+        longitude: tbilisiCoords.longitude,
         latitudeDelta: 0.002,
         longitudeDelta: 0.002,
       };
       setMapRegion(newRegion);
       mapRef.current?.animateCamera(
-        { center: { latitude: location.coords.latitude, longitude: location.coords.longitude }, zoom: 18.5 },
+        { center: tbilisiCoords, zoom: 18.5 },
         { duration: 800 }
       );
     } catch (error) {
-      console.log('Error getting location:', error);
+      console.log('Error animating to location:', error);
     }
   };
 
@@ -824,6 +1038,47 @@ export default function MapScreen() {
   };
 
   useEffect(() => {
+    // Set static location to Tbilisi
+    const tbilisiLocation: LocationObject = {
+      coords: {
+        latitude: 41.7151,
+        longitude: 44.8271,
+        altitude: null,
+        accuracy: 50,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+      },
+      timestamp: Date.now(),
+    };
+    
+    setUserLocation(tbilisiLocation);
+    
+    // Set map region to Tbilisi
+    const newRegion = {
+      latitude: 41.7151,
+      longitude: 44.8271,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    };
+    setMapRegion(newRegion);
+    
+    // Animate camera to Tbilisi
+    setTimeout(() => {
+      mapRef.current?.animateCamera(
+        { 
+          center: { 
+            latitude: 41.7151, 
+            longitude: 44.8271 
+          }, 
+          zoom: 15 
+        },
+        { duration: 1000 }
+      );
+    }, 500);
+
+    // Disable real-time location tracking - using static location
+    /* 
     let locationSubscription: any;
     
     (async () => {
@@ -882,6 +1137,7 @@ export default function MapScreen() {
         locationSubscription.remove();
       }
     };
+    */
   }, []);
 
   const handleBooking = () => {
@@ -891,32 +1147,6 @@ export default function MapScreen() {
         params: { location: JSON.stringify(selectedLocation) }
       });
     }
-  };
-  const issueTicket = () => {
-    if (!selectedLocation) return;
-    const q = queues[selectedLocation.id] || { length: 0, avgMinsPerTicket: 6 };
-    const newTicketNo = (tickets[selectedLocation.id]?.ticketNumber ?? 0) + 1;
-    setTickets(prev => ({ ...prev, [selectedLocation.id]: { ticketNumber: newTicketNo, issuedAt: Date.now() } }));
-    setQueues(prev => ({ ...prev, [selectedLocation.id]: { ...q, length: q.length + 1 } }));
-  };
-  const markArrived = () => {
-    if (!selectedLocation) return;
-    const cur = tickets[selectedLocation.id];
-    if (!cur) return;
-    setTickets(prev => ({ ...prev, [selectedLocation.id]: { ...cur, arrived: true } }));
-  };
-  useEffect(() => {
-    const t = setInterval(() => forceTick(v => v + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  
-  const getEtaText = (locationId: string) => {
-    const q = queues[locationId];
-    const my = tickets[locationId];
-    const base = (q?.length ?? 0) * (q?.avgMinsPerTicket ?? 5);
-    const since = my ? Math.floor((Date.now() - my.issuedAt) / 60000) : 0;
-    const remaining = Math.max(0, base - since);
-    return `${remaining} წთ`;
   };
 
   const handleCall = () => {
@@ -936,34 +1166,59 @@ export default function MapScreen() {
     if (url) Linking.openURL(url);
   };
 
-  const filtered = useMemo(() => {
-    const centerLat = mapRegion.latitude;
-    const centerLng = mapRegion.longitude;
-
-    let list = CAR_WASH_LOCATIONS.filter((l) => {
-      if (activeCategory !== 'All' && l.category !== activeCategory) return false;
-      if (openNow && !l.isOpen) return false;
-      if (partnersOnly && !l.isPartner) return false;
-      if (dealsOnly && !l.offer) return false;
-      if (minRating > 0 && l.rating < minRating) return false;
-      if (searchQuery?.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matchesText = l.name.toLowerCase().includes(q) || l.address.toLowerCase().includes(q) || l.services.join(' ').toLowerCase().includes(q);
-        if (!matchesText) return false;
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((prev) => {
+      if (prev.includes(categoryId)) {
+        return prev.filter((id) => id !== categoryId);
+      } else {
+        return [...prev, categoryId];
       }
-      const d = getDistanceKm(centerLat, centerLng, l.coordinates.latitude, l.coordinates.longitude);
-      return d <= radiusKm;
+    });
+  };
+
+  const filtered = useMemo(() => {
+    // Use API data if available, otherwise fallback to hardcoded
+    const locationsToFilter = allLocations.length > 0 ? allLocations : CAR_WASH_LOCATIONS;
+
+    // მხოლოდ coordinates-ის შემოწმება - ყველა სერვისი რომელსაც აქვს coordinates
+    let list = locationsToFilter.filter((l) => {
+      return l.coordinates && 
+             typeof l.coordinates.latitude === 'number' && 
+             typeof l.coordinates.longitude === 'number' &&
+             !isNaN(l.coordinates.latitude) &&
+             !isNaN(l.coordinates.longitude);
     });
 
-    list = list
-      .map((l: any) => ({ ...l, _distanceKm: getDistanceKm(centerLat, centerLng, l.coordinates.latitude, l.coordinates.longitude) }))
-      .sort((a: any, b: any) => (sortBy === 'nearest' ? a._distanceKm - b._distanceKm : b.rating - a.rating));
+    // კატეგორიის ფილტრაცია
+    if (selectedCategories.length > 0) {
+      list = list.filter((l) => {
+        const locationCategory = l.category || l.type || '';
+        return selectedCategories.includes(locationCategory);
+      });
+    }
 
     return list;
-  }, [activeCategory, openNow, partnersOnly, minRating, radiusKm, searchQuery, mapRegion, sortBy]);
+  }, [allLocations, selectedCategories]);
 
+  // Clustered markers
   const clusteredMarkers = useMemo(() => {
-    if (!clusterRef.current || filtered.length === 0) return [];
+    if (filtered.length === 0) return [];
+    
+    // თუ clusterRef არ არის initialized, ვაბრუნებთ ჩვეულებრივ მარკერებს
+    if (!clusterRef.current) {
+      return filtered.map((location) => ({
+        type: 'Feature' as const,
+        properties: {
+          cluster: false,
+          locationId: location.id,
+          location: location,
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [location.coordinates.longitude, location.coordinates.latitude],
+        },
+      }));
+    }
 
     const points = filtered.map((location) => ({
       type: 'Feature' as const,
@@ -991,9 +1246,19 @@ export default function MapScreen() {
 
     // Calculate zoom level from latitudeDelta
     const zoom = Math.round(Math.log(360 / mapRegion.latitudeDelta) / Math.LN2);
+    const zoomLevel = Math.max(0, Math.min(zoom, 20)); // Clamp zoom between 0 and 20
 
-    return clusterRef.current.getClusters(bbox, zoom);
+    try {
+      const clusters = clusterRef.current.getClusters(bbox, zoomLevel);
+      console.log('🗺️ [MAP] Clusters:', clusters.length, 'from', filtered.length, 'locations');
+      return clusters;
+    } catch (error) {
+      console.error('🗺️ [MAP] Error getting clusters:', error);
+      // Fallback: return individual markers
+      return points;
+    }
   }, [filtered, mapRegion]);
+
 
   const isPickerMode = (navParams as any)?.picker === '1';
 
@@ -1011,29 +1276,66 @@ export default function MapScreen() {
               <Feather name="arrow-left" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>რუკა</Text>
-            <TouchableOpacity style={styles.headerAction} onPress={() => setIsFilterOpen(true)}>
-              <Text style={styles.headerActionText}>ფილტრაცია</Text>
-            </TouchableOpacity>
+            <View style={{ width: 48 }} />
           </View>
 
-          {/* Deals strip */}
-          <View style={styles.dealsRow}>
-            <Text style={styles.dealsTitle}>შეთავაზებები</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dealsStrip}>
-            {CAR_WASH_LOCATIONS.filter(l => !!l.offer).slice(0, 6).map(d => (
-              <TouchableOpacity key={d.id} style={styles.dealPill} onPress={() => handleMarkerPress(d)}>
-                <Feather name="zap" size={14} color="#22C55E" />
-                <Text style={styles.dealText}>{d.offer}</Text>
-                <View style={styles.applyBtn}>
-                  <Feather name="eye" size={14} color="#0B0B0E" />
-                  <Text style={styles.applyText}>ნახვა</Text>
-                </View>
+          {/* Category Filter Chips - დინამიურად ლოკაციებიდან */}
+          {availableCategories.length > 0 && (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 8, marginTop: 12, paddingBottom: 8 }}
+            >
+              <TouchableOpacity
+                style={[
+                  {
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: selectedCategories.length === 0 ? '#3B82F6' : 'rgba(255,255,255,0.1)',
+                    borderWidth: 1,
+                    borderColor: selectedCategories.length === 0 ? '#3B82F6' : 'rgba(255,255,255,0.2)',
+                  }
+                ]}
+                onPress={() => setSelectedCategories([])}
+              >
+                <Text style={{
+                  color: selectedCategories.length === 0 ? '#FFFFFF' : '#E5E7EB',
+                  fontFamily: 'Poppins_600SemiBold',
+                  fontSize: 12,
+                }}>
+                  ყველა
+                </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Chips moved to filter modal */}
+              
+              {availableCategories.map((category) => {
+                const isSelected = selectedCategories.includes(category.name);
+                
+                return (
+                  <TouchableOpacity
+                    key={category.name}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      backgroundColor: isSelected ? category.color : 'rgba(255,255,255,0.1)',
+                      borderWidth: 1,
+                      borderColor: isSelected ? category.color : 'rgba(255,255,255,0.2)',
+                    }}
+                    onPress={() => toggleCategory(category.name)}
+                  >
+                    <Text style={{
+                      color: isSelected ? '#FFFFFF' : '#E5E7EB',
+                      fontFamily: 'Poppins_600SemiBold',
+                      fontSize: 12,
+                    }}>
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
           {/*
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow} pointerEvents="auto">
             <TouchableOpacity style={[styles.pill, activeCategory==='All' && styles.pillActive]} onPress={() => setActiveCategory('All')}>
@@ -1097,12 +1399,6 @@ export default function MapScreen() {
           showsMyLocationButton={false}
           customMapStyle={MAP_STYLE_MINIMAL_DARK}
         >
-          <Circle
-            center={{ latitude: mapRegion.latitude, longitude: mapRegion.longitude }}
-            radius={radiusKm * 1000}
-            strokeColor="rgba(59,130,246,0.3)"
-            fillColor="rgba(59,130,246,0.08)"
-          />
 
           {/* User location marker - Car icon with heading */}
           {userLocation && (
@@ -1147,21 +1443,37 @@ export default function MapScreen() {
             />
           )}
 
-          {clusteredMarkers.map((marker: any) => {
+          {clusteredMarkers.map((marker: any, index: number) => {
             const [longitude, latitude] = marker.geometry.coordinates;
             const { cluster: isCluster, point_count: pointCount } = marker.properties;
 
+            // Choose icon based on service type
+            const getMarkerIcon = (type: string) => {
+              switch (type) {
+                case 'carwash':
+                  return 'droplet';
+                case 'store':
+                  return 'shopping-bag';
+                case 'service':
+                  return 'tool';
+                case 'mechanic':
+                  return 'wrench';
+                default:
+                  return 'map-pin';
+              }
+            };
+
+            // Cluster marker - რამდენიმე მარკერი ერთად
             if (isCluster) {
               return (
                 <Marker
                   key={`cluster-${marker.id}`}
                   coordinate={{ latitude, longitude }}
                   onPress={() => {
-                    const expansionZoom = Math.min(
-                      clusterRef.current?.getClusterExpansionZoom(marker.id) || 16,
-                      16
-                    );
-                    const newDelta = 360 / Math.pow(2, expansionZoom);
+                    // ნაკლები ზუმი - რომ სერვისები ჩანდეს მაგრამ არ იყოს ძალიან დიდი ზუმი
+                    const currentZoom = Math.round(Math.log(360 / mapRegion.latitudeDelta) / Math.LN2);
+                    const targetZoom = Math.min(currentZoom + 6, 14); // მხოლოდ 2 zoom level-ით ზუმი
+                    const newDelta = 360 / Math.pow(2, targetZoom);
                     mapRef.current?.animateToRegion({
                       latitude,
                       longitude,
@@ -1197,22 +1509,40 @@ export default function MapScreen() {
               );
             }
 
-            // Render individual marker
+            // Individual marker
             const location = marker.properties.location;
+            const iconName = getMarkerIcon(location.type);
+            const categoryColor = getCategoryColor(location.category, location.type);
+            const markerKey = `marker-${location.id || location._id || index}`;
+            const isSelected = selectedLocation?.id === location.id;
+            
             return (
               <Marker
-                key={location.id}
+                key={markerKey}
+                identifier={markerKey}
                 coordinate={location.coordinates}
                 onPress={() => handleMarkerPress(location)}
               >
-                <View style={[
-                  styles.mapMarker,
-                  selectedLocation?.id === location.id && styles.mapMarkerSelected
-                ]}>
+                <View style={{
+                  backgroundColor: categoryColor,
+                  borderRadius: 14,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: isSelected ? 2 : 1,
+                  borderColor: isSelected ? '#FFFFFF' : categoryColor,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 6,
+                  elevation: 5,
+                  transform: isSelected ? [{ scale: 1.06 }] : [],
+                }}>
                   <Feather 
-                    name="droplet" 
+                    name={iconName as any} 
                     size={16} 
-                    color={selectedLocation?.id === location.id ? '#FFFFFF' : '#E5E7EB'} 
+                    color={isSelected ? '#FFFFFF' : '#FFFFFF'} 
                   />
                 </View>
               </Marker>
@@ -1268,19 +1598,7 @@ export default function MapScreen() {
           </View>
         )}
         {/* Floating filter button removed; header action opens modal */}
-        <View
-          style={[
-            {
-              position: 'absolute',
-              left: Math.round(width * 0.26),
-              top: Math.round(height * 0.35),
-            },
-            styles.resultsPillFloating,
-          ]}
-          pointerEvents="none"
-        >
-          <Text style={styles.resultsText}>{filtered.length} შედეგი {radiusKm}კმ რადიუსში</Text>
-        </View>
+       
         <View style={styles.zoomControls}>
           <TouchableOpacity style={styles.zoomButton} onPress={onZoomIn}>
             <Feather name="plus" size={18} color="#E5E7EB" />
@@ -1331,11 +1649,11 @@ export default function MapScreen() {
         {/* Custom Tooltip removed */}
       </View>
 
-      {/* Info Card */}
+      {/* Info Card - დაპატარავებული ინფორმაციული ქარდი */}
       {showInfoCard && selectedLocation && !isPickerMode && (
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { paddingBottom: 20, maxHeight: height * 0.6 }]}>
           <View style={styles.infoHeader}>
-            <Text style={styles.infoTitle}>{selectedLocation.name}</Text>
+            <Text style={[styles.infoTitle, { fontSize: 18 }]} numberOfLines={1}>{selectedLocation.name}</Text>
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setShowInfoCard(false)}
@@ -1344,264 +1662,132 @@ export default function MapScreen() {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.infoDetails}>
-            <View style={styles.infoRow}>
-              <Feather name="map-pin" size={16} color="#6B7280" />
-              <Text style={styles.infoLabel}>მისამართი:</Text>
-              <Text style={styles.infoValue}>{selectedLocation.address}</Text>
+          {/* ფოტო */}
+          {selectedLocation.image && (
+            <View style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden' }}>
+              <Image 
+                source={selectedLocation.image} 
+                style={{ width: '100%', height: 120, borderRadius: 12 }} 
+                resizeMode="cover"
+              />
             </View>
-            
-            <View style={styles.infoRow}>
-              <View style={styles.ratingContainer}>
-                {renderStars(selectedLocation.rating)}
+          )}
+
+          {/* კატეგორია */}
+          {selectedLocation.category && (
+            <View style={{ marginBottom: 12 }}>
+              <View style={[
+                styles.serviceTag, 
+                { 
+                  backgroundColor: `${getCategoryColor(selectedLocation.category, selectedLocation.type)}20`,
+                  borderColor: `${getCategoryColor(selectedLocation.category, selectedLocation.type)}60`,
+                  borderWidth: 1,
+                }
+              ]}>
+                <Text style={[
+                  styles.serviceTagText, 
+                  { 
+                    color: getCategoryColor(selectedLocation.category, selectedLocation.type), 
+                    fontSize: 11, 
+                    fontFamily: 'Poppins_600SemiBold' 
+                  }
+                ]}>
+                  {selectedLocation.category}
+                </Text>
               </View>
-              <Text style={styles.infoValue}>{selectedLocation.rating}</Text>
-              <Text style={styles.infoLabel}>({selectedLocation.reviews} შეფასება)</Text>
             </View>
-            
-            <View style={styles.infoRow}>
-              <Feather name="clock" size={16} color="#6B7280" />
-              <Text style={styles.infoLabel}>ლოდინი:</Text>
-              <Text style={styles.infoValue}>{selectedLocation.waitTime}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Feather name="tag" size={16} color="#6B7280" />
-              <Text style={styles.infoLabel}>ფასი:</Text>
-              <Text style={styles.infoValue}>{selectedLocation.price}</Text>
-            </View>
-          </View>
+          )}
           
-          <View style={styles.servicesContainer}>
-            <Text style={styles.servicesTitle}>სერვისები:</Text>
-            <View style={styles.servicesList}>
-              {selectedLocation.services.map((service: string, index: number) => (
-                <View key={index} style={styles.serviceTag}>
-                  <Text style={styles.serviceTagText}>{service}</Text>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: height * 0.3 }}>
+            <View style={[styles.infoDetails, { gap: 10, marginBottom: 12 }]}>
+              <View style={styles.infoRow}>
+                <Feather name="map-pin" size={14} color="#6B7280" />
+                <Text style={[styles.infoLabel, { fontSize: 12 }]}>მისამართი:</Text>
+                <Text style={[styles.infoValue, { fontSize: 12, flex: 1 }]} numberOfLines={2}>{selectedLocation.address}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <View style={styles.ratingContainer}>
+                  {renderStars(selectedLocation.rating)}
                 </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Partner Profile Pro sections */}
-          {!!selectedLocation.offer && (
-            <View style={styles.dealBanner}><Text style={styles.dealTextAlt}>{selectedLocation.offer}</Text></View>
-          )}
-          {!!selectedLocation.media?.length && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
-              {selectedLocation.media.slice(0,4).map((m: string, i: number) => (
-                <Image key={i} source={{ uri: m }} style={styles.mediaThumb} />
-              ))}
-            </ScrollView>
-          )}
-          {!!selectedLocation.menu?.length && (
-            <View style={styles.menuRow}>
-              {selectedLocation.menu.slice(0,4).map((item: string, i: number) => (
-                <View key={i} style={styles.menuItem}>
-                  <Text style={styles.menuTitle}>{item}</Text>
-                  <Text style={styles.menuPrice}>from {selectedLocation.price}</Text>
+                <Text style={[styles.infoValue, { fontSize: 12 }]}>{selectedLocation.rating?.toFixed(1) || '0'}</Text>
+                <Text style={[styles.infoLabel, { fontSize: 11 }]}>({selectedLocation.reviews || 0} შეფასება)</Text>
+              </View>
+              
+              {selectedLocation.phone && (
+                <View style={styles.infoRow}>
+                  <Feather name="phone" size={14} color="#6B7280" />
+                  <Text style={[styles.infoLabel, { fontSize: 12 }]}>ტელეფონი:</Text>
+                  <Text style={[styles.infoValue, { fontSize: 12 }]}>{selectedLocation.phone}</Text>
                 </View>
-              ))}
-            </View>
-          )}
-          {/* Q&A removed */}
-
-          {/* Live queue row */}
-          <View style={styles.queueRow}>
-            <View style={styles.queueBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.queueText}>რიგი: {queues[selectedLocation.id]?.length ?? 0} კლიენტი • ETA {getEtaText(selectedLocation.id)}</Text>
-            </View>
-            <TouchableOpacity onPress={() => setQueues(prev => ({ ...prev, [selectedLocation.id]: { ...(prev[selectedLocation.id]||{ avgMinsPerTicket: 6, length: 0 }), length: Math.max(0, (prev[selectedLocation.id]?.length ?? 0) - 1) } }))}>
-              <Text style={[styles.queueText, { color: '#A78BFA' }]}>refresh</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Ticket card */}
-          <View style={styles.ticketCard}>
-            {tickets[selectedLocation.id] ? (
-              <>
-                <Text style={styles.ticketTitle}>ბილეთი #{tickets[selectedLocation.id].ticketNumber}</Text>
-                <Text style={styles.ticketMeta}>მოსალოდნელი დრო: {getEtaText(selectedLocation.id)}</Text>
-                <View style={styles.actionsRow}>
-                  {!tickets[selectedLocation.id].arrived && (
-                    <TouchableOpacity style={styles.ghostBtn} onPress={markArrived}><Text style={styles.ghostText}>მოვედი</Text></TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.primaryBtn} onPress={issueTicket}><Text style={styles.primaryText}>განახლება</Text></TouchableOpacity>
+              )}
+              
+              {selectedLocation.price && (
+                <View style={styles.infoRow}>
+                  <Feather name="tag" size={14} color="#6B7280" />
+                  <Text style={[styles.infoLabel, { fontSize: 12 }]}>ფასი:</Text>
+                  <Text style={[styles.infoValue, { fontSize: 12 }]}>{selectedLocation.price}</Text>
                 </View>
-              </>
-            ) : (
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.primaryBtn} onPress={issueTicket}><Text style={styles.primaryText}>აიღე ბილეთი</Text></TouchableOpacity>
+              )}
+
+              {selectedLocation.waitTime && (
+                <View style={styles.infoRow}>
+                  <Feather name="clock" size={14} color="#6B7280" />
+                  <Text style={[styles.infoLabel, { fontSize: 12 }]}>ლოდინი:</Text>
+                  <Text style={[styles.infoValue, { fontSize: 12 }]}>{selectedLocation.waitTime}</Text>
+                </View>
+              )}
+
+              {selectedLocation.workingHours && (
+                <View style={styles.infoRow}>
+                  <Feather name="calendar" size={14} color="#6B7280" />
+                  <Text style={[styles.infoLabel, { fontSize: 12 }]}>სამუშაო საათები:</Text>
+                  <Text style={[styles.infoValue, { fontSize: 12, flex: 1 }]} numberOfLines={2}>{selectedLocation.workingHours}</Text>
+                </View>
+              )}
+            </View>
+            
+            {selectedLocation.services && selectedLocation.services.length > 0 && (
+              <View style={styles.servicesContainer}>
+                <Text style={[styles.servicesTitle, { fontSize: 13 }]}>სერვისები:</Text>
+                <View style={styles.servicesList}>
+                  {selectedLocation.services.slice(0, 5).map((service: string, index: number) => (
+                    <View key={index} style={styles.serviceTag}>
+                      <Text style={[styles.serviceTagText, { fontSize: 10 }]}>{service}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             )}
-          </View>
-
-          {/* Chat removed */}
+          </ScrollView>
           
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={[styles.actionButton, styles.callButton]} onPress={handleCall}>
-              <Feather name="phone" size={16} color="#E5E7EB" />
-              <Text style={[styles.actionButtonText, styles.callButtonText]}>ზარი</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.actionButton, styles.routeButton]} onPress={handleRoute}>
-              <Feather name="navigation" size={16} color="#A78BFA" />
-              <Text style={[styles.actionButtonText, styles.routeButtonText]}>მარშრუტი</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.bookButton]}
-              onPress={handleBooking}
-            >
-              <Feather name="calendar" size={16} color="#FFFFFF" />
-              <Text style={[styles.actionButtonText, styles.bookButtonText]}>დაჯავშნა</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-      {/* Filter Modal */}
-      {!isPickerMode && (
-      <Modal
-        visible={isFilterOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsFilterOpen(false)}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>ფილტრები</Text>
-              <TouchableOpacity onPress={() => setIsFilterOpen(false)}><Feather name="x" size={18} color="#FFFFFF" /></TouchableOpacity>
-            </View>
-            <ScrollView
-              style={{ flex: 1 }}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ gap: 14, paddingBottom: 120 }}
-            >
-              <View>
-                <Text style={styles.sectionTitle}>კატეგორია</Text>
-                <View style={styles.rowWrap}>
-                  {['All','Premium','Express','Luxury'].map((c) => (
-                    <TouchableOpacity key={c} style={[styles.pill, (activeCategory===c|| (c==='All'&&activeCategory==='All')) && styles.pillActive]} onPress={() => setActiveCategory(c as any)}>
-                      <Text style={[styles.pillText, (activeCategory===c|| (c==='All'&&activeCategory==='All')) && styles.pillTextActive]}>{c==='All'?'ყველა':c}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>სტატუსი</Text>
-                <View style={styles.rowWrap}>
-                  <TouchableOpacity style={[styles.pill, openNow && styles.pillActive]} onPress={() => setOpenNow(!openNow)}>
-                    <Text style={[styles.pillText, openNow && styles.pillTextActive]}>{openNow? 'ღიაა' : 'ახლა'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.pill, partnersOnly && styles.pillActive]} onPress={() => setPartnersOnly(!partnersOnly)}>
-                    <Text style={[styles.pillText, partnersOnly && styles.pillTextActive]}>პარტნიორი</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.pill, minRating>=4.5 && styles.pillActive]} onPress={() => setMinRating(minRating>=4.5?0:4.5)}>
-                    <Text style={[styles.pillText, minRating>=4.5 && styles.pillTextActive]}>★4.5+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>სორტირება</Text>
-                <View style={styles.rowWrap}>
-                  {['nearest','topRated'].map(s => (
-                    <TouchableOpacity key={s} style={[styles.pill, sortBy===s && styles.pillActive]} onPress={() => setSortBy(s as any)}>
-                      <Text style={[styles.pillText, sortBy===s && styles.pillTextActive]}>{s==='nearest'?'ახლოს':'რეიტინგი'}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>რადიუსი</Text>
-                <View style={styles.rowWrap}>
-                  {[1,3,5,10].map(r => (
-                    <TouchableOpacity key={r} style={[styles.pill, radiusKm===r && styles.pillActive]} onPress={() => setRadiusKm(r)}>
-                      <Text style={[styles.pillText, radiusKm===r && styles.pillTextActive]}>{r}კმ</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </ScrollView>
-            <View style={[styles.actionsRow, { position: 'absolute', left: 16, right: 16, bottom: 16 }] }>
-              <TouchableOpacity style={styles.ghostBtn} onPress={() => { setActiveCategory('All'); setOpenNow(false); setPartnersOnly(false); setMinRating(0); setSortBy('nearest'); setRadiusKm(3); }}>
-                <Text style={styles.ghostText}>განულება</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.primaryBtn} onPress={() => setIsFilterOpen(false)}>
-                <Text style={styles.primaryText}>გამოყენება</Text>
+          {selectedLocation.phone && (
+            <View style={[styles.actionButtons, { marginTop: 12 }]}>
+              <TouchableOpacity style={[styles.actionButton, styles.callButton, { flex: 1 }]} onPress={handleCall}>
+                <Feather name="phone" size={14} color="#E5E7EB" />
+                <Text style={[styles.actionButtonText, styles.callButtonText, { fontSize: 12 }]}>ზარი</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          )}
         </View>
-      </Modal>
-      )}
-
-      {/* Deals Modal */}
-      {!isPickerMode && (
-      <Modal
-        visible={isDealsOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsDealsOpen(false)}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>შეთავაზებები ახლოს</Text>
-              <TouchableOpacity onPress={() => setIsDealsOpen(false)}><Feather name="x" size={18} color="#FFFFFF" /></TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={styles.dealsList}>
-              {CAR_WASH_LOCATIONS.filter(l => !!l.offer).map(store => (
-                <TouchableOpacity key={store.id} style={styles.dealItem} onPress={() => { focusOnLocation(store); setIsDealsOpen(false); }}>
-                  <Image source={store.image} style={styles.dealThumb} />
-                  <View style={styles.dealInfo}>
-                    <Text style={styles.dealName}>{store.name}</Text>
-                    <Text style={styles.dealOfferText}>{store.offer}</Text>
-                  </View>
-                  <View style={styles.dealActions}>
-                    <TouchableOpacity style={styles.applyBtn} onPress={() => { setDealsOnly(true); setIsDealsOpen(false); }}>
-                      <Feather name="filter" size={14} color="#0B0B0E" />
-                      <Text style={styles.applyText}>ფილტრი</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
       )}
 
       {isPickerMode && (
-        <View style={{ position: 'absolute', left: 16, right: 16, bottom: 16, gap: 10 }}>
-          <View style={{ backgroundColor: 'rgba(17,24,39,0.8)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
-            <Text style={{ color: '#E5E7EB' }}>მდებარეობა:</Text>
-            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{mapRegion.latitude.toFixed(6)}, {mapRegion.longitude.toFixed(6)}</Text>
-          </View>
-          <TouchableOpacity
-            style={{ backgroundColor: '#22C55E', paddingVertical: 14, borderRadius: 14, alignItems: 'center' }}
-            onPress={() => {
-              publishLocation({
-                type: 'LOCATION_PICKED',
-                payload: {
-                  latitude: mapRegion.latitude,
-                  longitude: mapRegion.longitude,
-                  address: `${mapRegion.latitude.toFixed(6)}, ${mapRegion.longitude.toFixed(6)}`,
-                },
-              });
-              router.back();
-            }}
-          >
-            <Text style={{ color: '#0B0B0E', fontWeight: '700' }}>არჩევა</Text>
-          </TouchableOpacity>
-        </View>
+        <PickerLocationInfo 
+          latitude={mapRegion.latitude}
+          longitude={mapRegion.longitude}
+          onConfirm={(address) => {
+            publishLocation({
+              type: 'LOCATION_PICKED',
+              payload: {
+                latitude: mapRegion.latitude,
+                longitude: mapRegion.longitude,
+                address: address,
+              },
+            });
+            router.back();
+          }}
+        />
       )}
 
     </View>

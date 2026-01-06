@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { carfaxApi } from '../services/carfaxApi';
 
 const { width } = Dimensions.get('window');
@@ -299,10 +300,42 @@ export default function CarFAXSuccess({ vinCode, carData, onClose }: CarFAXSucce
             </View>
 
             <View style={styles.actions}>
+              <TouchableOpacity 
+                style={styles.viewBtn} 
+                onPress={async () => {
+                  const htmlContent = carData?.htmlContent || carData?.reportData?.htmlContent;
+                  if (htmlContent) {
+                    try {
+                      // HTML-ს შევინახავთ AsyncStorage-ში და გადავცემთ მხოლოდ key-ს
+                      const storageKey = `carfax_html_${vinCode}_${Date.now()}`;
+                      await AsyncStorage.setItem(storageKey, htmlContent);
+                      console.log('✅ HTML saved to AsyncStorage:', storageKey, 'length:', htmlContent.length);
+                      
+                      router.push({
+                        pathname: '/carfax-view',
+                        params: {
+                          storageKey: storageKey,
+                          vinCode: vinCode,
+                        },
+                      });
+                    } catch (error) {
+                      console.error('HTML storage შეცდომა:', error);
+                      Alert.alert('შეცდომა', 'HTML კონტენტის შენახვისას მოხდა შეცდომა');
+                    }
+                  } else {
+                    Alert.alert('შეცდომა', 'HTML კონტენტი ვერ მოიძებნა');
+                  }
+                }}
+              >
+                <Ionicons name="document-text-outline" size={18} color="#fff" />
+                <Text style={styles.viewBtnText}>HTML ჩვენება</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.primaryBtn} onPress={handleDownload}>
                 <Ionicons name="download-outline" size={18} color="#fff" />
                 <Text style={styles.primaryText}>PDF ჩამოტვირთვა</Text>
               </TouchableOpacity>
+            </View>
+            <View style={styles.actions}>
               <TouchableOpacity style={styles.secondaryBtn} onPress={handleShare}>
                 <Ionicons name="share-outline" size={18} color={ACCENT} />
                 <Text style={styles.secondaryText}>გაზიარება</Text>
@@ -457,6 +490,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 8,
+  },
+  viewBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginRight: 8,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+  },
+  viewBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginLeft: 8,
   },
   primaryBtn: {
     flex: 1,

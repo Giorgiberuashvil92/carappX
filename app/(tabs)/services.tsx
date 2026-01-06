@@ -20,15 +20,14 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect, Stack } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect, Stack, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { carwashApi, CarwashBooking } from '../../services/carwashApi';
 import { useUser } from '../../contexts/UserContext';
 import { useCars } from '../../contexts/CarContext';
 import { useToast } from '../../contexts/ToastContext';
-import AddModal, { AddModalType } from '../../components/ui/AddModal';
 import { carwashLocationApi } from '../../services/carwashLocationApi';
 import API_BASE_URL from '../../config/api';
 
@@ -52,6 +51,8 @@ const SERVICE_FEATURES = [
 
 export default function ServicesScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const { user, isAuthenticated, updateUserRole, addToOwnedCarwashes } = useUser();
   const { selectedCar, cars, selectCar } = useCars();
   const { success, error, warning } = useToast();
@@ -109,7 +110,6 @@ export default function ServicesScreen() {
     const loadMyServices = async () => {
       if (user?.role === 'owner' && user.ownedCarwashes?.length > 0) {
         try {
-          // Load services from backend - filter by category 'ავტოსერვისი'
           const ownedServices = await carwashLocationApi.getLocationsByOwner(user.id);
           const filteredServices = ownedServices.filter((s: any) => 
             s.category === 'ავტოსერვისი' || s.category?.toLowerCase().includes('service')
@@ -371,45 +371,54 @@ export default function ServicesScreen() {
 
   const loadAllServices = useCallback(async () => {
     try {
-      // Load services from new /services/list endpoint
-      const response = await fetch(`${API_BASE_URL}/services/list`);
-      const result = await response.json();
+      // Load all services from /services endpoint, then filter for auto services
+      const response = await fetch(`${API_BASE_URL}/services`);
       
-      if (result.success && result.data) {
-        // Map backend service format to frontend format
-        const services = result.data.map((service: any) => ({
-          id: service.id || service._id,
-          name: service.name,
-          description: service.description,
-          category: service.category || 'ავტოსერვისი',
-          location: service.location,
-          address: service.address,
-          phone: service.phone,
-          price: service.price,
-          rating: service.rating || 0,
-          reviews: service.reviews || 0,
-          images: service.images || [],
-          avatar: service.avatar,
-          services: service.services || [],
-          features: service.features,
-          isOpen: service.isOpen !== undefined ? service.isOpen : true,
-          waitTime: service.waitTime,
-          workingHours: service.workingHours,
-          status: service.status || 'active',
-          latitude: service.latitude,
-          longitude: service.longitude,
-        }));
-        setAllServices(services);
-      } else {
-        // Fallback to carwashLocationApi if new endpoint fails
-        const allLocations = await carwashLocationApi.getAllLocations();
-        const services = allLocations.filter((location: any) => 
-          location.category === 'ავტოსერვისი' || 
-          location.category?.toLowerCase().includes('service') ||
-          location.category?.toLowerCase().includes('ავტოსერვისი')
-        );
-        setAllServices(services);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      const data = await response.json();
+      console.log('🔧 [SERVICES] Fetched all services:', data.length);
+      
+      // Ensure data is an array
+      const servicesArray = Array.isArray(data) ? data : (data.data || []);
+      
+      // Filter only auto services (ავტოსერვისები)
+      const autoServices = servicesArray.filter((service: any) => {
+        const category = service.category || '';
+        // Match "ავტოსერვისები" or "ავტოსერვისი" or contains "service"
+        return category.includes('ავტოსერვის') || category.toLowerCase().includes('service');
+      });
+      
+      console.log('🔧 [SERVICES] Filtered auto services:', autoServices.length);
+      
+      // Map backend service format to frontend format
+      const services = autoServices.map((service: any) => ({
+        id: service.id || service._id,
+        name: service.name,
+        description: service.description,
+        category: service.category || 'ავტოსერვისი',
+        location: service.location,
+        address: service.address,
+        phone: service.phone,
+        price: service.price,
+        rating: service.rating || 0,
+        reviews: service.reviews || 0,
+        images: service.images || [],
+        avatar: service.avatar,
+        services: service.services || [],
+        features: service.features,
+        isOpen: service.isOpen !== undefined ? service.isOpen : true,
+        waitTime: service.waitTime,
+        workingHours: service.workingHours,
+        status: service.status || 'active',
+        latitude: service.latitude,
+        longitude: service.longitude,
+      }));
+      
+      console.log('🔧 [SERVICES] Mapped services:', services.length);
+      setAllServices(services);
     } catch (error) {
       console.error('❌ [SERVICES] Error loading services:', error);
       // Fallback to carwashLocationApi on error
@@ -927,7 +936,11 @@ export default function ServicesScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         
         {/* Main Content with Header inside ScrollView */}
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+        >
           {/* Innovative Header */}
           <LinearGradient
             colors={['#F8FAFC', '#FFFFFF']}
@@ -935,7 +948,9 @@ export default function ServicesScreen() {
           >
             <SafeAreaView>
               <View style={styles.headerContent}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => {
+                  router.back();
+                }}>
                   <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
                 
@@ -1062,7 +1077,7 @@ export default function ServicesScreen() {
                                 <Image source={{ uri: location.avatar }} style={styles.modernServiceAvatar} />
                               ) : (
                                 <View style={styles.modernServiceAvatarPlaceholderInner}>
-                                  <Ionicons name="build" size={16} color="#FFFFFF" />
+                                  <Ionicons name="build" size={14} color="#FFFFFF" />
                                 </View>
                               )}
                             </View>
@@ -1079,7 +1094,7 @@ export default function ServicesScreen() {
                           >
                             <Ionicons 
                               name={isFavorite(location.id) ? "heart" : "heart-outline"} 
-                              size={12} 
+                              size={10} 
                               color="#FFFFFF" 
                             />
                             <Text style={styles.modernServiceActionText}>0</Text>
@@ -1107,7 +1122,7 @@ export default function ServicesScreen() {
                           <View style={styles.modernServiceTypeSection}>
                             <View style={styles.modernServiceTypeLeft}>
                               <View style={styles.modernServiceLocationRow}>
-                                <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.8)" />
+                                <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.8)" />
                                 <Text style={styles.modernServiceLocationText} numberOfLines={1}>
                                   {location.address || location.location || 'თბილისი'}
                                 </Text>
@@ -1122,14 +1137,14 @@ export default function ServicesScreen() {
                                 }
                               }}
                             >
-                              <Ionicons name="call-outline" size={14} color="#FFFFFF" />
+                              <Ionicons name="call-outline" size={12} color="#FFFFFF" />
                             </TouchableOpacity>
                           </View>
 
                           <View style={styles.modernServiceActionsFooter}>
                             <View style={styles.modernServiceActionsLeft}>
                               <View style={styles.modernServiceRatingButton}>
-                                <Ionicons name="star" size={12} color="#FDE68A" />
+                                <Ionicons name="star" size={10} color="#FDE68A" />
                                 <Text style={styles.modernServiceRatingText}>
                                   {location.rating?.toFixed(1) || '4.5'}
                                 </Text>
@@ -1252,7 +1267,7 @@ export default function ServicesScreen() {
                                   <Image source={{ uri: location.avatar }} style={styles.modernServiceAvatar} />
                                 ) : (
                                   <View style={styles.modernServiceAvatarPlaceholderInner}>
-                                    <Ionicons name="build" size={16} color="#FFFFFF" />
+                                    <Ionicons name="build" size={14} color="#FFFFFF" />
                                   </View>
                                 )}
                               </View>
@@ -1297,7 +1312,7 @@ export default function ServicesScreen() {
                             <View style={styles.modernServiceTypeSection}>
                               <View style={styles.modernServiceTypeLeft}>
                                 <View style={styles.modernServiceLocationRow}>
-                                  <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.8)" />
+                                  <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.8)" />
                                   <Text style={styles.modernServiceLocationText} numberOfLines={1}>
                                     {location.address || location.location || 'თბილისი'}
                                   </Text>
@@ -1312,14 +1327,14 @@ export default function ServicesScreen() {
                                   }
                                 }}
                               >
-                                <Ionicons name="call-outline" size={14} color="#FFFFFF" />
+                                <Ionicons name="call-outline" size={12} color="#FFFFFF" />
                               </TouchableOpacity>
                             </View>
 
                             <View style={styles.modernServiceActionsFooter}>
                               <View style={styles.modernServiceActionsLeft}>
                                 <View style={styles.modernServiceRatingButton}>
-                                  <Ionicons name="star" size={12} color="#FDE68A" />
+                                  <Ionicons name="star" size={10} color="#FDE68A" />
                                   <Text style={styles.modernServiceRatingText}>
                                     {location.rating?.toFixed(1) || '4.5'}
                                   </Text>
@@ -1581,14 +1596,14 @@ const styles = StyleSheet.create({
   },
   modernSection: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   modernSectionTitle: {
     fontSize: 20,
@@ -1613,44 +1628,44 @@ const styles = StyleSheet.create({
   },
   modernServiceCard: {
     width: '100%',
-    height: 220,
-    borderRadius: 16,
+    height: 160,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
   },
   modernServiceBackgroundImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 16,
+    borderRadius: 12,
   },
   modernServiceGradientOverlay: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     justifyContent: 'space-between',
   },
   modernServiceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   modernServiceProfileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flex: 1,
   },
   modernServiceAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     overflow: 'hidden',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   modernServiceAvatarPlaceholderInner: {
@@ -1665,7 +1680,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   modernServiceUsername: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#FFFFFF',
     fontFamily: 'Inter',
     fontWeight: '600',
@@ -1674,17 +1689,17 @@ const styles = StyleSheet.create({
   modernServiceLikeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 12,
+    gap: 2,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     backdropFilter: 'blur(10px)',
   },
   modernServiceActionText: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
     fontFamily: 'Inter',
     fontWeight: '600',
@@ -1694,51 +1709,51 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modernServiceInfoSection: {
-    marginBottom: 8,
+    marginBottom: 6,
     flexDirection: 'row',
-    gap: 6,
+    gap: 5,
     flexWrap: 'wrap',
   },
   modernServiceCategoryButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    backgroundColor: 'rgba(17, 24, 39, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignSelf: 'flex-start',
   },
   modernServiceCategoryText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#FFFFFF',
     fontFamily: 'Inter',
     fontWeight: '600',
   },
   modernServicePriceButton: {
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 6,
-    borderRadius: 10,
-    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(17, 24, 39, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignSelf: 'flex-start',
   },
   modernServicePriceText: {
     fontSize: 10,
     color: '#FFFFFF',
     fontFamily: 'Inter',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   modernServiceSeparator: {
-    height: 1,
+    height: 0.5,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginVertical: 6,
+    marginVertical: 5,
   },
   modernServiceTypeSection: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   modernServiceTypeLeft: {
     flex: 1,
@@ -1746,54 +1761,54 @@ const styles = StyleSheet.create({
   modernServiceLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   modernServiceLocationText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.85)',
     fontFamily: 'Inter',
     fontWeight: '500',
   },
   modernServiceCallButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(17, 24, 39, 0.9)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   modernServiceActionsFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 4,
   },
   modernServiceActionsLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   modernServiceRatingButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 12,
+    gap: 2,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     backdropFilter: 'blur(10px)',
   },
   modernServiceRatingText: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
     fontFamily: 'Inter',
     fontWeight: '600',
@@ -1801,10 +1816,10 @@ const styles = StyleSheet.create({
   modernServiceStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 12,
+    gap: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
@@ -1818,9 +1833,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   modernServiceStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   modernServiceStatusDotOpen: {
     backgroundColor: '#10B981',
@@ -1829,7 +1844,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   modernServiceStatusText: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
     fontFamily: 'Inter',
     fontWeight: '600',

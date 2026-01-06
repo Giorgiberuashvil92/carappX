@@ -10,6 +10,9 @@ export interface DismantlerData {
   location: string;
   phone: string;
   name: string;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
 }
 
 export interface PartData {
@@ -31,6 +34,9 @@ export interface PartData {
   partNumber?: string;
   warranty?: string;
   isNegotiable?: boolean;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
 }
 
 export interface StoreData {
@@ -187,7 +193,7 @@ class AddItemApiService {
     const queryParams = new URLSearchParams();
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined) {
+        if (value !== undefined && value !== '') {
           queryParams.append(key, value.toString());
         }
       });
@@ -195,6 +201,14 @@ class AddItemApiService {
     
     const endpoint = `/stores${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.makeRequest(endpoint, 'GET');
+  }
+
+  async getStoreLocations(): Promise<ApiResponse<string[]>> {
+    return this.makeRequest('/stores/locations', 'GET');
+  }
+
+  async getPartsLocations(): Promise<ApiResponse<string[]>> {
+    return this.makeRequest('/parts/locations', 'GET');
   }
 
   // Search APIs

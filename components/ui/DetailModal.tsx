@@ -8,6 +8,8 @@ import {
   ScrollView,
   Modal,
   Dimensions,
+  Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,7 +77,7 @@ export default function DetailModal({
           color: '#111827',
           backgroundColor: '#F9FAFB',
           title: 'მაღაზიის დეტალები',
-          actionText: 'ვიზიტი',
+          actionText: 'დარეკვა',
         };
       case 'dismantler':
         return {
@@ -83,7 +85,7 @@ export default function DetailModal({
           color: '#111827',
           backgroundColor: '#F9FAFB',
           title: 'დაშლილების დეტალები',
-          actionText: 'მოძებნა',
+          actionText: 'დარეკვა',
         };
       case 'mechanic':
         return {
@@ -97,6 +99,85 @@ export default function DetailModal({
   };
 
   const config = getTypeConfig();
+
+  // Format phone number for display (native format)
+  const formatPhoneForDisplay = (phone: string): string => {
+    if (!phone) return '';
+    
+    // Remove all non-digit characters except +
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    
+    // If it starts with +995, format as +995 XXX XXX XXX
+    if (cleaned.startsWith('+995')) {
+      const number = cleaned.substring(4); // Remove +995
+      if (number.length === 9) {
+        return `+995 ${number.substring(0, 3)} ${number.substring(3, 6)} ${number.substring(6)}`;
+      }
+      return cleaned;
+    }
+    
+    // If it's 9 digits (Georgian format), format as XXX XXX XXX
+    if (cleaned.length === 9 && /^5\d{8}$/.test(cleaned)) {
+      return `${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6)}`;
+    }
+    
+    // If it's 12 digits starting with 995, format as +995 XXX XXX XXX
+    if (cleaned.length === 12 && cleaned.startsWith('995')) {
+      const number = cleaned.substring(3);
+      return `+995 ${number.substring(0, 3)} ${number.substring(3, 6)} ${number.substring(6)}`;
+    }
+    
+    return phone; // Return original if can't format
+  };
+
+  const handleCall = async () => {
+    if (!item.phone) {
+      Alert.alert('შეცდომა', 'ტელეფონის ნომერი არ არის მითითებული');
+      return;
+    }
+
+    // Clean phone number - remove spaces, dashes, parentheses, and other characters
+    // Keep only digits and + sign
+    let cleanPhone = item.phone.replace(/[\s\-\(\)]/g, '');
+    
+    // If starts with +995, keep it, otherwise add +995 if it's a Georgian number
+    if (!cleanPhone.startsWith('+')) {
+      // If it's 9 digits (Georgian format), add +995
+      if (cleanPhone.length === 9 && /^5\d{8}$/.test(cleanPhone)) {
+        cleanPhone = `+995${cleanPhone}`;
+      } else if (cleanPhone.length === 12 && cleanPhone.startsWith('995')) {
+        // If it's 12 digits starting with 995, add +
+        cleanPhone = `+${cleanPhone}`;
+      }
+    }
+    
+    const phoneUrl = `tel:${cleanPhone}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(phoneUrl);
+      if (canOpen) {
+        // Open native phone dialer directly
+        await Linking.openURL(phoneUrl);
+      } else {
+        Alert.alert('შეცდომა', 'ტელეფონის დარეკვა ვერ მოხერხდა');
+      }
+    } catch (error) {
+      console.error('Error opening phone call:', error);
+      Alert.alert('შეცდომა', 'ტელეფონის დარეკვა ვერ მოხერხდა');
+    }
+  };
+
+  const handleAction = () => {
+    // If phone exists, always call
+    if (item.phone) {
+      handleCall();
+    } else if (onContact) {
+      // Fallback to onContact callback if no phone
+      onContact();
+    } else {
+      Alert.alert('ინფორმაცია', 'კონტაქტის ინფორმაცია არ არის მითითებული');
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -192,11 +273,16 @@ export default function DetailModal({
               )}
 
               {item.phone && (
-                <View style={styles.metaRow}>
+                <TouchableOpacity 
+                  style={styles.metaRow}
+                  onPress={handleCall}
+                  activeOpacity={0.7}
+                >
                   <Ionicons name="call-outline" size={18} color="#6B7280" />
                   <Text style={styles.metaLabel}>ტელეფონი:</Text>
-                  <Text style={styles.metaValue}>{item.phone}</Text>
-                </View>
+                  <Text style={[styles.metaValue, styles.phoneNumber]}>{formatPhoneForDisplay(item.phone)}</Text>
+                  <Ionicons name="call" size={16} color="#3B82F6" />
+                </TouchableOpacity>
               )}
 
               {item.workingHours && (
@@ -256,14 +342,17 @@ export default function DetailModal({
             {item.gallery && item.gallery.length > 0 && (
               <View style={styles.gallerySection}>
                 <Text style={styles.sectionTitle}>გალერეა</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.galleryList}>
-                    {item.gallery.map((imageUri, index) => (
-                      <TouchableOpacity key={index} style={styles.galleryItem}>
-                        <Image source={{ uri: imageUri }} style={styles.galleryImage} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={true}
+                  contentContainerStyle={styles.galleryScrollContent}
+                  style={styles.galleryScroll}
+                >
+                  {item.gallery.map((imageUri, index) => (
+                    <TouchableOpacity key={index} style={styles.galleryItem}>
+                      <Image source={{ uri: imageUri }} style={styles.galleryImage} />
+                    </TouchableOpacity>
+                  ))}
                 </ScrollView>
               </View>
             )}
@@ -276,7 +365,7 @@ export default function DetailModal({
         <View style={styles.bottomActions}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#111827' }]}
-            onPress={onContact}
+            onPress={handleAction}
           >
             <Ionicons name="call" size={20} color="#FFFFFF" />
             <Text style={styles.actionButtonText}>{config.actionText}</Text>
@@ -458,6 +547,10 @@ const styles = StyleSheet.create({
     color: '#111827',
     flex: 1,
   },
+  phoneNumber: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
 
   // Services
   servicesSection: {
@@ -542,11 +635,12 @@ const styles = StyleSheet.create({
   gallerySection: {
     marginBottom: 32,
   },
-  galleryList: {
-    flexDirection: 'row',
+  galleryScroll: {
+    marginHorizontal: -20,
+  },
+  galleryScrollContent: {
+    paddingHorizontal: 20,
     gap: 12,
-    paddingLeft: 20,
-    paddingRight: 20,
   },
   galleryItem: {
     width: 120,
@@ -554,10 +648,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#F3F4F6',
+    marginRight: 12,
   },
   galleryImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
 
   // Bottom Actions

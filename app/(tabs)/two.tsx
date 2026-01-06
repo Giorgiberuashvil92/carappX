@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,19 @@ import {
   Image,
   Alert,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useUser } from '../../contexts/UserContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
+import { photoService } from '../../services/photoService';
+import API_BASE_URL from '../../config/api';
+import SubscriptionModal from '../../components/ui/SubscriptionModal';
+import PremiumInfoModal from '../../components/ui/PremiumInfoModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -49,13 +56,6 @@ const PROFILE_MENU_ITEMS = [
     color: '#F59E0B',
   },
   
-  // {
-  //   id: '9',
-  //   title: 'მხარდაჭერა',
-  //   subtitle: '24/7 მხარდაჭერა ჩატში',
-  //   icon: 'headset-outline',
-  //   color: '#EC4899',
-  // },
   {
     id: '2',
     title: 'ჩემი მანქანები',
@@ -63,13 +63,7 @@ const PROFILE_MENU_ITEMS = [
     icon: 'car-outline',
     color: '#10B981',
   },
-  // {
-  //   id: '8',
-  //   title: 'დაგვიკავშირდით',
-  //   subtitle: 'ელ-ფოსტა, ტელეფონი, ჩატი',
-  //   icon: 'mail-outline',
-  //   color: '#06B6D4',
-  // },
+
   
 ];
 
@@ -77,46 +71,89 @@ export default function ProfileScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const { user, logout } = useUser();
+  const { user, logout, updateProfile } = useUser();
+  const { subscription } = useSubscription();
   const [pressedButtons, setPressedButtons] = useState<{ [key: string]: boolean }>({});
-  const [userAvatar, setUserAvatar] = useState(MOCK_USER_DATA.avatarUri);
+  const [userAvatar, setUserAvatar] = useState(user?.avatar || MOCK_USER_DATA.avatarUri);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showPremiumInfoModal, setShowPremiumInfoModal] = useState(false);
 
 
-  // Use real user data or fallback to mock data
   const displayName = user?.name || MOCK_USER_DATA.name;
   const displayPhone = user?.phone || MOCK_USER_DATA.phone;
   const displayEmail = user?.email || MOCK_USER_DATA.email;
-  const memberSince = MOCK_USER_DATA.memberSince; // User interface doesn't have createdAt
+  const memberSince = MOCK_USER_DATA.memberSince;
+
+  // განვაახლოთ avatar როცა user იცვლება
+  useEffect(() => {
+    if (user?.avatar) {
+      setUserAvatar(user.avatar);
+    } else {
+      setUserAvatar(null);
+    }
+  }, [user?.avatar]);
 
   const handlePhotoUpload = () => {
-    Alert.alert(
-      'ფოტოს ატვირთვა',
-      'აირჩიეთ ფოტოს ატვირთვის მეთოდი',
-      [
-        {
-          text: 'კამერა',
-          onPress: () => handleCameraUpload(),
-        },
-        {
-          text: 'გალერეა',
-          onPress: () => handleGalleryUpload(),
-        },
-        {
-          text: 'გაუქმება',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
+    if (!user?.id) {
+      Alert.alert('შეცდომა', 'მომხმარებელი არ არის ავტორიზებული');
+      return;
+    }
 
-  const handleCameraUpload = () => {
-    console.log('Camera upload pressed');
-    Alert.alert('წარმატება', 'კამერა გაიხსნა ფოტოს ასაღებად');
-  };
+    photoService.showPhotoPickerOptions(async (result) => {
+      if (!result.success || !result.assets || result.assets.length === 0) {
+        if (result.error) {
+          Alert.alert('შეცდომა', result.error);
+        }
+        return;
+      }
 
-  const handleGalleryUpload = () => {
-    console.log('Gallery upload pressed');
-    Alert.alert('წარმატება', 'გალერეა გაიხსნა ფოტოს ასარჩევად');
+      const imageUri = result.assets[0].uri;
+      
+      // დროებითად ვაჩვენებთ არჩეულ ფოტოს
+      setUserAvatar(imageUri);
+      setIsUploadingAvatar(true);
+
+      try {
+        // ავტვირთავთ Cloudinary-ზე
+        const uploadResult = await photoService.uploadPhoto(imageUri, 'user-avatars');
+        
+        if (uploadResult.success && uploadResult.url) {
+          // განვაახლოთ backend-ზე
+          const response = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              profileImage: uploadResult.url,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Backend-ზე განახლება ვერ მოხერხდა');
+          }
+
+          // განვაახლოთ UserContext-ში
+          await updateProfile({ avatar: uploadResult.url });
+          setUserAvatar(uploadResult.url);
+          
+          Alert.alert('წარმატება', 'პროფილის ფოტო წარმატებით განახლდა');
+        } else {
+          throw new Error(uploadResult.error || 'ფოტოს ატვირთვა ვერ მოხერხდა');
+        }
+      } catch (error) {
+        console.error('Avatar upload error:', error);
+        // დავაბრუნოთ წინა ფოტო
+        setUserAvatar(user?.avatar || null);
+        Alert.alert(
+          'შეცდომა',
+          error instanceof Error ? error.message : 'ფოტოს ატვირთვისას მოხდა შეცდომა'
+        );
+      } finally {
+        setIsUploadingAvatar(false);
+      }
+    });
   };
 
   const styles = StyleSheet.create({
@@ -124,7 +161,6 @@ export default function ProfileScreen() {
       flex: 1,
       backgroundColor: '#FFFFFF',
     },
-    // Modern Header - Airbnb style
     modernHeader: {
       paddingTop: Platform.OS === 'ios' ? 60 : 40,
       paddingBottom: 24,
@@ -205,6 +241,14 @@ export default function ProfileScreen() {
       justifyContent: 'center',
       borderWidth: 2,
       borderColor: '#FFFFFF',
+    },
+    uploadingContainer: {
+      width: '100%',
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#F3F4F6',
+      borderRadius: 37,
     },
     headerProfileInfo: {
       alignItems: 'center',
@@ -321,12 +365,53 @@ export default function ProfileScreen() {
       borderWidth: 1.5,
       borderColor: '#EF4444',
     },
+    subscriptionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      gap: 5,
+      borderWidth: 1.5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 3,
+      elevation: 4,
+      position: 'relative',
+      overflow: 'hidden',
+      alignSelf: 'center',
+    },
+    subscriptionGradient: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 16,
+    },
+    premiumBadge: {
+      backgroundColor: '#F59E0B',
+      borderColor: '#D97706',
+    },
+    basicBadge: {
+      backgroundColor: '#3B82F6',
+      borderColor: '#2563EB',
+    },
+    freeBadge: {
+      backgroundColor: '#10B981',
+      borderColor: '#059669',
+    },
+    subscriptionText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      textShadowColor: 'rgba(0, 0, 0, 0.25)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 1.5,
+      letterSpacing: 0.2,
+    },
   });
 
   const handleMenuItemPress = (item: any) => {
     console.log('Menu item pressed:', item.title);
     
-    // Handle specific menu items
     if (item.id === '1') {
       router.push('/personal-info');
       return;
@@ -391,38 +476,110 @@ export default function ProfileScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>პროფილი</Text>
-          <TouchableOpacity style={styles.settingsButton}>
-            <Ionicons name="settings-outline" size={24} color="#111827" />
-          </TouchableOpacity>
+
+          
         </View>
 
-        {/* Profile Section */}
         <View style={styles.headerProfileSection}>
-          <TouchableOpacity style={styles.largeAvatarContainer} onPress={handlePhotoUpload}>
-            {userAvatar ? (
+          <TouchableOpacity 
+            style={styles.largeAvatarContainer} 
+            onPress={handlePhotoUpload}
+            disabled={isUploadingAvatar}
+            activeOpacity={0.7}
+          >
+            {isUploadingAvatar ? (
+              <View style={styles.uploadingContainer}>
+                <ActivityIndicator size="large" color="#6366F1" />
+              </View>
+            ) : userAvatar ? (
               <Image source={{ uri: userAvatar }} style={styles.largeAvatarImage} />
             ) : (
               <Text style={styles.largeAvatarText}>
                 {displayName.charAt(0).toUpperCase()}
               </Text>
             )}
-            <View style={styles.cameraIconLarge}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </View>
+            {!isUploadingAvatar && (
+              <View style={styles.cameraIconLarge}>
+                <Ionicons name="camera" size={16} color="#FFFFFF" />
+              </View>
+            )}
           </TouchableOpacity>
           
           <View style={styles.headerProfileInfo}>
             <Text style={styles.headerProfileName}>{displayName}</Text>
-            <Text style={styles.headerProfileEmail}>{displayEmail || displayPhone}</Text>
-          
+            <Text style={styles.headerProfileEmail}>{displayPhone}</Text>
+            
+            {/* Premium/Basic Subscription Badge */}
+            {subscription && (subscription.plan === 'premium' || subscription.plan === 'basic') && (
+              <TouchableOpacity
+                onPress={() => {
+                  const currentPlan = subscription?.plan;
+                  if (currentPlan === 'premium') {
+                    setShowPremiumInfoModal(true);
+                  } else if (currentPlan === 'basic') {
+                    setShowSubscriptionModal(true);
+                  }
+                }}
+                activeOpacity={0.7}
+                style={{ marginTop: 8 }}
+              >
+                <View style={[
+                  styles.subscriptionBadge,
+                  subscription.plan === 'premium' && styles.premiumBadge,
+                  subscription.plan === 'basic' && styles.basicBadge,
+                ]}>
+                  <LinearGradient
+                    colors={
+                      subscription.plan === 'premium' 
+                        ? ['#F59E0B', '#D97706']
+                        : ['#3B82F6', '#2563EB']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.subscriptionGradient}
+                  />
+                  <Ionicons 
+                    name={subscription.plan === 'premium' ? 'star' : 'shield-checkmark'} 
+                    size={13} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.subscriptionText}>
+                    {subscription.plan === 'premium' ? 'პრემიუმ' : 'ძირითადი'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            {(!subscription || subscription.plan === 'free') && (
+              <TouchableOpacity
+                onPress={() => setShowSubscriptionModal(true)}
+                activeOpacity={0.7}
+                style={{ marginTop: 8 }}
+              >
+                <View style={[
+                  styles.subscriptionBadge,
+                  styles.freeBadge,
+                ]}>
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.subscriptionGradient}
+                  />
+                  <Ionicons 
+                    name="checkmark-circle" 
+                    size={13} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.subscriptionText}>უფასო</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
-        {/* Menu Items */}
         <View style={styles.menuSection}>
           
           {PROFILE_MENU_ITEMS.map((item) => (
@@ -468,6 +625,19 @@ export default function ProfileScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Subscription Modals */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+        }}
+      />
+      <PremiumInfoModal
+        visible={showPremiumInfoModal}
+        onClose={() => setShowPremiumInfoModal(false)}
+      />
     </View>
   );
 }

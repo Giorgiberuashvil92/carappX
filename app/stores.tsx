@@ -46,6 +46,8 @@ export default function StoresScreen() {
   const [filterLocation, setFilterLocation] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterRating, setFilterRating] = useState('');
+  const [locations, setLocations] = useState<string[]>([]);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -54,7 +56,6 @@ export default function StoresScreen() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
 
-  // Load stores
   const loadStores = useCallback(async () => {
     try {
       setLoading(true);
@@ -78,9 +79,24 @@ export default function StoresScreen() {
     }
   }, [filterLocation, filterType, filterRating]);
 
+  const loadLocations = useCallback(async () => {
+    try {
+      const response = await addItemApi.getStoreLocations();
+      if (response.success && response.data) {
+        setLocations(response.data);
+      }
+    } catch (err) {
+      console.error('Error loading locations:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadStores();
   }, [loadStores]);
+
+  useEffect(() => {
+    loadLocations();
+  }, [loadLocations]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -252,10 +268,7 @@ export default function StoresScreen() {
             <View style={styles.modernSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.modernSectionTitle}>ყველა მაღაზია</Text>
-                <TouchableOpacity style={styles.seeAllBtn}>
-                  <Text style={styles.seeAllText}>რუკა</Text>
-                  <Ionicons name="map-outline" size={16} color="#6366F1" />
-                </TouchableOpacity>
+                
               </View>
               {filteredStores.length > 0 ? (
                 <View style={styles.modernStoresContainer}>
@@ -421,12 +434,53 @@ export default function StoresScreen() {
             <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>მდებარეობა</Text>
-                <TextInput
+                <TouchableOpacity
                   style={styles.filterInput}
-                  placeholder="აირჩიეთ ქალაქი"
-                  value={filterLocation}
-                  onChangeText={setFilterLocation}
-                />
+                  onPress={() => setShowLocationDropdown(!showLocationDropdown)}
+                >
+                  <Text style={[styles.filterInputText, !filterLocation && styles.placeholderText]}>
+                    {filterLocation || 'აირჩიეთ ქალაქი'}
+                  </Text>
+                  <Ionicons 
+                    name={showLocationDropdown ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color="#6B7280" 
+                  />
+                </TouchableOpacity>
+                {showLocationDropdown && (
+                  <View style={styles.dropdownContainer}>
+                    <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                      <TouchableOpacity
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setFilterLocation('');
+                          setShowLocationDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, !filterLocation && styles.dropdownItemTextSelected]}>
+                          ყველა ქალაქი
+                        </Text>
+                      </TouchableOpacity>
+                      {locations.map((location, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setFilterLocation(location);
+                            setShowLocationDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.dropdownItemText, filterLocation === location && styles.dropdownItemTextSelected]}>
+                            {location}
+                          </Text>
+                          {filterLocation === location && (
+                            <Ionicons name="checkmark" size={20} color="#3B82F6" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
               </View>
 
               <View style={styles.filterSection}>
@@ -439,16 +493,7 @@ export default function StoresScreen() {
                 />
               </View>
 
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>მინიმალური რეიტინგი</Text>
-                <TextInput
-                  style={styles.filterInput}
-                  placeholder="რეიტინგი"
-                  value={filterRating}
-                  onChangeText={setFilterRating}
-                  keyboardType="numeric"
-                />
-              </View>
+              
 
               <View style={{ height: 100 }} />
             </ScrollView>
@@ -480,6 +525,7 @@ export default function StoresScreen() {
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSave={handleAddItem}
+        defaultType="store"
       />
     </View>
   );
@@ -982,6 +1028,51 @@ const styles = StyleSheet.create({
     color: '#111827',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterInputText: {
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#9CA3AF',
+  },
+  dropdownContainer: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    maxHeight: 200,
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
+  },
+  dropdownItemTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
   },
   modalFooter: {
     paddingHorizontal: 20,

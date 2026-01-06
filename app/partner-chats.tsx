@@ -75,7 +75,7 @@ export default function PartnerChatsScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
 
-  const partnerId = user?.id || 'demo-partner-123'; // Use real user ID
+  const partnerId = user?.id || ''; // Use real user ID if available
 
   useEffect(() => {
     fetchChats();
@@ -221,153 +221,100 @@ export default function PartnerChatsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-          <Animated.View 
-            style={[
-              styles.content,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.back()}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <Pressable
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-              </Pressable>
-              
-              <View style={styles.headerContent}>
-                <Text style={styles.headerTitle}>ჩატები</Text>
-                <Text style={styles.headerSubtitle}>{getPartnerTitle()}</Text>
+            <Ionicons name="arrow-back" size={24} color="#111827" />
+          </Pressable>
+          
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>ჩატები</Text>
+            <Text style={styles.headerSubtitle}>{chats.length} აქტიური</Text>
+          </View>
+          
+          <View style={{ width: 44 }} />
+        </View>
+
+        {/* Chats List */}
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.chatsContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#10B981"
+              colors={['#10B981']}
+            />
+          }
+        >
+          <Animated.View style={{ opacity: fadeAnim }}>
+            {chats.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <Ionicons name="chatbubbles-outline" size={64} color="#6B7280" />
+                </View>
+                <Text style={styles.emptyTitle}>ჩატები არ არის</Text>
+                <Text style={styles.emptyText}>
+                  როდესაც კლიენტებთან დაიწყებთ საუბარს, ისინი გამოჩნდება აქ
+                </Text>
               </View>
-              
-              <Pressable style={styles.searchButton}>
-                <Ionicons name="search" size={20} color="#FFFFFF" />
-              </Pressable>
-            </View>
-
-            {/* Chats List */}
-            <View style={styles.chatsContainer}>
-              <ScrollView 
-                style={styles.chatsList}
-                contentContainerStyle={styles.chatsContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                    tintColor="#6366F1"
-                    colors={['#6366F1']}
-                  />
-                }
-              >
-                {chats.map((chat, index) => (
-                  <Animated.View
-                    key={chat.id}
-                    style={[
-                      styles.chatWrapper,
-                      {
-                        transform: [
-                          { 
-                            translateY: slideAnim.interpolate({
-                              inputRange: [0, 50],
-                              outputRange: [0, 50 + (index * 20)],
-                              extrapolate: 'clamp',
-                            })
-                          }
-                        ]
-                      }
-                    ]}
-                  >
-                    <Pressable
-                      style={styles.chatCard}
-                      onPress={() => handleChatPress(chat)}
+            ) : (
+              chats.map((chat) => (
+                <Pressable
+                  key={chat.id}
+                  style={styles.chatCard}
+                  onPress={() => handleChatPress(chat)}
+                >
+                  {/* Avatar */}
+                  <View style={styles.avatarContainer}>
+                    <LinearGradient
+                      colors={['#EEF2FF', '#E0E7FF']}
+                      style={styles.avatarGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-                        style={styles.chatGradient}
-                      >
-                        <View style={styles.chatContent}>
-                          {/* User Avatar */}
-                          <View style={styles.avatarContainer}>
-                            <LinearGradient
-                              colors={['rgba(99, 102, 241, 0.2)', 'rgba(139, 92, 246, 0.2)']}
-                              style={styles.avatarGradient}
-                            >
-                              <Ionicons name="person" size={20} color="#6366F1" />
-                            </LinearGradient>
-                            {chat.isOnline && <View style={styles.onlineIndicator} />}
-                          </View>
+                      <Ionicons name="person" size={24} color="#6366F1" />
+                    </LinearGradient>
+                    {chat.isOnline && <View style={styles.onlineIndicator} />}
+                  </View>
 
-                          {/* Chat Info */}
-                          <View style={styles.chatInfo}>
-                            <View style={styles.chatHeader}>
-                              <Text style={styles.userName}>{chat.userName}</Text>
-                              <Text style={styles.chatTime}>{formatTimeAgo(chat.lastMessageTime)}</Text>
-                            </View>
-                            
-                            <Text style={styles.vehicleInfo}>
-                              {chat.request?.vehicle?.make} {chat.request?.vehicle?.model} ({chat.request?.vehicle?.year})
-                            </Text>
-                            
-                            <View style={styles.lastMessageContainer}>
-                              <Text style={styles.lastMessage} numberOfLines={1}>
-                                {chat.lastMessage}
-                              </Text>
-                              {chat.unreadCount > 0 && (
-                                <View style={styles.unreadBadge}>
-                                  <Text style={styles.unreadText}>{chat.unreadCount}</Text>
-                                </View>
-                              )}
-                            </View>
-                          </View>
-
-                          {/* Service Icon */}
-                          <View style={styles.serviceIconContainer}>
-                            <LinearGradient
-                              colors={[getServiceColor(chat.request), getServiceColor(chat.request) + 'CC']}
-                              style={styles.serviceIcon}
-                            >
-                              <Ionicons 
-                                name={getServiceIcon(chat.request) as any} 
-                                size={16} 
-                                color="#FFFFFF" 
-                              />
-                            </LinearGradient>
-                          </View>
-                        </View>
-                      </LinearGradient>
-                    </Pressable>
-                  </Animated.View>
-                ))}
-                
-                {chats.length === 0 && (
-                  <Animated.View 
-                    style={[
-                      styles.emptyState,
-                      {
-                        opacity: fadeAnim,
-                        transform: [{ translateY: slideAnim }]
-                      }
-                    ]}
-                  >
-                    <View style={styles.emptyIconContainer}>
-                      <Ionicons name="chatbubbles-outline" size={48} color="#6366F1" />
+                  {/* Chat Info */}
+                  <View style={styles.chatInfo}>
+                    <View style={styles.chatHeader}>
+                      <Text style={styles.userName}>{chat.userName}</Text>
+                      <Text style={styles.chatTime}>{formatTimeAgo(chat.lastMessageTime)}</Text>
                     </View>
-                    <Text style={styles.emptyTitle}>ჩატები ჯერ არ არის</Text>
-                    <Text style={styles.emptySubtitle}>
-                      როცა მომხმარებლები შეთავაზებებს მიიღებენ, ჩატები აქ გამოჩნდება
-                    </Text>
-                  </Animated.View>
-                )}
-              </ScrollView>
-            </View>
+                    
+                    <View style={styles.vehicleRow}>
+                      <Ionicons name="car-sport" size={14} color="#10B981" />
+                      <Text style={styles.vehicleInfo}>
+                        {chat.request?.vehicle?.make} {chat.request?.vehicle?.model}
+                        {chat.request?.vehicle?.year && ` • ${chat.request?.vehicle?.year}`}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.lastMessageContainer}>
+                      <Text style={styles.lastMessage} numberOfLines={1}>
+                        {chat.lastMessage}
+                      </Text>
+                      {chat.unreadCount > 0 && (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadText}>{chat.unreadCount}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Arrow */}
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </Pressable>
+              ))
+            )}
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
@@ -378,96 +325,105 @@ export default function PartnerChatsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#FFFFFF',
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
-  },
-  content: {
-    padding: 20,
-    gap: 32,
-  },
-
-  // Header
   header: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: '#F3F4F6',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F9FAFB',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   headerContent: {
     flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 12,
   },
   headerTitle: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 22,
+    color: '#111827',
+    marginBottom: 4,
   },
   headerSubtitle: {
+    fontFamily: 'NotoSans_500Medium',
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-    marginTop: 2,
+    color: '#6B7280',
   },
-  searchButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Chats
-  chatsContainer: {
+  container: {
     flex: 1,
-  },
-  chatsList: {
-    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
   chatsContent: {
-    gap: 16,
+    padding: 20,
   },
-  chatWrapper: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 22,
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
   },
   chatCard: {
-    flex: 1,
-  },
-  chatGradient: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  chatContent: {
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   avatarContainer: {
     position: 'relative',
+    marginRight: 14,
   },
   avatarGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -475,99 +431,66 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: '#0A0A0A',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
   chatInfo: {
     flex: 1,
-    gap: 4,
+    gap: 6,
   },
   chatHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   userName: {
+    fontFamily: 'NotoSans_700Bold',
     fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: '#111827',
   },
   chatTime: {
+    fontFamily: 'NotoSans_500Medium',
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  vehicleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   vehicleInfo: {
+    fontFamily: 'NotoSans_600SemiBold',
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
+    color: '#6B7280',
   },
   lastMessageContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
   lastMessage: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
     flex: 1,
-  },
-  unreadBadge: {
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  unreadText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  serviceIconContainer: {
-    alignItems: 'center',
-  },
-  serviceIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Empty State
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 16,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontWeight: '700',
-  },
-  emptySubtitle: {
+    fontFamily: 'NotoSans_500Medium',
     fontSize: 14,
     color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: '500',
+  },
+  unreadBadge: {
+    backgroundColor: '#10B981',
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadText: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 12,
+    color: '#FFFFFF',
   },
 });

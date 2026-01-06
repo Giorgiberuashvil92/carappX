@@ -16,8 +16,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../contexts/UserContext';
-import CarFAXSuccess from '../components/CarFAXSuccess';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import SubscriptionModal from '../components/ui/SubscriptionModal';
 import { carfaxApi, CarFAXReport } from '../services/carfaxApi';
 
 const PRIMARY = '#2563EB';
@@ -30,21 +32,49 @@ const FONT_BOLD = 'Inter_700Bold';
 
 export default function CarFAXScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ paid?: string; vinCode?: string }>();
+  const params = useLocalSearchParams<{ paid?: string; vinCode?: string; packagePaid?: string }>();
   const { user } = useUser();
+  const { subscription, isPremiumUser } = useSubscription();
 
   const [vinNumber, setVinNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<any>(null);
-  const [showCarFAXSuccess, setShowCarFAXSuccess] = useState(false);
-  const [carfaxResult, setCarfaxResult] = useState<any>(null);
   const [carfaxReports, setCarfaxReports] = useState<CarFAXReport[]>([]);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [carfaxUsage, setCarfaxUsage] = useState<{
+    totalLimit: number;
+    used: number;
+    remaining: number;
+    lastResetAt: Date;
+  } | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
   const paidFetchRef = useRef(false);
+
+  // Load CarFAX usage for premium users
+  useEffect(() => {
+    const loadCarFAXUsage = async () => {
+      if (isPremiumUser && user?.id) {
+        try {
+          const usage = await carfaxApi.getCarFAXUsage(user.id);
+          setCarfaxUsage(usage);
+        } catch (error) {
+          console.error('CarFAX usage ჩატვირთვის შეცდომა:', error);
+          // Network error-ის შემთხვევაში, ვცდილობთ retry-ს 2 წამის შემდეგ
+          if (error instanceof Error && error.message.includes('Network request failed')) {
+            setTimeout(() => {
+              loadCarFAXUsage();
+            }, 2000);
+          }
+        }
+      }
+    };
+
+    loadCarFAXUsage();
+  }, [isPremiumUser, user?.id]);
 
   const wrapHtmlWithStyles = (html: string) => {
     const style = `
@@ -153,13 +183,37 @@ export default function CarFAXScreen() {
 
   useEffect(() => {
     const paid = params?.paid === '1';
+    const packagePaid = params?.packagePaid === '1';
     const vinParam = params?.vinCode ? String(params.vinCode).toUpperCase() : '';
+    
+    if (packagePaid && isPremiumUser && user?.id) {
+      // პაკეტის გადახდის შემდეგ usage-ის განახლება
+      const updateUsage = async (retryCount = 0) => {
+        try {
+          const updatedUsage = await carfaxApi.getCarFAXUsage(user.id);
+          setCarfaxUsage(updatedUsage);
+          Alert.alert('წარმატება', '5 CarFAX შემოწმება წარმატებით დაემატა!');
+        } catch (error) {
+          console.error('Usage განახლების შეცდომა:', error);
+          // Network error-ის შემთხვევაში, ვცდილობთ retry-ს (მაქს 3-ჯერ)
+          if (error instanceof Error && error.message.includes('Network request failed') && retryCount < 3) {
+            setTimeout(() => {
+              updateUsage(retryCount + 1);
+            }, 2000 * (retryCount + 1)); // Exponential backoff
+          } else if (retryCount >= 3) {
+            Alert.alert('გაფრთხილება', 'Usage-ის განახლება ვერ მოხერხდა. გთხოვთ განაახლოთ გვერდი.');
+          }
+        }
+      };
+      updateUsage();
+    }
+    
     if (paid && vinParam && !paidFetchRef.current) {
       paidFetchRef.current = true;
       setVinNumber(vinParam);
       fetchCarfaxReport(vinParam);
     }
-  }, [params?.paid, params?.vinCode]);
+  }, [params?.paid, params?.packagePaid, params?.vinCode, isPremiumUser, user?.id]);
 
   const loadCarFAXReports = async () => {
     // ბაზის ისტორიას აღარ ვქაჩავთ
@@ -169,57 +223,82 @@ export default function CarFAXScreen() {
   const fetchCarfaxReport = async (vin: string) => {
     setLoading(true);
     try {
-      const response = await carfaxApi.getCarFAXReport(vin);
+      const trimmedVin = vin.trim().toUpperCase();
+      console.log('🔍 CarFAX მოხსენების მოთხოვნა VIN:', trimmedVin);
+      
+      // პირდაპირ API-სთან დაკავშირება (იგივე ლოგიკა, როგორც Direct API Test-ში)
+      console.log('🧪 პირდაპირ CarFAX API-სთან დაკავშირება...');
+      const result = await carfaxApi.getCarFAXReportDirect(trimmedVin);
+      
+      console.log('✅ პირდაპირ API Response:', result);
+      
+      const isHtml = result.content && (
+        result.content.includes('<html') || 
+        result.content.includes('<!DOCTYPE') ||
+        result.content.includes('<body')
+      );
 
-      const htmlContent =
-        response?.htmlContent ||
-        response?.data?.reportData?.htmlContent ||
-        (response as any)?.html ||
-        (response as any)?.data?.html;
-
-      if (response && htmlContent && htmlContent.length > 0) {
-        const styledHtml = wrapHtmlWithStyles(htmlContent);
-        let htmlFilePath: string | undefined;
-        try {
-          const target = `${FileSystem.documentDirectory}carfax-report-${vin}.html`;
-          await FileSystem.writeAsStringAsync(target, styledHtml, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
-          htmlFilePath = target;
-          console.log('📄 CarFAX HTML saved:', target);
-        } catch (err) {
-          console.warn('⚠️ HTML save failed', err);
-        }
-
-        const carData = {
-          vin,
-          make: response.data?.make || 'უცნობი',
-          model: response.data?.model || 'უცნობი',
-          year: response.data?.year || new Date().getFullYear(),
-          mileage: response.data?.mileage,
-          accidents: response.data?.accidents || 0,
-          owners: response.data?.owners || 1,
-          serviceRecords: response.data?.serviceRecords || 0,
-          titleStatus: response.data?.titleStatus || 'უცნობი',
-          lastServiceDate: response.data?.lastServiceDate,
-          reportId: response.data?.reportId || 'CF' + Date.now(),
-          htmlContent: styledHtml,
-          htmlFilePath,
-        };
-
-        setCarfaxResult(carData);
-        setShowCarFAXSuccess(true);
-      } else {
-        const errorMsg = response?.error || response?.message || 'CarFAX მოხსენება ვერ მოიძებნა';
+      if (!result.success || !isHtml) {
+        const errorMsg = result.error || `HTTP ${result.status}: CarFAX მოხსენება ვერ მოიძებნა`;
         Alert.alert('შეცდომა', errorMsg);
+        return;
       }
+
+      // HTML-ის დამუშავება და პირდაპირ carfax-view-ზე გადაყვანა
+      const styledHtml = wrapHtmlWithStyles(result.content);
+      
+      // HTML-ის შენახვა AsyncStorage-ში და carfax-view-ზე გადაყვანა
+      try {
+        const storageKey = `carfax-${trimmedVin}-${Date.now()}`;
+        await AsyncStorage.setItem(storageKey, styledHtml);
+        console.log('📄 CarFAX HTML saved to AsyncStorage:', storageKey);
+        
+        // Premium მომხმარებლებისთვის usage-ის გაზრდა და განახლება
+        if (isPremiumUser && user?.id) {
+          try {
+            // Usage-ის გაზრდა
+            await carfaxApi.incrementCarFAXUsage(user.id);
+            // Usage-ის განახლება UI-ში
+            const updatedUsage = await carfaxApi.getCarFAXUsage(user.id);
+            setCarfaxUsage(updatedUsage);
+          } catch (error) {
+            console.error('CarFAX usage გაზრდის/განახლების შეცდომა:', error);
+            // Network error-ის შემთხვევაში, ვცდილობთ retry-ს
+            if (error instanceof Error && error.message.includes('Network request failed')) {
+              console.log('🔄 Retrying usage update in 2 seconds...');
+              setTimeout(async () => {
+                try {
+                  const updatedUsage = await carfaxApi.getCarFAXUsage(user.id);
+                  setCarfaxUsage(updatedUsage);
+                } catch (retryError) {
+                  console.error('❌ Retry failed:', retryError);
+                }
+              }, 2000);
+            }
+          }
+        }
+        
+        // პირდაპირ carfax-view-ზე გადაყვანა
+        router.push({
+          pathname: '/carfax-view',
+          params: {
+            storageKey,
+            vinCode: trimmedVin,
+          },
+        });
+      } catch (err) {
+        console.error('❌ Error storing HTML:', err);
+        Alert.alert('შეცდომა', 'HTML კონტენტის შენახვა ვერ მოხერხდა');
+      }
+
     } catch (error) {
-      console.error('CarFAX API შეცდომა:', error);
-      Alert.alert('შეცდომა', 'CarFAX მოხსენების მიღებისას მოხდა შეცდომა');
+      console.error('❌ CarFAX API შეცდომა:', error);
+      Alert.alert('შეცდომა', `CarFAX მოხსენების მიღებისას მოხდა შეცდომა: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleCheckVIN = async () => {
     if (!vinNumber.trim()) {
@@ -232,6 +311,43 @@ export default function CarFAXScreen() {
     }
 
     const trimmedVin = vinNumber.trim().toUpperCase();
+
+    // Premium მომხმარებლებისთვის პირდაპირ მოძებნა
+    if (isPremiumUser) {
+      // შევამოწმოთ დარჩენილი შემოწმება
+      if (carfaxUsage && carfaxUsage.remaining <= 0) {
+        Alert.alert(
+          'ლიმიტი ამოწურულია',
+          'თქვენ გამოიყენეთ ყველა შემოწმება. შეიძინეთ დამატებითი პაკეტი 5 CarFAX შემოწმება 30 ლარად.',
+          [
+            { text: 'გაუქმება', style: 'cancel' },
+            {
+              text: 'პაკეტის ყიდვა',
+              onPress: () => {
+                router.push({
+                  pathname: '/payment-card',
+                  params: {
+                    amount: '30',
+                    description: 'CarFAX პაკეტი - 5 შემოწმება',
+                    context: 'carfax-package',
+                    orderId: `carfax_package_${user?.id || 'guest'}_${Date.now()}`,
+                    successUrl: `/carfax?packagePaid=1`,
+                    metadata: JSON.stringify({
+                      packageType: 'package',
+                      reportType: 'carfax',
+                      credits: 5,
+                    }),
+                  },
+                });
+              },
+            },
+          ]
+        );
+        return;
+      }
+      await fetchCarfaxReport(trimmedVin);
+      return;
+    }
 
     router.push({
       pathname: '/payment-card',
@@ -335,10 +451,46 @@ export default function CarFAXScreen() {
                 <View style={styles.cardHeader}>
                   <View>
                     <Text style={styles.cardTitle}>VIN კოდის შემოწმება</Text>
-                    <Text style={styles.cardSubtitle}>შეიყვანე 17 სიმბოლო და მიიღე მოხსენება</Text>
+                    <Text style={styles.cardSubtitle}>
+                      {isPremiumUser && carfaxUsage 
+                        ? `დარჩენილი შემოწმება: ${carfaxUsage.remaining} / ${carfaxUsage.totalLimit}`
+                        : 'შეიყვანე 17 სიმბოლო და მიიღე მოხსენება'}
+                    </Text>
                   </View>
                   <Ionicons name="car-sport" size={26} color={PRIMARY} />
                 </View>
+                
+                {/* Premium User Info */}
+                {isPremiumUser && carfaxUsage && (
+                  <View style={{
+                    backgroundColor: '#F0F9FF',
+                    borderRadius: 12,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderColor: '#BAE6FD',
+                    marginBottom: 8,
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="diamond" size={18} color="#0EA5E9" />
+                      <Text style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: '#0C4A6E',
+                        fontFamily: FONT,
+                      }}>
+                        პრემიუმ იუზერი
+                      </Text>
+                    </View>
+                    <Text style={{
+                      fontSize: 12,
+                      color: '#075985',
+                      fontFamily: FONT,
+                      marginTop: 4,
+                    }}>
+                      გამოყენებული: {carfaxUsage.used} / {carfaxUsage.totalLimit} შემოწმება
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.inputContainer}>
                   <Ionicons name="key" size={18} color={MUTED} />
@@ -371,11 +523,16 @@ export default function CarFAXScreen() {
 
                 <TouchableOpacity style={styles.primaryButton} onPress={handleCheckVIN} disabled={loading}>
                   <View style={styles.primaryButtonLeft}>
-                    <Ionicons name="card" size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryButtonText}>გადახდა და სრული CarFAX</Text>
+                    <Ionicons name={isPremiumUser ? "checkmark-circle" : "card"} size={18} color="#FFFFFF" />
+                    <Text style={styles.primaryButtonText}>
+                      {isPremiumUser ? 'CarFAX შემოწმება' : 'გადახდა და სრული CarFAX'}
+                    </Text>
                   </View>
-                  <Text style={styles.primaryButtonPrice}>14.99₾</Text>
+                  <Text style={styles.primaryButtonPrice}>
+                    {isPremiumUser ? 'უფასო' : '14.99₾'}
+                  </Text>
                 </TouchableOpacity>
+
 
                 <View style={styles.infoGrid}>
                   <View style={styles.infoItem}>
@@ -542,16 +699,14 @@ export default function CarFAXScreen() {
           </View>
         </Modal>
 
-        {showCarFAXSuccess && carfaxResult && (
-          <CarFAXSuccess
-            vinCode={vinNumber.trim().toUpperCase()}
-            carData={carfaxResult}
-            onClose={() => {
-              setShowCarFAXSuccess(false);
-              setCarfaxResult(null);
-            }}
-          />
-        )}
+
+        <SubscriptionModal
+          visible={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          onSuccess={() => {
+            setShowSubscriptionModal(false);
+          }}
+        />
       </SafeAreaView>
     </>
   );

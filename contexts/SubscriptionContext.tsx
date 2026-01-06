@@ -12,6 +12,11 @@ export interface Subscription {
   autoRenew: boolean;
   price: number;
   currency: string;
+  bogCardToken?: string; // BOG payment token recurring payment-ებისთვის
+  planId?: string; // Backend planId
+  planName?: string; // Backend planName
+  planPeriod?: string; // monthly, yearly, etc.
+  userId?: string; // User ID რომელსაც ეკუთვნის ეს საბსქრიფშენი
 }
 
 interface SubscriptionContextType {
@@ -36,10 +41,10 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Default free subscription
+  // Default basic subscription (ყველა იუზერი თავიდან basic-ით იწყებს)
   const defaultSubscription: Subscription = {
-    id: 'free_default',
-    plan: 'free',
+    id: 'basic_default',
+    plan: 'basic',
     status: 'active',
     startDate: new Date().toISOString(),
     autoRenew: false,
@@ -47,60 +52,84 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     currency: 'GEL',
   };
 
-  useEffect(() => {
-    loadSubscription();
-  }, [loadSubscription]); // Add loadSubscription as dependency
+  const { user } = useUser();
 
   const loadSubscription = useCallback(async () => {
     try {
       setIsLoading(true);
       
-      // Get user from context
-      const user = await AsyncStorage.getItem('user');
+      console.log('📋 Loading subscription for user:', user?.id || 'no user');
       
-      if (user?.id) {
-        // Try to load from backend first
-        try {
-          const response = await fetch(`${API_BASE_URL}/payments/subscription/user/${user.id}/status`);
-          const result = await response.json();
-          
-          console.log('📋 Backend subscription response:', result);
-          
-          if (result.success && result.data) {
-            const subscriptionData = result.data;
-            const backendSubscription = {
-              id: subscriptionData._id || 'backend_subscription',
-              plan: subscriptionData.planId || 'free',
-              status: subscriptionData.status || 'active',
-              startDate: subscriptionData.startDate || new Date().toISOString(),
-              endDate: subscriptionData.nextBillingDate,
-              autoRenew: true,
-              price: subscriptionData.planPrice || 0,
-              currency: subscriptionData.currency || 'GEL',
-            };
-            
-            setSubscription(backendSubscription);
-            await AsyncStorage.setItem('user_subscription', JSON.stringify(backendSubscription));
-            console.log('📋 Subscription loaded from backend:', backendSubscription);
-            return;
-          }
-        } catch (backendError) {
-          console.log('⚠️ Backend subscription check failed, using local storage');
-        }
+      // თუ user არ არის, default subscription დავაყენოთ
+      if (!user?.id) {
+        console.log('⚠️ No user found, setting default subscription');
+        setSubscription(defaultSubscription);
+        setIsLoading(false);
+        return;
       }
       
-      // Fallback to local storage
-      const storedSubscription = await AsyncStorage.getItem('user_subscription');
-      
-      if (storedSubscription) {
-        const parsedSubscription = JSON.parse(storedSubscription);
-        setSubscription(parsedSubscription);
-        console.log('📋 Subscription loaded from storage:', parsedSubscription);
-      } else {
-        // Set default free subscription
-        setSubscription(defaultSubscription);
-        await AsyncStorage.setItem('user_subscription', JSON.stringify(defaultSubscription));
-        console.log('🆓 Default free subscription set');
+      // Backend-იდან იღებს საბსქრიფშენს (ერთადერთი წყარო)
+      try {
+        console.log('📋 Fetching subscription from backend...');
+        const response = await fetch(`${API_BASE_URL}/api/payments/subscription/user/${user.id}/status`);
+        const result = await response.json();
+        
+        console.log('📋 Backend subscription response:', result);
+        
+        if (result.success && result.data) {
+          // Backend-ში არის საბსქრიფშენი
+          const subscriptionData = result.data;
+          const backendSubscription = {
+            id: subscriptionData._id || 'backend_subscription',
+            plan: subscriptionData.planId || 'free',
+            status: subscriptionData.status || 'active',
+            startDate: subscriptionData.startDate || new Date().toISOString(),
+            endDate: subscriptionData.nextBillingDate,
+            autoRenew: true,
+            price: subscriptionData.planPrice || 0,
+            currency: subscriptionData.currency || 'GEL',
+            bogCardToken: subscriptionData.bogCardToken, // BOG payment token recurring payment-ებისთვის
+            planId: subscriptionData.planId,
+            planName: subscriptionData.planName,
+            planPeriod: subscriptionData.period,
+            userId: user.id,
+          };
+          
+          setSubscription(backendSubscription);
+          // localStorage-ში ინახება მხოლოდ cache-ისთვის
+          await AsyncStorage.setItem('user_subscription', JSON.stringify(backendSubscription));
+          console.log('✅ Subscription loaded from backend:', backendSubscription);
+          console.log('💳 BOG Card Token:', backendSubscription.bogCardToken ? '✅ Available' : '❌ Not available');
+          console.log('📦 Plan:', backendSubscription.plan);
+          console.log('📦 Plan ID:', backendSubscription.planId);
+          console.log('📦 Plan Name:', backendSubscription.planName);
+          console.log('📦 Plan Period:', backendSubscription.planPeriod);
+          console.log('📦 Status:', backendSubscription.status);
+          console.log('📦 Price:', backendSubscription.price, backendSubscription.currency);
+          console.log('📦 Start Date:', backendSubscription.startDate);
+          console.log('📦 End Date:', backendSubscription.endDate);
+          console.log('📦 Auto Renew:', backendSubscription.autoRenew);
+          console.log('═══════════════════════════════════════════════════════');
+          console.log('✅ Subscription მონაცემები წარმატებით ჩაიტვირთა!');
+          console.log('═══════════════════════════════════════════════════════');
+        } else {
+          // Backend-ში არ არის საბსქრიფშენი - დავაყენოთ default subscription
+          console.log('⚠️ No subscription found in backend, setting default basic subscription');
+          const defaultSubWithUserId = { ...defaultSubscription, userId: user.id };
+          setSubscription(defaultSubWithUserId);
+          // localStorage-ში ინახება cache-ისთვის
+          await AsyncStorage.setItem('user_subscription', JSON.stringify(defaultSubWithUserId));
+          console.log('📦 Default basic subscription set');
+        }
+      } catch (backendError) {
+        // Backend-ის request fail-დება - დავაყენოთ default subscription
+        console.error('❌ Backend subscription check failed:', backendError);
+        console.log('⚠️ Setting default basic subscription due to backend error');
+        const defaultSubWithUserId = { ...defaultSubscription, userId: user.id };
+        setSubscription(defaultSubWithUserId);
+        // localStorage-ში ინახება cache-ისთვის
+        await AsyncStorage.setItem('user_subscription', JSON.stringify(defaultSubWithUserId));
+        console.log('📦 Default basic subscription set');
       }
     } catch (error) {
       console.error('❌ Error loading subscription:', error);
@@ -108,12 +137,18 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []); // Empty dependency array
+  }, [user?.id]); // Reload when user changes
+
+  useEffect(() => {
+    console.log('🔄 Subscription useEffect triggered, user:', user?.id || 'no user');
+    loadSubscription();
+  }, [loadSubscription]); // Reload subscription when user changes
 
   const updateSubscription = async (newSubscription: Subscription) => {
     try {
       setSubscription(newSubscription);
-      await AsyncStorage.setItem('user_subscription', JSON.stringify(newSubscription));
+      // localStorage-ში ინახება მხოლოდ cache-ისთვის (backend არის წყარო)
+      await AsyncStorage.setItem('user_subscription', JSON.stringify({ ...newSubscription, userId: user?.id }));
       console.log('✅ Subscription updated:', newSubscription);
     } catch (error) {
       console.error('❌ Error updating subscription:', error);
@@ -201,7 +236,7 @@ export const getSubscriptionFeatures = (plan: string) => {
     case 'basic':
       return {
         aiRecommendations: -1, // unlimited
-        carfaxReports: 3, // per month
+        carfaxReports: 0, // basic-ს არ აქვს კარფაქსის უფლება
         prioritySupport: false,
         exclusiveFeatures: false,
         earlyAccess: false,
@@ -231,5 +266,6 @@ export const canUseFeature = (subscription: Subscription | null, feature: keyof 
   }
 
   const features = getSubscriptionFeatures(subscription.plan);
-  return features[feature] === true || features[feature] === -1 || features[feature] > 0;
+  const featureValue = features[feature];
+  return featureValue === true || featureValue === -1 || (typeof featureValue === 'number' && featureValue > 0);
 };

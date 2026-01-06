@@ -1020,6 +1020,7 @@ export default function CarWashScreen() {
       <AddModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
+        defaultType="carwash"
         onSave={async (type: AddModalType, data: any) => {
           setShowAddModal(false);
           

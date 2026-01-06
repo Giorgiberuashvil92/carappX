@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   View,
@@ -7,9 +7,12 @@ import {
   StyleSheet,
   Dimensions,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '../../contexts/SubscriptionContext';
+import API_BASE_URL from '../../config/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,7 +22,9 @@ interface SubscriptionStatusModalProps {
 }
 
 export default function SubscriptionStatusModal({ visible, onClose }: SubscriptionStatusModalProps) {
-  const { subscription, hasActiveSubscription } = useSubscription();
+  const { subscription, hasActiveSubscription, refreshSubscription } = useSubscription();
+  const [isLoading, setIsLoading] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   const getPlanIcon = (plan: string) => {
     switch (plan) {
@@ -89,6 +94,71 @@ export default function SubscriptionStatusModal({ visible, onClose }: Subscripti
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const handleRefreshSubscription = async () => {
+    try {
+      setIsLoading(true);
+      setTestResult(null);
+      await refreshSubscription();
+      setTestResult('✅ Subscription განახლებულია!');
+      setTimeout(() => setTestResult(null), 3000);
+    } catch (error) {
+      console.error('❌ Subscription refresh შეცდომა:', error);
+      setTestResult('❌ შეცდომა subscription-ის განახლებისას');
+      setTimeout(() => setTestResult(null), 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestRecurringPayment = async () => {
+    try {
+      setIsLoading(true);
+      setTestResult(null);
+
+      Alert.alert(
+        '🧪 Recurring Payment ტესტი',
+        'გსურთ გაუშვათ manual recurring payment trigger?',
+        [
+          { text: 'გაუქმება', style: 'cancel' },
+          {
+            text: 'კი',
+            onPress: async () => {
+              try {
+                const response = await fetch(`${API_BASE_URL}/api/recurring-payments/process`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                  setTestResult(
+                    `✅ წარმატებული!\nწარმატებული: ${result.data?.success || 0}\nწარუმატებელი: ${result.data?.failed || 0}\nსულ: ${result.data?.total || 0}`
+                  );
+                  // Refresh subscription after test
+                  await refreshSubscription();
+                } else {
+                  setTestResult(`❌ შეცდომა: ${result.message || 'უცნობი შეცდომა'}`);
+                }
+              } catch (error) {
+                console.error('❌ Recurring payment test შეცდომა:', error);
+                setTestResult('❌ შეცდომა recurring payment trigger-ისას');
+              } finally {
+                setIsLoading(false);
+                setTimeout(() => setTestResult(null), 5000);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('❌ Test error:', error);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -170,6 +240,45 @@ export default function SubscriptionStatusModal({ visible, onClose }: Subscripti
                       <Text style={styles.featureText}>{feature}</Text>
                     </View>
                   ))}
+                </View>
+
+                {/* Test Buttons */}
+                <View style={styles.testContainer}>
+                  <Text style={styles.testTitle}>🧪 ტესტირება</Text>
+                  
+                  <TouchableOpacity
+                    style={[styles.testButton, styles.refreshButton]}
+                    onPress={handleRefreshSubscription}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="refresh" size={18} color="#FFFFFF" />
+                    )}
+                    <Text style={styles.testButtonText}>Subscription განახლება</Text>
+                  </TouchableOpacity>
+
+                  {hasActiveSubscription && (
+                    <TouchableOpacity
+                      style={[styles.testButton, styles.triggerButton]}
+                      onPress={handleTestRecurringPayment}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Ionicons name="flash" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={styles.testButtonText}>Recurring Payment Trigger</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {testResult && (
+                    <View style={styles.testResultContainer}>
+                      <Text style={styles.testResultText}>{testResult}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             )}
@@ -309,5 +418,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D1D5DB',
     flex: 1,
+  },
+  testContainer: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 12,
+  },
+  testTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  refreshButton: {
+    backgroundColor: '#3B82F6',
+  },
+  triggerButton: {
+    backgroundColor: '#F59E0B',
+  },
+  testButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  testResultContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+  },
+  testResultText: {
+    fontSize: 12,
+    color: '#22C55E',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

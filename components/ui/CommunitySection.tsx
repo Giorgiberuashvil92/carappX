@@ -95,11 +95,9 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
       <View style={styles.sectionHeader}>
         <View style={styles.communityTitleContainer}>
           <Ionicons name="people" size={20} color="#111827" />
-          <Text style={styles.sectionTitle}>კომუნიტი</Text>
+          <Text style={styles.sectionTitle}>ჯგუფი</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/all-community')}>
-          <Text style={styles.sectionAction}>ყველა</Text>
-        </TouchableOpacity>
+       
       </View>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityContent}>

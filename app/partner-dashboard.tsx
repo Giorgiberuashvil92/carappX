@@ -42,7 +42,7 @@ export default function PartnerDashboardScreen() {
   const [offerStoreName, setOfferStoreName] = useState('');
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
 
-  const partnerId = 'demo-partner-123';
+  const partnerId = user?.id || '';
 
   useEffect(() => {
     fetchData();
@@ -274,7 +274,7 @@ export default function PartnerDashboardScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         
         {/* Header */}
         <Animated.View 
@@ -283,31 +283,86 @@ export default function PartnerDashboardScreen() {
             { opacity: fadeAnim }
           ]}
         >
-          <LinearGradient
-            colors={['#10B981', '#059669']}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <Pressable
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-              </Pressable>
-              
-              <View style={styles.headerInfo}>
-                <Text style={styles.headerTitle}>{getPartnerTitle()}</Text>
-                <Text style={styles.headerSubtitle}>{requests.length} აქტიური მოთხოვნა</Text>
-              </View>
-
-              <Pressable
-                style={styles.chatButton}
-                onPress={() => router.push(`/partner-chats?partnerType=${partnerType}` as any)}
-              >
-                <Ionicons name="chatbubbles" size={24} color="#FFFFFF" />
-              </Pressable>
+          <View style={styles.headerTop}>
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </Pressable>
+            
+            <View style={styles.headerTitleSection}>
+              <Text style={styles.headerTitle}>{getPartnerTitle()}</Text>
+              <Text style={styles.headerSubtitle}>მართვის პანელი</Text>
             </View>
-          </LinearGradient>
+
+            <View style={{ width: 44 }} />
+          </View>
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrapper}>
+                <LinearGradient
+                  colors={['#EFF6FF', '#DBEAFE']}
+                  style={styles.statIconBg}
+                >
+                  <Ionicons name="document-text" size={24} color="#3B82F6" />
+                </LinearGradient>
+              </View>
+              <View style={styles.statContent}>
+                <Text style={styles.statValue}>{requests.length}</Text>
+                <Text style={styles.statLabel}>მოთხოვნა</Text>
+              </View>
+            </View>
+
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrapper}>
+                <LinearGradient
+                  colors={['#ECFDF5', '#D1FAE5']}
+                  style={styles.statIconBg}
+                >
+                  <Ionicons name="checkmark-done" size={24} color="#10B981" />
+                </LinearGradient>
+              </View>
+              <View style={styles.statContent}>
+                <Text style={styles.statValue}>{myOffers.length}</Text>
+                <Text style={styles.statLabel}>შეთავაზება</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Chat Banner */}
+          <Pressable
+            style={styles.chatBanner}
+            onPress={() => router.push(`/partner-chats?partnerType=${partnerType}` as any)}
+          >
+            <LinearGradient
+              colors={['#4F46E5', '#4338CA']}
+              style={styles.chatBannerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <View style={styles.chatBannerLeft}>
+                <View style={styles.chatBannerIcon}>
+                  <Ionicons name="chatbubbles" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.chatBannerText}>
+                  <Text style={styles.chatBannerTitle}>შეტყობინებები</Text>
+                  <Text style={styles.chatBannerSubtitle}>
+                    ნახე ჩატები და უპასუხე კლიენტებს
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.chatBannerRight}>
+                {myOffers.length > 0 && (
+                  <View style={styles.chatBannerBadge}>
+                    <Text style={styles.chatBannerBadgeText}>{myOffers.length}</Text>
+                  </View>
+                )}
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+              </View>
+            </LinearGradient>
+          </Pressable>
         </Animated.View>
 
         {/* Requests List */}

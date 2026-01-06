@@ -22,6 +22,7 @@ export interface BOGOrderRequest {
   description?: string;
   success_url?: string;
   fail_url?: string;
+  save_card?: boolean; // ბარათის დამახსოვრება recurring payment-ებისთვის
 }
 
 export interface BOGOrderResponse {
@@ -247,6 +248,42 @@ class BOGApiService {
       return data;
     } catch (error) {
       console.error('❌ BOG გადახდის დეტალების მიღების შეცდომა:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * BOG recurring payment-ის განხორციელება (შენახული ბარათით)
+   */
+  async processRecurringPayment(parentOrderId: string, externalOrderId: string): Promise<BOGOrderResponse> {
+    try {
+      console.log('🔄 BOG recurring payment-ის განხორციელება...', { parentOrderId, externalOrderId });
+      
+      const response = await fetch(`${this.baseUrl}/recurring-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          parent_order_id: parentOrderId,
+          external_order_id: externalOrderId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ BOG recurring payment წარმატებით განხორციელდა:', data);
+      
+      return {
+        id: data.id || data.order_id,
+        redirect_url: data.redirect_url || '',
+      };
+    } catch (error) {
+      console.error('❌ BOG recurring payment-ის შეცდომა:', error);
       throw error;
     }
   }

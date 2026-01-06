@@ -82,7 +82,7 @@ export default function FinancingRequestScreen() {
           <Text style={styles.label}>მაღაზიის ნომერი</Text>
           <TextInput style={styles.input} placeholder="მაგ. +9955XXXXX" keyboardType="phone-pad" value={merchantPhone} onChangeText={setMerchantPhone} />
 
-          <Text style={styles.label}>პირადი ნომერი (არასავალდებულო)</Text>
+          <Text style={styles.label}>პირადი ნომერი </Text>
           <TextInput style={styles.input} placeholder="12345678901" keyboardType="number-pad" value={personalId} onChangeText={setPersonalId} />
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
