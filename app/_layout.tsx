@@ -163,9 +163,6 @@ function RootLayoutNav() {
 
         // შევამოწმოთ ვერსია - თუ მომხმარებელს აქვს დაბალი ვერსია, გამოვაჩინოთ modal
         const needsUpdate = compareVersions(currentAppVersion, versionInfo.minVersion);
-        console.log('🔄 [VERSION CHECK] Needs update?', needsUpdate);
-        console.log('📊 [VERSION CHECK] Current:', currentAppVersion, 'Min:', versionInfo.minVersion);
-        console.log('🔧 [VERSION CHECK] Force update flag from backend:', versionInfo.forceUpdate);
         
         // თუ ვერსია დაბალია, გამოვაჩინოთ modal
         // forceUpdate flag-ი backend-ში აკონტროლებს force update-ს, მაგრამ თუ ვერსია დაბალია, მაინც გამოვაჩინოთ
@@ -173,14 +170,10 @@ function RootLayoutNav() {
         if (needsUpdate) {
           // თუ forceUpdate არის true, მაშინ force update-ია (modal არ იხურება)
           // თუ forceUpdate არის false ან undefined, მაინც გამოვაჩინოთ modal (თუმცა შეიძლება დახურულ იქნას)
-          console.log('🚨 [VERSION CHECK] Force update required!');
-          console.log('🚨 [VERSION CHECK] Setting minVersion:', versionInfo.minVersion);
-          console.log('🚨 [VERSION CHECK] Setting currentVersion:', currentAppVersion);
+          
           setMinVersion(versionInfo.minVersion);
           setCurrentVersion(currentAppVersion);
-          console.log('🚨 [VERSION CHECK] Setting showForceUpdate to true');
           setShowForceUpdate(true);
-          console.log('🚨 [VERSION CHECK] showForceUpdate should now be true');
         } else {
           console.log('✅ [VERSION CHECK] App version is up to date');
         }
@@ -253,6 +246,7 @@ function RootLayoutNav() {
                   visible={showForceUpdate}
                   minVersion={minVersion}
                   currentVersion={currentVersion}
+                  onClose={() => setShowForceUpdate(false)}
                 />
               )}
               <Stack>

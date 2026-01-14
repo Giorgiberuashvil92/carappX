@@ -16,12 +16,14 @@ interface ForceUpdateModalProps {
   visible: boolean;
   minVersion: string;
   currentVersion: string;
+  onClose?: () => void;
 }
 
 export default function ForceUpdateModal({
   visible,
   minVersion,
   currentVersion,
+  onClose,
 }: ForceUpdateModalProps) {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(50)).current;
@@ -66,14 +68,24 @@ export default function ForceUpdateModal({
     }
   };
 
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={() => {}} // არ უნდა დახურულ იქნას
+      onRequestClose={handleClose} // შეიძლება დახურულ იქნას
     >
-      <View style={styles.overlay}>
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={handleClose}
+      >
         <Animated.View
           style={[
             styles.modalContainer,
@@ -82,7 +94,17 @@ export default function ForceUpdateModal({
               transform: [{ translateY: slideAnim }],
             },
           ]}
+          onStartShouldSetResponder={() => true}
         >
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={handleClose}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={24} color="#6B7280" />
+          </TouchableOpacity>
+
           {/* Icon */}
           <View style={styles.iconContainer}>
             <LinearGradient
@@ -135,7 +157,7 @@ export default function ForceUpdateModal({
             განახლების შემდეგ თქვენ შეძლებთ აპლიკაციის გამოყენებას
           </Text>
         </Animated.View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 }
@@ -169,6 +191,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
+    position: 'relative',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
   iconContainer: {
     marginBottom: 20,
