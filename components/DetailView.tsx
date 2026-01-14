@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Image, Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Image, Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,6 +81,43 @@ export default function DetailView(props: DetailViewProps) {
     const index = event.nativeEvent.contentOffset.x / slideSize;
     const roundIndex = Math.round(index);
     setCurrentImageIndex(roundIndex);
+  };
+
+  const handleCall = async () => {
+    const phone = props.vendor?.phone;
+    
+    if (!phone || phone.trim() === '') {
+      Alert.alert('შეცდომა', 'ტელეფონის ნომერი არ არის მითითებული');
+      return;
+    }
+
+    // Clean phone number - remove spaces, dashes, parentheses, and other characters
+    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    
+    // If starts with +995, keep it, otherwise add +995 if it's a Georgian number
+    if (!cleanPhone.startsWith('+')) {
+      // If it's 9 digits (Georgian format), add +995
+      if (cleanPhone.length === 9 && /^5\d{8}$/.test(cleanPhone)) {
+        cleanPhone = `+995${cleanPhone}`;
+      } else if (cleanPhone.length === 12 && cleanPhone.startsWith('995')) {
+        // If it's 12 digits starting with 995, add +
+        cleanPhone = `+${cleanPhone}`;
+      }
+    }
+    
+    const phoneUrl = `tel:${cleanPhone}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(phoneUrl);
+      if (canOpen) {
+        await Linking.openURL(phoneUrl);
+      } else {
+        Alert.alert('შეცდომა', 'ტელეფონის დარეკვა ვერ მოხერხდა');
+      }
+    } catch (error) {
+      console.error('Error opening phone call:', error);
+      Alert.alert('შეცდომა', 'ტელეფონის დარეკვა ვერ მოხერხდა');
+    }
   };
 
   return (
@@ -279,9 +316,9 @@ export default function DetailView(props: DetailViewProps) {
         <View style={[styles.bottomBar, { paddingBottom: Math.max(safeInsets.bottom, 12) }]}>
           <View style={styles.bottomBarContent}>
             <View style={styles.actionButtons}>
-              {props.vendor?.phone && props.vendor.phone.trim() !== '' && props.actions?.onCall ? (
+              {props.vendor?.phone && props.vendor.phone.trim() !== '' ? (
                 <TouchableOpacity 
-                  onPress={props.actions.onCall} 
+                  onPress={props.actions?.onCall || handleCall} 
                   style={styles.callBtn}
                   activeOpacity={0.8}
                 >
@@ -309,15 +346,7 @@ export default function DetailView(props: DetailViewProps) {
                 </TouchableOpacity>
               ) : null}
               {/* For non-carwash types, show book button that calls onBook (which will call phone) */}
-              {props.actions?.onBook && props.serviceType !== 'carwash' ? (
-                <TouchableOpacity 
-                  onPress={props.actions.onBook} 
-                  style={styles.bookBtn}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.bookText}>კონტაქტი</Text>
-                </TouchableOpacity>
-              ) : null}
+              
             </View>
           </View>
         </View>

@@ -158,7 +158,6 @@ export default function BookingScreen() {
   // Payment success effect
   useEffect(() => {
     if (isPaymentSuccess) {
-      console.log('🎉 Payment Success detected! Showing payment success modal...');
       setPaymentCompleted(true); // გადახდა დასრულდა
       setShowPaymentSuccessModal(true);
       

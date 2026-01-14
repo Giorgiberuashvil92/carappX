@@ -155,14 +155,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: 1,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     lineHeight: 16,
   },
   rightSection: {
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   racingPattern: {
     position: 'absolute',

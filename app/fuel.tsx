@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#374151',
   },
   notificationButton: {
@@ -444,13 +444,13 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.8)',
   },
   heroTitle: {
     fontSize: 24,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 16,
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   },
   heroDetailText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     color: '#FFFFFF',
   },
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   },
   heroBadgeText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#1F2937',
   },
   clearButton: {
@@ -531,13 +531,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
     color: '#1F2937',
   },
   viewAllText: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     color: '#10B981',
   },
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   cardFooter: {
@@ -591,14 +591,14 @@ const styles = StyleSheet.create({
   },
   stationName: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 2,
   },
   stationLocation: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 4,
   },
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     color: '#FFFFFF',
   },

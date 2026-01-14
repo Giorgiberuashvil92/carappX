@@ -106,7 +106,6 @@ export default function CarFAXSimulationScreen() {
 
   const fetchCarFAXReport = async (vin: string) => {
     try {
-      console.log('🔍 CarFAX API-სთან დაკავშირება VIN:', vin);
       const response = await carfaxApi.getCarFAXReport(vin);
       
       if (response && response.success && response.data) {
@@ -171,7 +170,6 @@ export default function CarFAXSimulationScreen() {
         encoding: FileSystem.EncodingType.UTF8,
       });
       
-      console.log('✅ HTML-ი წარმატებით შეინახა:', htmlFileUri);
       
       Alert.alert(
         'წარმატება',
@@ -360,7 +358,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   headerSpacer: {
     width: 40,
@@ -389,13 +387,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   searchingSubtitle: {
     fontSize: 16,
     color: '#9CA3AF',
     textAlign: 'center',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   stepsSection: {
     marginTop: 40,
@@ -421,12 +419,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   stepText: {
     fontSize: 16,
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     flex: 1,
   },
   stepTextActive: {

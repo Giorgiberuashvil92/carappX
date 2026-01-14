@@ -277,13 +277,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '500',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   subtitleGradient: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   closeButtonGradient: {
     width: 36,
@@ -315,13 +315,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '500',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 2,
   },
   subtitle: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   closeButton: {
     width: 32,

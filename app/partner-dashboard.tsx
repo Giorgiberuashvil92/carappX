@@ -17,10 +17,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams, Stack } from 'expo-router';
+import { router, useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { requestsApi, type Request, type Offer } from '@/services/requestsApi';
 import { useUser } from '@/contexts/UserContext';
 import { aiApi } from '@/services/aiApi';
+import { specialOffersApi, type SpecialOffer } from '@/services/specialOffersApi';
+import { addItemApi } from '@/services/addItemApi';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +31,19 @@ type PartnerType = 'store' | 'mechanic' | 'tow' | 'rental';
 export default function PartnerDashboardScreen() {
   const { partnerType } = useLocalSearchParams<{ partnerType: PartnerType }>();
   const { user } = useUser();
+  const routerHook = useRouter();
+  
+  // Redirect stores to their own dashboard
+  useEffect(() => {
+    if (partnerType === 'store') {
+      routerHook.replace('/partner-dashboard-store' as any);
+    }
+  }, [partnerType, routerHook]);
+  
+  // Don't render if it's a store (will redirect)
+  if (partnerType === 'store') {
+    return null;
+  }
   
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,6 +56,22 @@ export default function PartnerDashboardScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [offerStoreName, setOfferStoreName] = useState('');
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  
+  // Special Offers state
+  const [specialOffers, setSpecialOffers] = useState<SpecialOffer[]>([]);
+  const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<SpecialOffer | null>(null);
+  const [specialOfferForm, setSpecialOfferForm] = useState({
+    discount: '',
+    oldPrice: '',
+    newPrice: '',
+    title: '',
+    description: '',
+    image: '',
+    isActive: true,
+  });
+  const [isSubmittingSpecialOffer, setIsSubmittingSpecialOffer] = useState(false);
+  const [storeId, setStoreId] = useState<string | null>(null);
 
   const partnerId = user?.id || '';
 
@@ -63,7 +94,12 @@ export default function PartnerDashboardScreen() {
     setLoading(true);
     try {
       let relevantRequests: Request[] = [];
-      if (partnerType === 'store' && user?.id) {
+      // Store type is handled in separate dashboard
+      if (partnerType === 'store' as PartnerType) {
+        return;
+      }
+      
+      if (user?.id) {
         // Fetch all requests for logging/visibility
         const allRequests = await requestsApi.getRequests();
         try {
@@ -83,6 +119,19 @@ export default function PartnerDashboardScreen() {
           seller.data?.ownedParts?.find((part: any) => part?.title)?.title?.trim();
         if (derivedName) {
           setPartnerName(derivedName);
+        }
+
+        // Set storeId for special offers
+        const firstStore = seller.data?.ownedStores?.[0];
+        if (firstStore?.id) {
+          setStoreId(firstStore.id);
+          // Load special offers for this store
+          try {
+            const offers = await specialOffersApi.getSpecialOffersByStore(firstStore.id, false);
+            setSpecialOffers(offers);
+          } catch (err) {
+            console.error('Error fetching special offers:', err);
+          }
         }
 
         // Also log a quick local comparison snapshot for debugging
@@ -134,6 +183,16 @@ export default function PartnerDashboardScreen() {
       
       setRequests(relevantRequests);
       setMyOffers(offers);
+      
+      // Load special offers if storeId is available
+      if (storeId) {
+        try {
+          const specialOffersData = await specialOffersApi.getSpecialOffersByStore(storeId, false);
+          setSpecialOffers(specialOffersData);
+        } catch (err) {
+          console.error('Error fetching special offers:', err);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -143,7 +202,8 @@ export default function PartnerDashboardScreen() {
   };
 
   const getPartnerFallbackTitle = () => {
-    switch (partnerType) {
+    const type = partnerType as PartnerType;
+    switch (type) {
       case 'store':
         return 'ნაწილების მაღაზია';
       case 'mechanic':
@@ -476,8 +536,356 @@ export default function PartnerDashboardScreen() {
                 </View>
               ))
             )}
+
+            {/* Special Offers Section */}
+            {storeId && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>სპეციალური შეთავაზებები</Text>
+                  <Pressable
+                    style={styles.addButton}
+                    onPress={() => {
+                      setEditingOffer(null);
+                      setSpecialOfferForm({
+                        discount: '',
+                        oldPrice: '',
+                        newPrice: '',
+                        title: '',
+                        description: '',
+                        image: '',
+                        isActive: true,
+                      });
+                      setShowSpecialOfferModal(true);
+                    }}
+                  >
+                    <LinearGradient
+                      colors={['#8B5CF6', '#7C3AED']}
+                      style={styles.addButtonGradient}
+                    >
+                      <Ionicons name="add" size={20} color="#FFFFFF" />
+                      <Text style={styles.addButtonText}>დამატება</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+
+                {specialOffers.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="pricetag-outline" size={48} color="#9CA3AF" />
+                    <Text style={styles.emptyText}>სპეციალური შეთავაზებები არ არის</Text>
+                  </View>
+                ) : (
+                  specialOffers.map((offer) => (
+                    <View key={offer.id} style={styles.offerCard}>
+                      <LinearGradient
+                        colors={['rgba(139, 92, 246, 0.12)', 'rgba(124, 58, 237, 0.08)']}
+                        style={styles.offerGradient}
+                      >
+                        <View style={styles.offerHeader}>
+                          <View style={styles.offerTitleRow}>
+                            <Ionicons name="pricetag" size={20} color="#8B5CF6" />
+                            <Text style={styles.offerTitle}>{offer.title || 'სპეციალური შეთავაზება'}</Text>
+                          </View>
+                          <View style={styles.offerBadges}>
+                            {offer.isActive ? (
+                              <View style={styles.activeBadge}>
+                                <Text style={styles.activeBadgeText}>აქტიური</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.inactiveBadge}>
+                                <Text style={styles.inactiveBadgeText}>არააქტიური</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        {offer.description && (
+                          <Text style={styles.offerDescription} numberOfLines={2}>
+                            {offer.description}
+                          </Text>
+                        )}
+
+                        <View style={styles.offerPrices}>
+                          <View style={styles.priceRow}>
+                            <Text style={styles.priceLabel}>ძველი ფასი:</Text>
+                            <Text style={styles.oldPrice}>{offer.oldPrice} ₾</Text>
+                          </View>
+                          <View style={styles.priceRow}>
+                            <Text style={styles.priceLabel}>ახალი ფასი:</Text>
+                            <Text style={styles.newPrice}>{offer.newPrice} ₾</Text>
+                          </View>
+                          <View style={styles.priceRow}>
+                            <Text style={styles.priceLabel}>ფასდაკლება:</Text>
+                            <Text style={styles.discountPrice}>{offer.discount}%</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.offerActions}>
+                          <Pressable
+                            style={styles.editButton}
+                            onPress={() => {
+                              setEditingOffer(offer);
+                              setSpecialOfferForm({
+                                discount: offer.discount,
+                                oldPrice: offer.oldPrice,
+                                newPrice: offer.newPrice,
+                                title: offer.title || '',
+                                description: offer.description || '',
+                                image: offer.image || '',
+                                isActive: offer.isActive,
+                              });
+                              setShowSpecialOfferModal(true);
+                            }}
+                          >
+                            <Ionicons name="create-outline" size={16} color="#8B5CF6" />
+                            <Text style={styles.editButtonText}>რედაქტირება</Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.toggleButton}
+                            onPress={async () => {
+                              try {
+                                const updated = await specialOffersApi.toggleActive(offer.id);
+                                if (updated) {
+                                  setSpecialOffers(prev =>
+                                    prev.map(o => o.id === offer.id ? updated : o)
+                                  );
+                                }
+                              } catch (err) {
+                                console.error('Error toggling offer:', err);
+                                Alert.alert('შეცდომა', 'შეთავაზების განახლება ვერ მოხერხდა');
+                              }
+                            }}
+                          >
+                            <Ionicons
+                              name={offer.isActive ? 'eye-off-outline' : 'eye-outline'}
+                              size={16}
+                              color={offer.isActive ? '#F59E0B' : '#10B981'}
+                            />
+                            <Text
+                              style={[
+                                styles.toggleButtonText,
+                                { color: offer.isActive ? '#F59E0B' : '#10B981' },
+                              ]}
+                            >
+                              {offer.isActive ? 'დამალვა' : 'გამოჩენა'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.deleteButton}
+                            onPress={() => {
+                              Alert.alert(
+                                'შეთავაზების წაშლა',
+                                'დარწმუნებული ხართ რომ გსურთ ამ შეთავაზების წაშლა?',
+                                [
+                                  { text: 'გაუქმება', style: 'cancel' },
+                                  {
+                                    text: 'წაშლა',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        const success = await specialOffersApi.deleteSpecialOffer(offer.id);
+                                        if (success) {
+                                          setSpecialOffers(prev => prev.filter(o => o.id !== offer.id));
+                                          Alert.alert('წარმატება', 'შეთავაზება წაიშალა');
+                                        }
+                                      } catch (err) {
+                                        console.error('Error deleting offer:', err);
+                                        Alert.alert('შეცდომა', 'შეთავაზების წაშლა ვერ მოხერხდა');
+                                      }
+                                    },
+                                  },
+                                ]
+                              );
+                            }}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                            <Text style={styles.deleteButtonText}>წაშლა</Text>
+                          </Pressable>
+                        </View>
+                      </LinearGradient>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
           </Animated.View>
         </ScrollView>
+
+        {/* Special Offer Modal */}
+        <Modal
+          visible={showSpecialOfferModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowSpecialOfferModal(false)}
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingOffer ? 'შეთავაზების რედაქტირება' : 'ახალი შეთავაზება'}
+              </Text>
+              <Pressable onPress={() => setShowSpecialOfferModal(false)}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalLabel}>სათაური</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={specialOfferForm.title}
+                  onChangeText={(text) => setSpecialOfferForm(prev => ({ ...prev, title: text }))}
+                  placeholder="მაგ: ზამთრის ფასდაკლება"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.modalCard}>
+                <Text style={styles.modalLabel}>აღწერა</Text>
+                <TextInput
+                  style={[styles.modalInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                  value={specialOfferForm.description}
+                  onChangeText={(text) => setSpecialOfferForm(prev => ({ ...prev, description: text }))}
+                  placeholder="დამატებითი ინფორმაცია შეთავაზების შესახებ"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                />
+              </View>
+
+              <View style={styles.modalCard}>
+                <Text style={styles.modalLabel}>ძველი ფასი (₾) *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={specialOfferForm.oldPrice}
+                  onChangeText={(text) => setSpecialOfferForm(prev => ({ ...prev, oldPrice: text }))}
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.modalCard}>
+                <Text style={styles.modalLabel}>ახალი ფასი (₾) *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={specialOfferForm.newPrice}
+                  onChangeText={(text) => setSpecialOfferForm(prev => ({ ...prev, newPrice: text }))}
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.modalCard}>
+                <Text style={styles.modalLabel}>ფასდაკლება (%) *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={specialOfferForm.discount}
+                  onChangeText={(text) => setSpecialOfferForm(prev => ({ ...prev, discount: text }))}
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.modalCard}>
+                <Text style={styles.modalLabel}>სურათის URL (არასავალდებულო)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={specialOfferForm.image}
+                  onChangeText={(text) => setSpecialOfferForm(prev => ({ ...prev, image: text }))}
+                  placeholder="https://example.com/image.jpg"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <Pressable
+                style={[
+                  styles.submitButton,
+                  isSubmittingSpecialOffer ? { opacity: 0.7 } : null,
+                ]}
+                onPress={async () => {
+                  if (isSubmittingSpecialOffer || !storeId) return;
+                  if (!specialOfferForm.oldPrice || !specialOfferForm.newPrice || !specialOfferForm.discount) {
+                    Alert.alert('შეცდომა', 'გთხოვთ შეავსოთ ყველა სავალდებულო ველი');
+                    return;
+                  }
+
+                  setIsSubmittingSpecialOffer(true);
+                  try {
+                    if (editingOffer) {
+                      const updated = await specialOffersApi.updateSpecialOffer(editingOffer.id, {
+                        discount: specialOfferForm.discount,
+                        oldPrice: specialOfferForm.oldPrice,
+                        newPrice: specialOfferForm.newPrice,
+                        title: specialOfferForm.title || undefined,
+                        description: specialOfferForm.description || undefined,
+                        image: specialOfferForm.image || undefined,
+                        isActive: specialOfferForm.isActive,
+                      });
+                      if (updated) {
+                        setSpecialOffers(prev =>
+                          prev.map(o => o.id === editingOffer.id ? updated : o)
+                        );
+                        Alert.alert('წარმატება', 'შეთავაზება განახლდა');
+                        setShowSpecialOfferModal(false);
+                      }
+                    } else {
+                      const created = await specialOffersApi.createSpecialOffer({
+                        storeId,
+                        discount: specialOfferForm.discount,
+                        oldPrice: specialOfferForm.oldPrice,
+                        newPrice: specialOfferForm.newPrice,
+                        title: specialOfferForm.title || undefined,
+                        description: specialOfferForm.description || undefined,
+                        image: specialOfferForm.image || undefined,
+                        isActive: specialOfferForm.isActive,
+                      });
+                      if (created) {
+                        setSpecialOffers(prev => [created, ...prev]);
+                        Alert.alert('წარმატება', 'შეთავაზება შეიქმნა');
+                        setShowSpecialOfferModal(false);
+                        setSpecialOfferForm({
+                          discount: '',
+                          oldPrice: '',
+                          newPrice: '',
+                          title: '',
+                          description: '',
+                          image: '',
+                          isActive: true,
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error('Error saving special offer:', err);
+                    Alert.alert('შეცდომა', 'შეთავაზების შენახვა ვერ მოხერხდა');
+                  } finally {
+                    setIsSubmittingSpecialOffer(false);
+                  }
+                }}
+                disabled={isSubmittingSpecialOffer}
+              >
+                <LinearGradient
+                  colors={['#8B5CF6', '#7C3AED']}
+                  style={styles.submitButtonGradient}
+                >
+                  {isSubmittingSpecialOffer ? (
+                    <>
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <Text style={styles.submitButtonText}>იგზავნება...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.submitButtonText}>
+                        {editingOffer ? 'განახლება' : 'შექმნა'}
+                      </Text>
+                      <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                    </>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
 
         {/* Offer Modal */}
         <Modal
@@ -578,6 +986,16 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginHorizontal: 20,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  headerTitleSection: {
+    flex: 1,
+    alignItems: 'center',
+  },
   headerGradient: {
     borderRadius: 20,
     padding: 20,
@@ -591,7 +1009,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -606,7 +1024,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontFamily: 'NotoSans_500Medium',
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 4,
   },
   chatButton: {
@@ -616,6 +1034,106 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  statIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statContent: {
+    flex: 1,
+  },
+  statValue: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 18,
+    color: '#FFFFFF',
+  },
+  statLabel: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  chatBanner: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  chatBannerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  chatBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  chatBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatBannerText: {
+    flex: 1,
+  },
+  chatBannerTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  chatBannerSubtitle: {
+    fontFamily: 'NotoSans_400Regular',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
+  },
+  chatBannerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chatBannerBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatBannerBadgeText: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 12,
+    color: '#FFFFFF',
   },
 
   // Section
@@ -829,6 +1347,175 @@ const styles = StyleSheet.create({
     fontFamily: 'NotoSans_600SemiBold',
     fontSize: 16,
     color: '#FFFFFF',
+  },
+
+  // Special Offers Styles
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 32,
+    marginBottom: 16,
+  },
+  addButton: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  addButtonText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  offerCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  offerGradient: {
+    padding: 16,
+  },
+  offerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  offerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  offerTitle: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  offerBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  activeBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  activeBadgeText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 11,
+    color: '#10B981',
+  },
+  inactiveBadge: {
+    backgroundColor: 'rgba(156, 163, 175, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 163, 175, 0.4)',
+  },
+  inactiveBadgeText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  offerDescription: {
+    fontFamily: 'NotoSans_400Regular',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 12,
+  },
+  offerPrices: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  oldPrice: {
+    fontFamily: 'NotoSans_500Medium',
+    fontSize: 14,
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+  },
+  newPrice: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#10B981',
+  },
+  discountPrice: {
+    fontFamily: 'NotoSans_700Bold',
+    fontSize: 16,
+    color: '#8B5CF6',
+  },
+  offerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+  },
+  editButtonText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 13,
+    color: '#8B5CF6',
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  toggleButtonText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 13,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  deleteButtonText: {
+    fontFamily: 'NotoSans_600SemiBold',
+    fontSize: 13,
+    color: '#EF4444',
   },
 });
 

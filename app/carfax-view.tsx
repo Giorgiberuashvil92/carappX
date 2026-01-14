@@ -18,9 +18,7 @@ async function loadCarfaxCSS(): Promise<string> {
     // CSS ფაილი TypeScript ფაილიდან იტვირთება (production-ready)
     // CARFAX_CSS არის constant, ამიტომ სინქრონულად ხელმისაწვდომია
     if (CARFAX_CSS && CARFAX_CSS.length > 0) {
-      if (__DEV__) {
-        console.log('✅ CarFAX CSS loaded from TypeScript module, length:', CARFAX_CSS.length);
-      }
+      
       return CARFAX_CSS;
     }
   } catch (error) {
@@ -131,9 +129,7 @@ export default function CarFAXViewScreen() {
           mimeType: 'text/html',
           dialogTitle: 'CarFAX მოხსენების გაზიარება',
         });
-        if (__DEV__) {
-          console.log('✅ Report shared successfully');
-        }
+       
       } else {
         // Fallback - Share API
         const shareMessage = vinCode 
@@ -145,9 +141,7 @@ export default function CarFAXViewScreen() {
           title: 'CarFAX მოხსენება',
         });
         
-        if (__DEV__ && result.action === Share.sharedAction) {
-          console.log('✅ Report shared successfully');
-        }
+     
       }
     } catch (err) {
       if (__DEV__) {
@@ -227,9 +221,7 @@ export default function CarFAXViewScreen() {
       // CARFAX_CSS არის constant export, ამიტომ სინქრონულად ხელმისაწვდომია
       if (CARFAX_CSS && CARFAX_CSS.length > 0) {
         setCarfaxCSS(CARFAX_CSS);
-        if (__DEV__) {
-          console.log('✅ CarFAX CSS loaded synchronously, length:', CARFAX_CSS.length);
-        }
+       
       } else {
         // Fallback - async load
         const loadCSS = async () => {
@@ -271,10 +263,10 @@ export default function CarFAXViewScreen() {
         
         // პირველ რიგში ვცდილობთ AsyncStorage-დან
         if (storageKey) {
-          console.log('📦 Loading HTML from AsyncStorage:', storageKey);
+          ('📦 Loading HTML from AsyncStorage:', storageKey);
           content = await AsyncStorage.getItem(storageKey);
           if (content) {
-            console.log('✅ HTML loaded from AsyncStorage, length:', content.length);
+            
             // წაშლა AsyncStorage-დან გამოყენების შემდეგ
             await AsyncStorage.removeItem(storageKey);
           }
@@ -284,11 +276,9 @@ export default function CarFAXViewScreen() {
         if (!content && encodedHtml) {
           try {
             content = Buffer.from(encodedHtml, 'base64').toString('utf8');
-            console.log('✅ HTML decoded from params, length:', content.length);
           } catch (e) {
             try {
               content = decodeURIComponent(encodedHtml);
-              console.log('✅ HTML URI decoded from params, length:', content.length);
             } catch (e2) {
               content = encodedHtml;
             }
@@ -296,7 +286,6 @@ export default function CarFAXViewScreen() {
         }
         
         if (content) {
-          console.log('📄 HTML preview (first 300 chars):', content.substring(0, 300));
           setHtmlContent(content);
         } else {
           console.warn('⚠️ No HTML content found');
@@ -319,18 +308,13 @@ export default function CarFAXViewScreen() {
       return '';
     }
     
-    if (__DEV__) {
-      console.log('🧹 Sanitizing HTML...');
-      console.log('📦 CarFAX CSS loaded:', carfaxCSS ? `Yes (${carfaxCSS.length} chars)` : 'No');
-    }
+    
     
     // ვამოწმებთ, არის თუ არა React app (მხოლოდ root div)
     const isReactApp = htmlContent.includes('<div id="root"></div>') || htmlContent.includes("<div id='root'></div>");
     
     if (isReactApp) {
-      if (__DEV__) {
-        console.log('🔍 Detected React SPA, enabling JavaScript...');
-      }
+     
       // React app-ისთვის ვტოვებთ JavaScript-ს და CSS-ს
       let sanitized = htmlContent;
       
@@ -369,9 +353,7 @@ export default function CarFAXViewScreen() {
           // თუ head არ არის, შევქმნათ
           sanitized = sanitized.replace(/<html[^>]*>/i, `$&<head>${carfaxStyles}</head>`);
         }
-        if (__DEV__) {
-          console.log('✅ CarFAX CSS added to React app HTML, total length:', sanitized.length);
-        }
+       
       } else {
         if (__DEV__) {
           console.warn('⚠️ CarFAX CSS not loaded yet');
@@ -383,10 +365,7 @@ export default function CarFAXViewScreen() {
       // ჩვეულებრივი HTML-ისთვის
       const sanitized = sanitizeCarfaxHtml(htmlContent);
       const bodyOnly = extractBody(sanitized);
-      if (__DEV__) {
-        console.log('✅ Body extracted, length:', bodyOnly.length);
-        console.log('📄 Body preview (first 200 chars):', bodyOnly.substring(0, 200));
-      }
+     
       
       // CarFAX CSS სტილების დამატება
       const carfaxStyles = carfaxCSS ? `<style>${carfaxCSS}</style>` : '';
@@ -402,13 +381,7 @@ ${bodyOnly}
 </body>
 </html>`;
       
-      if (__DEV__) {
-        if (carfaxStyles) {
-          console.log('✅ CarFAX CSS added to regular HTML, total length:', finalHtml.length);
-        } else {
-          console.warn('⚠️ CarFAX CSS not loaded yet');
-        }
-      }
+     
       
       return finalHtml;
     }
@@ -502,16 +475,16 @@ ${bodyOnly}
           }}
           style={[styles.webview, (loading || error) && styles.webviewHidden]}
           onLoadStart={() => {
-            console.log('📄 WebView load started');
+           
             setLoading(true);
             setError(null);
           }}
           onLoadEnd={() => {
-            console.log('✅ WebView load ended');
+           
             setTimeout(() => setLoading(false), 500); // მცირე დაყოვნება რომ კონტენტი გამოჩნდეს
           }}
           onMessage={(event) => {
-            console.log('📨 WebView message:', event.nativeEvent.data);
+           
           }}
           onError={(syntheticEvent) => {
             const { nativeEvent } = syntheticEvent;
@@ -568,7 +541,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Outfit_700Bold',
   },
   headerSubtitle: {
     fontSize: 12,
@@ -592,7 +565,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: PRIMARY,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Outfit_600SemiBold',
   },
   headerActionTextDisabled: {
     color: '#9CA3AF',

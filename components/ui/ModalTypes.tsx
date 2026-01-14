@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 12,
   },
   
@@ -651,13 +651,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 8,
   },
   photoPlaceholderSubtext: {
     fontSize: 12,
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 6,
   },
   input: {
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
   },
   
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     flex: 1,
   },
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#374151',
   },
   
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   optionButtonTextSelected: {
     color: '#6366F1',
@@ -805,13 +805,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 8,
   },
   placeholderDescription: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   footerContainer: {
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   confirmButton: {
     flex: 2,
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   secondaryButton: {
     flex: 1,
@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   dangerButton: {
     backgroundColor: '#EF4444',

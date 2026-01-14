@@ -485,12 +485,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   subtitle: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   notificationButton: {
@@ -539,13 +539,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   filterContainer: {
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   selectedFilterChipText: {
     color: '#FFFFFF',
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   raceTypeText: {
     fontSize: 12,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   statusTag: {
     paddingHorizontal: 12,
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   livePulse: {
     width: 6,
@@ -640,13 +640,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 8,
   },
   raceCardDescription: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   prizeContainer: {
     flexDirection: 'row',
@@ -686,13 +686,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#92400E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     flex: 1,
   },
   prizeLabel: {
     fontSize: 12,
     color: '#92400E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   statsRow: {
     flexDirection: 'row',
@@ -710,13 +710,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   statBoxLabel: {
     fontSize: 11,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   difficultyIndicator: {
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 8,
   },
   requirementsList: {
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
   requirementText: {
     fontSize: 12,
     color: '#1E40AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   actionButton: {
     flexDirection: 'row',
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   loadingContainer: {
     alignItems: 'center',
@@ -784,7 +784,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -797,13 +797,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 16,
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptySubtitle: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

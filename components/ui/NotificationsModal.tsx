@@ -185,9 +185,27 @@ export function NotificationsModal({ visible, onClose }: Props) {
       notificationType: notification.type,
     });
     
-    if (screen === 'Subscription' || notification.type === 'subscription_activated' || screen === "subscription_activated") {
+    if (screen === 'Subscription' || notification.type === 'subscription_activated' || screen === "subscription_activated" || d.type === 'subscription_activated') {
       onClose();
+      console.log('🔔 [NOTIFICATIONS] Navigating to home with premium modal');
+      router.push('/' as any);
       setShouldOpenPremiumModal(true);
+      return;
+    }
+    
+    // Garage reminder-ებისთვის
+    if (screen === 'Garage' || d.type === 'garage_reminder') {
+      onClose();
+      console.log('🔔 [NOTIFICATIONS] Navigating to Garage');
+      router.push('/(tabs)/garage' as any);
+      return;
+    }
+    
+    // New Offer-ისთვის
+    if (d.type === 'new_offer' || notification.type === 'offer' && !isBusiness) {
+      onClose();
+      console.log('🔔 [NOTIFICATIONS] Navigating to Offers');
+      router.push('/offers' as any);
       return;
     }
     
@@ -238,8 +256,10 @@ export function NotificationsModal({ visible, onClose }: Props) {
     } 
     // სისტემური და სხვა ნოტიფიკაციები
     else {
-      console.log('🔔 [NOTIFICATIONS] Navigating to notifications page (system/other)');
-      router.push('/notifications');
+      // თუ სპეციფიკური route არ არის, უბრალოდ მოდალს ვხურავთ
+      // რათა არ მოხდეს უსასრულო მარყუჟი
+      console.log('🔔 [NOTIFICATIONS] No specific route, closing modal');
+      return;
     }
   };
 
@@ -395,7 +415,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#F8FAFC',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   unreadBadge: {
     backgroundColor: '#EF4444',
@@ -409,7 +429,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   closeButton: {
     padding: 8,
@@ -469,7 +489,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   unreadTitle: {
@@ -488,12 +508,12 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     lineHeight: 16,
     marginBottom: 6,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   timestamp: {
     fontSize: 10,
     color: '#A1A1AA',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Footer
@@ -517,7 +537,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#F8FAFC',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

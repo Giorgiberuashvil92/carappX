@@ -612,14 +612,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: -1,
     marginBottom: 6,
   },
   heroSubtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   financeBannerSection: {
@@ -650,13 +650,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   financeBannerSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   financeBannerBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   carSection: {
     paddingHorizontal: 20,
@@ -717,13 +717,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   carMeta: {
     fontSize: 14,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   changeButton: {
     width: 44,
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#22C55E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   servicesSection: {
     paddingHorizontal: 20,
@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   servicesGrid: {
     flexDirection: 'row',
@@ -794,14 +794,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 4,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   serviceDescription: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   serviceMeta: {
     alignItems: 'center',
@@ -810,12 +810,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   serviceTime: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Horizontal Scroll Styles
@@ -867,14 +867,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantDescription: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.9)',
     lineHeight: 16,
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantFeatures: {
     marginBottom: 12,
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 2,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantMeta: {
     flexDirection: 'row',
@@ -894,12 +894,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantTime: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Problem Input
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     color: '#FFFFFF',
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     padding: 16,
     minHeight: 100,
     textAlignVertical: 'top',
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   problemList: {
     gap: 4,
@@ -961,7 +961,7 @@ const styles = StyleSheet.create({
   problemItem: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   formSection: {
@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
@@ -1016,14 +1016,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   orderNote: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     lineHeight: 18,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Modal Styles
@@ -1045,7 +1045,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 20,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   carsList: {
     maxHeight: 400,
@@ -1087,13 +1087,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 2,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   carRowMeta: {
     fontSize: 14,
     fontWeight: '500',
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   closeButton: {
     marginTop: 20,
@@ -1106,7 +1106,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#6366F1',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Success Modal Styles

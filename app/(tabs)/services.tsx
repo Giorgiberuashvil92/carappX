@@ -30,6 +30,10 @@ import { useCars } from '../../contexts/CarContext';
 import { useToast } from '../../contexts/ToastContext';
 import { carwashLocationApi } from '../../services/carwashLocationApi';
 import API_BASE_URL from '../../config/api';
+import { addItemApi } from '../../services/addItemApi';
+import { specialOffersApi, SpecialOffer } from '../../services/specialOffersApi';
+import SpecialOfferModal, { SpecialOfferModalData } from '../../components/ui/SpecialOfferModal';
+import DetailModal, { DetailItem } from '../../components/ui/DetailModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -56,43 +60,21 @@ export default function ServicesScreen() {
   const { user, isAuthenticated, updateUserRole, addToOwnedCarwashes } = useUser();
   const { selectedCar, cars, selectCar } = useCars();
   const { success, error, warning } = useToast();
-  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [userBookings, setUserBookings] = useState<CarwashBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [bannerExpanded, setBannerExpanded] = useState(true);
-  const [activeChip, setActiveChip] = useState<'top' | 'near' | 'cheap'>('top');
-  const [openOnly, setOpenOnly] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const bannerHeight = useRef(new Animated.Value(180)).current;
 
-  // New filter states
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [filterDistance, setFilterDistance] = useState(10);
-  const [filterPriceRange, setFilterPriceRange] = useState({ min: 0, max: 50000 });
-  const [filterSortBy, setFilterSortBy] = useState('rating');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [filterServices, setFilterServices] = useState<string[]>([]);
-  
-  // Available categories and services for filtering
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const availableServiceTypes = [
-    'ძრავის შეკეთება',
-    'ტრანსმისიის შეკეთება',
-    'ფარების შეკეთება',
-    'საბურავების შეცვლა',
-    'ბლოკ-ფარების შეკეთება',
-    'ინტერიერის შეკეთება',
-    'ელექტრონიკის შეკეთება',
-    'ჰიდრავლიკის შეკეთება',
-    'საბურავების დაბალანსება',
-    'საწვავის სისტემის შეკეთება',
-    'გაგრილების სისტემის შეკეთება',
-    'საბრეიკო სისტემის შეკეთება',
-    'საბურავების შეკეთება',
-  ];
+  // VIP and Special Offers states
+  const [vipStores, setVipStores] = useState<any[]>([]);
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
+  const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState<SpecialOfferModalData | null>(null);
   
   // Floating tab state
   const [activeFloatingTab, setActiveFloatingTab] = useState<'locations' | 'bookings' | 'favorites' | 'my-services'>('locations');
@@ -235,119 +217,55 @@ export default function ServicesScreen() {
     }).start();
   };
 
-  const handleChipPress = (chipId: 'top' | 'near' | 'cheap' | 'open') => {
-    if (chipId === 'open') {
-      setOpenOnly((prev) => !prev);
-      return;
-    }
+  // Removed filter functions - no longer needed
 
-    setActiveChip(chipId as 'top' | 'near' | 'cheap');
-
-    switch (chipId) {
-      case 'top':
-        setFilterSortBy('rating');
-        break;
-      case 'near':
-        setFilterSortBy('distance');
-        setFilterDistance(8);
-        break;
-      case 'cheap':
-        setFilterSortBy('price_low');
-        break;
-      default:
-        break;
-    }
+  const convertStoreToDetailItem = (store: any): DetailItem => {
+    const mainImage = store.images?.[0] || store.image || 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=800&auto=format&fit=crop';
+    const gallery = store.images || [mainImage];
+    
+    return {
+      id: store.id || store._id,
+      title: store.name,
+      name: store.name,
+      description: store.description || `${store.name} - ხარისხიანი ავტოსერვისი`,
+      image: mainImage,
+      gallery: gallery,
+      type: 'store' as const,
+      phone: store.phone,
+      address: store.address || store.location,
+      location: store.location,
+      workingHours: store.workingHours,
+      services: store.services || [],
+      latitude: store.latitude,
+      longitude: store.longitude,
+    };
   };
 
-  // Filter locations - services are already filtered from backend
-  const filteredLocations = useMemo(() => {
-    // Services are already filtered from /services/list endpoint
-    let list = [...allServices];
-    
-    // Category filter
-    if (filterCategory) {
-      list = list.filter(l => l.category === filterCategory);
-    }
-    
-    if (filterServices.length > 0) {
-      list = list.filter(l => {
-        const serviceTypes = l.services || [];
-        return filterServices.some(selectedService => 
-          serviceTypes.includes(selectedService)
-        );
-      });
-    }
-    
-    // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(l => 
-        l.name.toLowerCase().includes(q) || 
-        l.address.toLowerCase().includes(q) ||
-        l.description.toLowerCase().includes(q)
-      );
-    }
-    
-    // Distance filter
-    list = list.filter(l => {
-      // Check if distance exists and is a string
-      if (!l.distance || typeof l.distance !== 'string') {
-        return true; // Include items without distance info
-      }
-      const dist = parseFloat(l.distance.replace(/[^\d.]/g, ''));
-      return dist <= filterDistance;
-    });
-    
-    if (openOnly) {
-      list = list.filter((l) => l.isOpen);
-    }
-    
-    // Price filter
-    list = list.filter(l => {
-      let price: number;
-      if (typeof l.price === 'string') {
-        price = parseInt(l.price.replace(/[^\d]/g, ''));
-      } else if (typeof l.price === 'number') {
-        price = l.price;
+  const handleStorePress = (store: any) => {
+    // თუ ეს შეთავაზებაა (აქვს discount ან storeId), გავხსნათ SpecialOfferModal
+    if (store.discount || store.storeId) {
+      const offerData: SpecialOfferModalData = {
+        id: store.id || store._id,
+        name: store.name,
+        title: store.title || store.name,
+        description: store.description,
+        location: store.location || store.address,
+        phone: store.phone,
+        discount: store.discount,
+        oldPrice: store.oldPrice,
+        newPrice: store.newPrice,
+        image: store.image || store.images?.[0] || store.photos?.[0],
+        address: store.address || store.location,
+      };
+      setSelectedOffer(offerData);
+      setShowSpecialOfferModal(true);
       } else {
-        return true; // Include items without price info
+      // ჩვეულებრივი მაღაზია - DetailModal
+      const detailItem = convertStoreToDetailItem(store);
+      setSelectedDetailItem(detailItem);
+      setShowDetailModal(true);
       }
-      return price >= filterPriceRange.min && price <= filterPriceRange.max;
-    });
-    
-    return list;
-  }, [allServices, searchQuery, selectedFeatures, filterDistance, filterPriceRange, openOnly, filterCategory, filterServices]);
-
-  // Track search
-  useEffect(() => {
-    if (searchQuery.trim() && filteredLocations.length > 0) {
-      analyticsService.logServiceSearched(searchQuery, filteredLocations.length);
-    }
-  }, [searchQuery, filteredLocations.length]);
-
-  // Sort filtered locations
-  const sortedLocations = useMemo(() => {
-    return [...filteredLocations].sort((a, b) => {
-      switch (filterSortBy) {
-        case 'rating':
-          return b.rating - a.rating;
-        case 'price_low':
-          const priceA = parseInt(String(a.price || '0').replace(/[^\d]/g, ''));
-          const priceB = parseInt(String(b.price || '0').replace(/[^\d]/g, ''));
-          return priceA - priceB;
-        case 'price_high':
-          const priceAHigh = parseInt(String(a.price || '0').replace(/[^\d]/g, ''));
-          const priceBHigh = parseInt(String(b.price || '0').replace(/[^\d]/g, ''));
-          return priceBHigh - priceAHigh;
-        case 'distance':
-          const distanceA = parseFloat(String(a.distance || '0').replace(/[^\d.]/g, ''));
-          const distanceB = parseFloat(String(b.distance || '0').replace(/[^\d.]/g, ''));
-          return distanceA - distanceB;
-        default:
-          return 0;
-      }
-    });
-  }, [filteredLocations, filterSortBy]);
+  };
 
   const loadUserBookings = useCallback(async () => {
     if (!isAuthenticated || !user) {
@@ -371,41 +289,48 @@ export default function ServicesScreen() {
 
   const loadAllServices = useCallback(async () => {
     try {
-      // Load all services from /services endpoint, then filter for auto services
-      const response = await fetch(`${API_BASE_URL}/services`);
+      setLoading(true);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // Load services from /services endpoint and special offers in parallel
+      const [servicesResponse, offersResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/services`).then(res => res.json()),
+        specialOffersApi.getSpecialOffers(true),
+      ]);
       
-      const data = await response.json();
-      console.log('🔧 [SERVICES] Fetched all services:', data.length);
+      console.log('🔧 [SERVICES] Services response:', servicesResponse);
       
-      // Ensure data is an array
-      const servicesArray = Array.isArray(data) ? data : (data.data || []);
+      // Handle response - could be array or object with data property
+      const servicesArray = Array.isArray(servicesResponse) 
+        ? servicesResponse 
+        : (servicesResponse?.data || []);
       
-      // Filter only auto services (ავტოსერვისები)
+      if (servicesArray && servicesArray.length > 0) {
+        // Filter only auto services (check both singular and plural)
       const autoServices = servicesArray.filter((service: any) => {
-        const category = service.category || '';
-        // Match "ავტოსერვისები" or "ავტოსერვისი" or contains "service"
+          const category = service.category || service.type || '';
         return category.includes('ავტოსერვის') || category.toLowerCase().includes('service');
       });
       
-      console.log('🔧 [SERVICES] Filtered auto services:', autoServices.length);
+        console.log('🔧 [SERVICES] Auto services found:', autoServices.length);
       
-      // Map backend service format to frontend format
-      const services = autoServices.map((service: any) => ({
+        // Separate VIP stores
+        const vip = autoServices.filter((s: any) => s.isVip || s.featured);
+        const regular = autoServices.filter((s: any) => !s.isVip && !s.featured);
+        
+        setVipStores(vip.length > 0 ? vip : autoServices.slice(0, 3));
+        
+        const mappedServices = autoServices.map((service: any) => ({
         id: service.id || service._id,
-        name: service.name,
+          name: service.name || service.title,
         description: service.description,
-        category: service.category || 'ავტოსერვისი',
+          category: service.category || service.type || 'ავტოსერვისი',
         location: service.location,
-        address: service.address,
+          address: service.address || service.location,
         phone: service.phone,
         price: service.price,
         rating: service.rating || 0,
         reviews: service.reviews || 0,
-        images: service.images || [],
+          images: service.images || service.photos || [],
         avatar: service.avatar,
         services: service.services || [],
         features: service.features,
@@ -417,23 +342,64 @@ export default function ServicesScreen() {
         longitude: service.longitude,
       }));
       
-      console.log('🔧 [SERVICES] Mapped services:', services.length);
-      setAllServices(services);
+        setAllServices(regular.length > 0 ? regular.map((s: any) => ({
+          id: s.id || s._id,
+          name: s.name || s.title,
+          description: s.description,
+          category: s.category || s.type || 'ავტოსერვისი',
+          location: s.location,
+          address: s.address || s.location,
+          phone: s.phone,
+          price: s.price,
+          rating: s.rating || 0,
+          reviews: s.reviews || 0,
+          images: s.images || s.photos || [],
+          avatar: s.avatar,
+          services: s.services || [],
+          features: s.features,
+          isOpen: s.isOpen !== undefined ? s.isOpen : true,
+          waitTime: s.waitTime,
+          workingHours: s.workingHours,
+          status: s.status || 'active',
+          latitude: s.latitude,
+          longitude: s.longitude,
+        })) : mappedServices);
+        
+        // Load special offers and merge with store data (only for auto services stores)
+        if (offersResponse && offersResponse.length > 0) {
+          const offersWithStores = offersResponse
+            .map((offer: SpecialOffer) => {
+              const store = autoServices.find(
+                (s: any) => (s.id || s._id) === offer.storeId,
+              );
+              if (store) {
+                return {
+                  ...store,
+                  ...offer,
+                  // Use offer image if available, otherwise use store image
+                  image: offer.image || store.photos?.[0] || store.images?.[0],
+                };
+              }
+              return null;
+            })
+            .filter(Boolean);
+          
+          setSpecialOffers(offersWithStores);
+        } else {
+          // Fallback: no special offers
+          setSpecialOffers([]);
+        }
+      } else {
+        console.log('🔧 [SERVICES] No services found or response failed:', servicesResponse);
+        setAllServices([]);
+        setVipStores([]);
+        setSpecialOffers([]);
+      }
     } catch (error) {
       console.error('❌ [SERVICES] Error loading services:', error);
-      // Fallback to carwashLocationApi on error
-      try {
-        const allLocations = await carwashLocationApi.getAllLocations();
-        const services = allLocations.filter((location: any) => 
-          location.category === 'ავტოსერვისი' || 
-          location.category?.toLowerCase().includes('service') ||
-          location.category?.toLowerCase().includes('ავტოსერვისი')
-        );
-        setAllServices(services);
-      } catch (fallbackError) {
-        console.error('❌ [SERVICES] Fallback also failed:', fallbackError);
-        setAllServices([]);
-      }
+      setSpecialOffers([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -591,33 +557,7 @@ export default function ServicesScreen() {
     return colors[category] || '#8B5CF6';
   };
 
-  const resetFilters = () => {
-    setFilterDistance(10);
-    setFilterPriceRange({ min: 0, max: 50000 });
-    setFilterSortBy('rating');
-    setFilterCategory('');
-    setFilterServices([]);
-  };
-
-  const applyFilters = () => {
-    setFilterDistance(localFilterDistance);
-    setFilterPriceRange(localFilterPriceRange);
-    setFilterSortBy(localFilterSortBy);
-    setFilterCategory(localFilterCategory);
-    setFilterServices(localFilterServices);
-    setShowFilterModal(false);
-    
-    // Track filter applied
-    if (localFilterCategory) {
-      analyticsService.logFilterApplied('category', localFilterCategory);
-    }
-    if (localFilterServices.length > 0) {
-      analyticsService.logFilterApplied('services', localFilterServices.join(','));
-    }
-    if (localFilterSortBy) {
-      analyticsService.logFilterApplied('sort_by', localFilterSortBy);
-    }
-  };
+  // Removed filter functions - no longer needed
 
   const getFloatingTabIcon = (tab: string) => {
     switch (tab) {
@@ -648,212 +588,23 @@ export default function ServicesScreen() {
   const getTabData = () => {
     switch (activeFloatingTab) {
       case 'locations':
-        return sortedLocations;
+        return allServices;
       case 'bookings':
         return userBookings;
       case 'favorites':
-        return sortedLocations.filter(location => isFavorite(location.id));
+        return allServices.filter(location => isFavorite(location.id));
       case 'my-services':
         return myServices;
       default:
-        return sortedLocations;
+        return allServices;
     }
   };
 
   const handleLocationPress = (location: any) => {
-    router.push({
-      pathname: '/details',
-      params: {
-        id: location.id,
-        type: 'service', // Service type for auto services
-        title: location.name,
-        lat: location.latitude || 41.7151,
-        lng: location.longitude || 44.8271,
-        rating: location.rating,
-        distance: location.distance,
-        price: location.price,
-        address: location.address,
-        description: location.description,
-        features: JSON.stringify(location.features),
-        category: location.category || 'ავტოსერვისი',
-        isOpen: location.isOpen,
-        waitTime: location.waitTime,
-        reviews: location.reviews,
-        services: JSON.stringify(location.services),
-        detailedServices: JSON.stringify(location.detailedServices || []),
-        timeSlotsConfig: JSON.stringify(location.timeSlotsConfig || {}),
-        availableSlots: JSON.stringify(location.availableSlots || []),
-        realTimeStatus: JSON.stringify(location.realTimeStatus || {}),
-        workingHours: location.workingHours,
-        image: location.images?.[0] || location.image,
-      }
-    });
+    handleStorePress(location);
   };
 
-  // Local filter states for modal
-  const [localFilterDistance, setLocalFilterDistance] = useState(filterDistance);
-  const [localFilterPriceRange, setLocalFilterPriceRange] = useState(filterPriceRange);
-  const [localFilterSortBy, setLocalFilterSortBy] = useState(filterSortBy);
-  const [localFilterCategory, setLocalFilterCategory] = useState(filterCategory);
-  const [localFilterServices, setLocalFilterServices] = useState(filterServices);
-
-  useEffect(() => {
-    setLocalFilterDistance(filterDistance);
-    setLocalFilterPriceRange(filterPriceRange);
-    setLocalFilterSortBy(filterSortBy);
-    setLocalFilterCategory(filterCategory);
-    setLocalFilterServices(filterServices);
-  }, [filterDistance, filterPriceRange, filterSortBy, filterCategory, filterServices]);
-
-  const renderFilterModal = () => {
-    return (
-      <Modal
-        visible={showFilterModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowFilterModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>ფილტრები</Text>
-              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Distance Filter */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>მანძილი</Text>
-                <View style={styles.distanceContainer}>
-                  <Text style={styles.filterDistanceText}>{localFilterDistance} კმ-ში</Text>
-                  <View style={styles.distanceButtons}>
-                    {[5, 10, 15, 20, 30, 50].map((dist) => (
-                      <TouchableOpacity
-                        key={dist}
-                        style={[
-                          styles.distanceButton,
-                          localFilterDistance === dist && styles.distanceButtonActive,
-                        ]}
-                        onPress={() => setLocalFilterDistance(dist)}
-                      >
-                        <Text style={[
-                          styles.distanceButtonText,
-                          { color: localFilterDistance === dist ? '#FFFFFF' : '#6B7280' }
-                        ]}>
-                          {dist} კმ
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>კატეგორია</Text>
-                <View style={styles.filterChipsContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.filterChip,
-                      !localFilterCategory && styles.filterChipActive,
-                    ]}
-                    onPress={() => setLocalFilterCategory('')}
-                  >
-                    <Text style={[
-                      styles.filterChipText,
-                      { color: !localFilterCategory ? '#FFFFFF' : '#6B7280' }
-                    ]}>
-                      ყველა
-                    </Text>
-                  </TouchableOpacity>
-                  {availableCategories.map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[
-                        styles.filterChip,
-                        localFilterCategory === category && styles.filterChipActive,
-                      ]}
-                      onPress={() => setLocalFilterCategory(category)}
-                    >
-                      <Text style={[
-                        styles.filterChipText,
-                        { color: localFilterCategory === category ? '#FFFFFF' : '#6B7280' }
-                      ]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Services Filter */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>სერვისები</Text>
-                <View style={styles.filterChipsContainer}>
-                  {availableServiceTypes.map((serviceType) => (
-                    <TouchableOpacity
-                      key={serviceType}
-                      style={[
-                        styles.filterChip,
-                        localFilterServices.includes(serviceType) && styles.filterChipActive,
-                      ]}
-                      onPress={() => {
-                        if (localFilterServices.includes(serviceType)) {
-                          setLocalFilterServices(localFilterServices.filter(s => s !== serviceType));
-                        } else {
-                          setLocalFilterServices([...localFilterServices, serviceType]);
-                        }
-                      }}
-                    >
-                      <Text style={[
-                        styles.filterChipText,
-                        { color: localFilterServices.includes(serviceType) ? '#FFFFFF' : '#6B7280' }
-                      ]}>
-                        {serviceType}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Sort By Filter */}
-             
-            </ScrollView>
-
-            {/* Modal Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={styles.resetButton} 
-                onPress={() => {
-                  setLocalFilterDistance(10);
-                  setLocalFilterPriceRange({ min: 0, max: 50000 });
-                  setLocalFilterSortBy('rating');
-                  resetFilters();
-                }}
-              >
-                <Text style={styles.resetButtonText}>გასუფთავება</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.applyButton} 
-                onPress={() => {
-                  applyFilters();
-                }}
-              >
-                <LinearGradient
-                  colors={['#3B82F6', '#2563EB']}
-                  style={styles.applyButtonGradient}
-                >
-                  <Text style={styles.applyButtonText}>გამოყენება</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
+  // Removed filter modal - no longer needed
 
   const renderLocationCard = ({ item: location }: { item: any }) => {
     const priceText = typeof location.price === 'string' ? location.price : `${location.price || 'ფასი'}₾`;
@@ -1003,40 +754,7 @@ export default function ServicesScreen() {
               </View>
 
               {/* Search Section */}
-              <View style={styles.aiSearchSection}>
-                <View style={styles.searchWrap}>
-                  <Ionicons name="search" size={18} color="#9CA3AF" />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="ძებნა ავტოსერვისებში..."
-                    placeholderTextColor="#6B7280"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                  {searchQuery.length > 0 ? (
-                    <TouchableOpacity onPress={() => setSearchQuery('')}>
-                      <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
 
-                {/* Filter Button */}
-                <TouchableOpacity 
-                  style={styles.simpleFilterButton}
-                  onPress={() => setShowFilterModal(true)}
-                  activeOpacity={0.9}
-                >
-                  <View style={styles.simpleFilterContent}>
-                    <View style={styles.simpleFilterLeft}>
-                      <Ionicons name="options" size={20} color="#3B82F6" />
-                      <Text style={styles.simpleFilterText}>ფილტრაცია</Text>
-                    </View>
-                    <View style={styles.simpleFilterRight}>
-                      <Ionicons name="chevron-forward" size={16} color="#6B7280" />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              </View>
             </SafeAreaView>
           </LinearGradient>
           {/* Popular Services / Advertisement Cards */}
@@ -1045,14 +763,125 @@ export default function ServicesScreen() {
           {/* Top Services Section */}
     
 
+          {/* VIP Section */}
+          {activeFloatingTab === 'locations' && vipStores.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="star" size={20} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>VIP მაღაზიები</Text>
+              </View>
+              <FlatList
+                horizontal
+                data={vipStores}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.vipCard}
+                    onPress={() => handleStorePress(item)}
+                    activeOpacity={0.7}
+                  >
+                    <ImageBackground
+                      source={{ uri: item.images?.[0] || item.image || 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=800&auto=format&fit=crop' }}
+                      style={styles.vipCardImage}
+                      imageStyle={styles.vipCardImageStyle}
+                    >
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.8)']}
+                        style={styles.vipCardGradient}
+                      >
+                        <View style={styles.vipBadge}>
+                          <Ionicons name="star" size={12} color="#F59E0B" />
+                          <Text style={styles.vipBadgeText}>VIP</Text>
+                        </View>
+                        <View style={styles.vipCardContent}>
+                          <Text style={styles.vipCardTitle} numberOfLines={2}>{item.name}</Text>
+                          <View style={styles.vipCardMeta}>
+                            <Ionicons name="location" size={14} color="#FFFFFF" />
+                            <Text style={styles.vipCardLocation}>{item.location}</Text>
+                          </View>
+                        </View>
+                      </LinearGradient>
+                    </ImageBackground>
+                    </TouchableOpacity>
+                )}
+                keyExtractor={(item, index) => item.id || item._id || index.toString()}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.vipList}
+              />
+                </View>
+          )}
+
+          {/* Special Offers */}
+          {activeFloatingTab === 'locations' && specialOffers.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="pricetag" size={20} color="#EF4444" />
+                <Text style={styles.sectionTitle}>სპეციალური შეთავაზებები</Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.offersList}
+              >
+                {specialOffers.map((offer, index) => {
+                  const storeId = offer.storeId || offer.id || offer._id;
+                  const offersCount = specialOffers.filter(
+                    (o: any) => (o.storeId || o.id || o._id) === storeId
+                  ).length;
+                  
+                  return (
+                <TouchableOpacity 
+                      key={index}
+                      style={styles.offerCard}
+                      onPress={() => handleStorePress(offer)}
+                      activeOpacity={0.7}
+                >
+                      <ImageBackground
+                        source={{ 
+                          uri: offer.photos?.[0] || offer.images?.[0] || offer.image || 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=800&auto=format&fit=crop' 
+                        }}
+                        style={styles.offerCardImage}
+                        imageStyle={styles.offerCardImageStyle}
+                      >
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.8)']}
+                          style={styles.offerCardGradient}
+                        >
+                          <View style={styles.offerDiscountBadge}>
+                            <Text style={styles.offerDiscountBadgeText}>-{offer.discount}%</Text>
+                    </View>
+                          <View style={styles.offerLabelBadge}>
+                            <Ionicons name="pricetag" size={14} color="#FFFFFF" />
+                            <Text style={styles.offerLabelBadgeText}>შეთავაზება</Text>
+                    </View>
+                          {offersCount > 1 && (
+                            <View style={styles.offerCountBadge}>
+                              <Text style={styles.offerCountBadgeText}>+{offersCount - 1}</Text>
+                  </View>
+                          )}
+                          <View style={styles.offerCardContent}>
+                            <Text style={styles.offerCardTitle} numberOfLines={2}>{offer.name}</Text>
+                            <View style={styles.offerCardPriceRow}>
+                              <Text style={styles.offerCardOldPrice}>{offer.oldPrice}</Text>
+                              <Text style={styles.offerCardNewPrice}>{offer.newPrice}</Text>
+              </View>
+                          </View>
+          </LinearGradient>
+                      </ImageBackground>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* All Services List */}
-          {activeFloatingTab === 'locations' && sortedLocations.length > 0 && (
+          {activeFloatingTab === 'locations' && allServices.length > 0 && (
             <View style={styles.modernSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.modernSectionTitle}>ყველა სერვისი</Text>
               </View>
               <View style={styles.modernServicesContainer}>
-                {sortedLocations.map((location, index) => (
+                {allServices.map((location, index) => (
                   <TouchableOpacity
                     key={location.id || index}
                     style={styles.modernServiceCard}
@@ -1177,7 +1006,7 @@ export default function ServicesScreen() {
                 <View style={styles.bookingsScroll}>
                   {userBookings.map((booking, index) => (
                     <View key={booking.id || index} style={styles.modernBookingCard}>
-                    <View style={styles.bookingCardTop}>
+                    <View style={styles.bookingCardTop}> 
                       <View style={styles.bookingInfo}>
                         <Text style={styles.bookingName}>{booking.locationName}</Text>
                         <Text style={styles.bookingService}>{booking.serviceName}</Text>
@@ -1374,8 +1203,23 @@ export default function ServicesScreen() {
           ) : null}
         </ScrollView>
 
-        {/* Filter Modal */}
-        {renderFilterModal()}
+        {/* Detail Modal */}
+        <DetailModal
+          visible={showDetailModal}
+          item={selectedDetailItem}
+          onClose={() => setShowDetailModal(false)}
+          onContact={() => {}}
+        />
+
+        {/* Special Offer Modal */}
+        <SpecialOfferModal
+          visible={showSpecialOfferModal}
+          offer={selectedOffer}
+          onClose={() => {
+            setShowSpecialOfferModal(false);
+            setSelectedOffer(null);
+          }}
+        />
       </View>
     </>
   );
@@ -1594,22 +1438,213 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  modernSection: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+  // Section Styles
+  section: {
+    marginTop: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
-  modernSectionTitle: {
-    fontSize: 20,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    letterSpacing: -0.5,
+    fontFamily: 'Outfit',
+  },
+  
+  // VIP Stores
+  vipList: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  vipCard: {
+    width: width * 0.75,
+    height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  vipCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vipCardImageStyle: {
+    borderRadius: 20,
+  },
+  vipCardGradient: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  vipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(245, 158, 11, 0.95)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  vipBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'Outfit',
+    letterSpacing: 0.5,
+  },
+  vipCardContent: {
+    gap: 10,
+  },
+  vipCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Outfit',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  vipCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vipCardLocation: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Outfit',
+  },
+  
+  // Special Offers
+  offersList: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  offerCard: {
+    width: width * 0.75,
+    height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  offerCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  offerCardImageStyle: {
+    borderRadius: 20,
+  },
+  offerCardGradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  offerDiscountBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  offerDiscountBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerLabelBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(139, 92, 246, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  offerLabelBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCountBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(59, 130, 246, 0.95)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    zIndex: 11,
+    marginTop: 38,
+  },
+  offerCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCardContent: {
+    gap: 8,
+  },
+  offerCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCardPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offerCardOldPrice: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    textDecorationLine: 'line-through',
+    fontFamily: 'Inter',
+  },
+  offerCardNewPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+
+  modernSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  modernSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    letterSpacing: -0.2,
   },
   seeAllBtn: {
     flexDirection: 'row',
@@ -1682,7 +1717,7 @@ const styles = StyleSheet.create({
   modernServiceUsername: {
     fontSize: 13,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     flex: 1,
   },
@@ -1701,7 +1736,7 @@ const styles = StyleSheet.create({
   modernServiceActionText: {
     fontSize: 9,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   modernServiceMainCard: {
@@ -1726,7 +1761,7 @@ const styles = StyleSheet.create({
   modernServiceCategoryText: {
     fontSize: 11,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   modernServicePriceButton: {
@@ -1741,7 +1776,7 @@ const styles = StyleSheet.create({
   modernServicePriceText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   modernServiceSeparator: {
@@ -1766,7 +1801,7 @@ const styles = StyleSheet.create({
   modernServiceLocationText: {
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.85)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   modernServiceCallButton: {
@@ -1810,7 +1845,7 @@ const styles = StyleSheet.create({
   modernServiceRatingText: {
     fontSize: 9,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   modernServiceStatusBadge: {
@@ -1846,7 +1881,7 @@ const styles = StyleSheet.create({
   modernServiceStatusText: {
     fontSize: 9,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   modernServiceVerifiedBadge: {
@@ -1863,7 +1898,7 @@ const styles = StyleSheet.create({
   modernServiceVerifiedText: {
     fontSize: 10,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
   },
 

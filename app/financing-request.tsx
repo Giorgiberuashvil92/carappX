@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { financingApi } from '@/services/financingApi';
 import { useUser } from '@/contexts/UserContext';
+import API_BASE_URL from '@/config/api';
 
 export default function FinancingRequestScreen() {
   const router = useRouter();
@@ -32,6 +34,8 @@ export default function FinancingRequestScreen() {
     try {
       setLoading(true);
       const requestId = typeof params?.requestId === 'string' ? params.requestId : '';
+      
+      // თუ user და requestId არის, გამოვიყენოთ createLead
       if (user?.id && requestId) {
         await financingApi.createLead({
           userId: user.id,
@@ -42,17 +46,36 @@ export default function FinancingRequestScreen() {
           downPayment: parseFloat(downPayment) || undefined,
           termMonths: parseInt(termMonths || '12', 10) || 12,
           personalId: personalId || undefined,
-          note: note || undefined,
+          note: fullName ? `${fullName}\n${note || ''}`.trim() : note || undefined,
         });
       } else {
-        // fallback: general request
-        // await financingApi.createRequest({ fullName, phone, note });
+        // fallback: general request (თუ user ან requestId არ არის)
+        const noteText = [
+          fullName && `სახელი: ${fullName}`,
+          amount && `თანხა: ${amount}₾`,
+          merchantPhone && `მაღაზიის ნომერი: ${merchantPhone}`,
+          personalId && `პირადი ნომერი: ${personalId}`,
+          downPayment && `ავანსი: ${downPayment}₾`,
+          termMonths && `ვადა: ${termMonths} თვე`,
+          note,
+        ].filter(Boolean).join('\n');
+        
+        await fetch(`${API_BASE_URL}/financing/requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: fullName || 'უცნობი',
+            phone,
+            note: noteText,
+          }),
+        });
       }
       setLoading(false);
       Alert.alert('გაგზავნილია', 'ჩვენი ოპერატორი მალევე დაგიკავშირდებათ.');
       router.back();
     } catch (e) {
       setLoading(false);
+      console.error('Financing request error:', e);
       Alert.alert('შეცდომა', 'გთხოვ სცადო მოგვიანებით.');
     }
   };
@@ -60,13 +83,15 @@ export default function FinancingRequestScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient colors={["#FFFFFF", "#F8FAFC"]} style={StyleSheet.absoluteFillObject} />
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Credo Bank • 0% განვადება</Text>
-        <View style={{ width: 44 }} />
-      </View>
+      <SafeAreaView style={styles.header} edges={['top']}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#111827" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Credo Bank • 0% განვადება</Text>
+          <View style={{ width: 44 }} />
+        </View>
+      </SafeAreaView>
 
       <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
@@ -111,7 +136,8 @@ export default function FinancingRequestScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  header: { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, paddingTop: 8 },
   backBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, gap: 10, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },

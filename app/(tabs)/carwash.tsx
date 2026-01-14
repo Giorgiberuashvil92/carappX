@@ -780,8 +780,19 @@ export default function CarWashScreen() {
       <View style={styles.modernHeader}>
         <View style={styles.headerTopRow}>
           <View style={styles.headerLeft}>
+            <View style={styles.headerTitleRow}>
+              <TouchableOpacity 
+                onPress={() => router.back()}
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={24} color="#111827" />
+              </TouchableOpacity>
+              <View style={styles.headerTitleContainer}>
             <Text style={styles.headerGreeting}>სამრეცხაოები</Text>
             <Text style={styles.headerSubtitle}>{sortedLocations.length} ხელმისაწვდომი</Text>
+              </View>
+            </View>
           </View>
           
           <View style={styles.headerActions}>
@@ -1074,7 +1085,6 @@ export default function CarWashScreen() {
             }
           }
         }}
-        defaultType="carwash"
       />
     </SafeAreaView>
   );
@@ -1101,6 +1111,24 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerLeft: {
+    flex: 1,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  headerTitleContainer: {
     flex: 1,
   },
   headerGreeting: {
@@ -1501,7 +1529,7 @@ const styles = StyleSheet.create({
   },
   resultsText: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   locationsContainer: {
@@ -1562,7 +1590,7 @@ const styles = StyleSheet.create({
   cardCategoryTextHorizontal: {
     color: '#FFFFFF',
     fontSize: 9,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   cardFavoriteButtonHorizontal: {
@@ -1592,7 +1620,7 @@ const styles = StyleSheet.create({
   cardOpenTextHorizontal: {
     color: '#FFFFFF',
     fontSize: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   // Right Side - Content
   cardContentHorizontal: {
@@ -1609,7 +1637,7 @@ const styles = StyleSheet.create({
   },
   cardTitleHorizontal: {
     fontSize: 17,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     flex: 1,
     marginRight: 8,
@@ -1622,18 +1650,18 @@ const styles = StyleSheet.create({
   },
   cardRatingTextHorizontal: {
     fontSize: 13,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     fontWeight: '600',
   },
   cardReviewsTextHorizontal: {
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   cardDescriptionHorizontal: {
     fontSize: 13,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
     lineHeight: 18,
     marginBottom: 10,
@@ -1646,13 +1674,13 @@ const styles = StyleSheet.create({
   },
   cardLocationTextHorizontal: {
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
     flex: 1,
   },
   cardDistanceHorizontal: {
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#3B82F6',
     fontWeight: '600',
   },
@@ -1669,12 +1697,12 @@ const styles = StyleSheet.create({
   },
   cardPriceLabelHorizontal: {
     fontSize: 10,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   cardPriceTextHorizontal: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     fontWeight: '600',
   },
@@ -1685,7 +1713,7 @@ const styles = StyleSheet.create({
   },
   cardTimeTextHorizontal: {
     fontSize: 10,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   // Horizontal Booking Button Styles
@@ -1707,7 +1735,7 @@ const styles = StyleSheet.create({
   },
   bookingButtonTextHorizontal: {
     fontSize: 13,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
     fontWeight: '600',
   },
@@ -1734,7 +1762,7 @@ const styles = StyleSheet.create({
   },
   bookingButtonText: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
   // Booking Card Styles
@@ -1777,13 +1805,13 @@ const styles = StyleSheet.create({
   },
   bookingLocationName: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     marginBottom: 4,
   },
   bookingLocationAddress: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   bookingStatus: {
@@ -1793,7 +1821,7 @@ const styles = StyleSheet.create({
   },
   bookingStatusText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
   bookingServiceSection: {
@@ -1813,7 +1841,7 @@ const styles = StyleSheet.create({
   },
   bookingServiceName: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#374151',
     marginLeft: 8,
   },
@@ -1825,7 +1853,7 @@ const styles = StyleSheet.create({
   },
   bookingPrice: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
   bookingDateTimeSection: {
@@ -1840,13 +1868,13 @@ const styles = StyleSheet.create({
   },
   bookingDate: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
     marginLeft: 8,
   },
   bookingTime: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
     marginLeft: 8,
   },
@@ -1866,7 +1894,7 @@ const styles = StyleSheet.create({
   },
   bookingActionText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#374151',
     marginLeft: 6,
   },
@@ -1882,7 +1910,7 @@ const styles = StyleSheet.create({
   },
   bookingCancelText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#EF4444',
     marginLeft: 6,
   },
@@ -1903,13 +1931,13 @@ const styles = StyleSheet.create({
   },
   emptyStateTitle: {
     fontSize: 20,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#374151',
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 24,
@@ -1923,7 +1951,7 @@ const styles = StyleSheet.create({
   },
   emptyStateButtonText: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
   // Filter Modal Styles
@@ -1956,7 +1984,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
   modalBody: {
@@ -1970,7 +1998,7 @@ const styles = StyleSheet.create({
   },
   filterSectionTitle: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#1F2937',
     marginBottom: 16,
   },
@@ -1983,7 +2011,7 @@ const styles = StyleSheet.create({
   },
   filterDistanceText: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#1F2937',
   },
   priceRangeContainer: {
@@ -1995,7 +2023,7 @@ const styles = StyleSheet.create({
   },
   priceRangeText: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#1F2937',
   },
   sortContainer: {
@@ -2021,7 +2049,7 @@ const styles = StyleSheet.create({
   },
   sortOptionText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   // Owner Banner Styles
@@ -2063,13 +2091,13 @@ const styles = StyleSheet.create({
   },
   ownerBannerTitle: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     marginBottom: 2,
   },
   ownerBannerSubtitle: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   ownerBannerButton: {
@@ -2085,7 +2113,7 @@ const styles = StyleSheet.create({
   },
   ownerBannerButtonText: {
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#3B82F6',
   },
   modalFooter: {
@@ -2106,7 +2134,7 @@ const styles = StyleSheet.create({
   },
   resetButtonText: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   applyButton: {
@@ -2120,7 +2148,7 @@ const styles = StyleSheet.create({
   },
   applyButtonText: {
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
   
@@ -2167,13 +2195,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   socialPostTime: {
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   socialMoreButton: {
@@ -2190,7 +2218,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     lineHeight: 20,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   socialPostImage: {
@@ -2219,7 +2247,7 @@ const styles = StyleSheet.create({
   socialLocationText: {
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     flex: 1,
   },
   
@@ -2232,7 +2260,7 @@ const styles = StyleSheet.create({
   socialRatingText: {
     fontSize: 12,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   
@@ -2253,14 +2281,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   socialOfferSubtext: {
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     opacity: 0.9,
   },
   
@@ -2289,7 +2317,7 @@ const styles = StyleSheet.create({
   socialInteractionText: {
     fontSize: 13,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   
@@ -2311,7 +2339,7 @@ const styles = StyleSheet.create({
   socialBookText: {
     fontSize: 12,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   
@@ -2355,13 +2383,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#262626',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   instagramTime: {
     fontSize: 12,
     color: '#8E8E8E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   instagramMoreButton: {
@@ -2400,7 +2428,7 @@ const styles = StyleSheet.create({
   instagramLikesText: {
     fontSize: 14,
     color: '#262626',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   instagramBoldText: {
@@ -2415,7 +2443,7 @@ const styles = StyleSheet.create({
   instagramCaptionText: {
     fontSize: 14,
     color: '#262626',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     lineHeight: 18,
   },
   
@@ -2427,7 +2455,7 @@ const styles = StyleSheet.create({
   instagramLocationText: {
     fontSize: 12,
     color: '#8E8E8E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   instagramComments: {
@@ -2438,14 +2466,14 @@ const styles = StyleSheet.create({
   instagramCommentsText: {
     fontSize: 14,
     color: '#262626',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     lineHeight: 18,
   },
   
   instagramViewComments: {
     fontSize: 14,
     color: '#8E8E8E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 4,
   },
   
@@ -2467,7 +2495,7 @@ const styles = StyleSheet.create({
   instagramBookText: {
     fontSize: 14,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   
@@ -2532,7 +2560,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -2541,7 +2569,7 @@ const styles = StyleSheet.create({
   storyTime: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -2587,7 +2615,7 @@ const styles = StyleSheet.create({
   storyActionText: {
     fontSize: 12,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
@@ -2621,7 +2649,7 @@ const styles = StyleSheet.create({
   storyLocationText: {
     fontSize: 14,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     marginBottom: 4,
   },
@@ -2629,7 +2657,7 @@ const styles = StyleSheet.create({
   storyPriceText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Small card styles (legacy)
@@ -2678,7 +2706,7 @@ const styles = StyleSheet.create({
   smallBadgeText: {
     color: '#E5E7EB',
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   smallRating: {
@@ -2689,7 +2717,7 @@ const styles = StyleSheet.create({
   smallRatingText: {
     color: '#FACC15',
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   smallCardContent: {
@@ -2700,14 +2728,14 @@ const styles = StyleSheet.create({
   smallCardTitle: {
     color: '#F9FAFB',
     fontSize: 15,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
     lineHeight: 20,
   },
   smallCardSubtitle: {
     color: '#CBD5E1',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     lineHeight: 16,
   },
@@ -2729,7 +2757,7 @@ const styles = StyleSheet.create({
   metaPillText: {
     color: '#E0E7FF',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   metaDot: {
@@ -2741,7 +2769,7 @@ const styles = StyleSheet.create({
   metaText: {
     color: '#E5E7EB',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   smallCardButton: {
     flexDirection: 'row',
@@ -2757,7 +2785,7 @@ const styles = StyleSheet.create({
   smallCardButtonText: {
     color: '#0B1220',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   smallGhostButton: {
@@ -2854,7 +2882,7 @@ const styles = StyleSheet.create({
   modernBadgeText: {
     color: '#E5E7EB',
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   
@@ -2884,7 +2912,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#F8FAFC',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   modernRatingPill: {
@@ -2900,14 +2928,14 @@ const styles = StyleSheet.create({
   modernRatingText: {
     color: '#FACC15',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
   },
   
   modernRatingMuted: {
     color: '#E5E7EB',
     fontSize: 10,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   modernAddressRow: {
@@ -2920,7 +2948,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   compactMainRow: {
@@ -2943,7 +2971,7 @@ const styles = StyleSheet.create({
   compactMetaText: {
     fontSize: 12,
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   
@@ -2972,7 +3000,7 @@ const styles = StyleSheet.create({
   modernFeatureText: {
     fontSize: 11,
     color: '#BFDBFE',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   
@@ -3012,7 +3040,7 @@ const styles = StyleSheet.create({
   compactPrimaryText: {
     color: '#F9FAFB',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
   },
   

@@ -27,8 +27,8 @@ const DARK = '#0F172A';
 const MUTED = '#475569';
 const BORDER = '#E2E8F0';
 const SOFT = '#F8FAFC';
-const FONT = 'Inter';
-const FONT_BOLD = 'Inter_700Bold';
+const FONT = 'Outfit';
+const FONT_BOLD = 'Outfit_700Bold';
 
 export default function CarFAXScreen() {
   const router = useRouter();
@@ -84,7 +84,7 @@ export default function CarFAXScreen() {
         :root { color-scheme: only light; }
         *, *::before, *::after { box-sizing: border-box !important; }
         body {
-          font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+          font-family: 'Outfit', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
           background: #f6f7fb !important;
           color: #0c1b2a !important;
           line-height: 1.6 !important;
@@ -224,13 +224,11 @@ export default function CarFAXScreen() {
     setLoading(true);
     try {
       const trimmedVin = vin.trim().toUpperCase();
-      console.log('🔍 CarFAX მოხსენების მოთხოვნა VIN:', trimmedVin);
+     
       
       // პირდაპირ API-სთან დაკავშირება (იგივე ლოგიკა, როგორც Direct API Test-ში)
-      console.log('🧪 პირდაპირ CarFAX API-სთან დაკავშირება...');
       const result = await carfaxApi.getCarFAXReportDirect(trimmedVin);
       
-      console.log('✅ პირდაპირ API Response:', result);
       
       const isHtml = result.content && (
         result.content.includes('<html') || 
@@ -251,7 +249,6 @@ export default function CarFAXScreen() {
       try {
         const storageKey = `carfax-${trimmedVin}-${Date.now()}`;
         await AsyncStorage.setItem(storageKey, styledHtml);
-        console.log('📄 CarFAX HTML saved to AsyncStorage:', storageKey);
         
         // Premium მომხმარებლებისთვის usage-ის გაზრდა და განახლება
         if (isPremiumUser && user?.id) {

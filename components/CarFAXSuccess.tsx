@@ -45,7 +45,7 @@ export default function CarFAXSuccess({ vinCode, carData, onClose }: CarFAXSucce
         :root { color-scheme: only light; }
         *, *::before, *::after { box-sizing: border-box !important; }
         body {
-          font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+          font-family: 'Outfit', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
           background: #f6f7fb !important;
           color: #0c1b2a !important;
           line-height: 1.6 !important;

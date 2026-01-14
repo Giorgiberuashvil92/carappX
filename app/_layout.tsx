@@ -6,12 +6,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState, useRef } from 'react';
 import { BackHandler, Keyboard, Platform, AppState, AppStateStatus, Text as RNText, TextInput as RNTextInput } from 'react-native';
 import {
-  useFonts as useInterFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  useFonts as useOutfitFonts,
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+} from '@expo-google-fonts/outfit';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -30,6 +30,8 @@ import  {requestPermission, getToken, AuthorizationStatus } from '@react-native-
 import messaging from '@react-native-firebase/messaging';
 import * as TrackingTransparency from 'expo-tracking-transparency';
 import { analyticsService } from '../services/analytics';
+import ForceUpdateModal from '../components/ui/ForceUpdateModal';
+import { getCurrentAppVersion, checkVersionUpdate, compareVersions } from '../services/versionCheck';
 
 
 export {
@@ -45,13 +47,13 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     ...FontAwesome.font,
-    Inter: Inter_400Regular,
+    Outfit: Outfit_400Regular,
   });
-  const [interLoaded] = useInterFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+  const [outfitLoaded] = useOutfitFonts({
+    Outfit_400Regular,
+    Outfit_500Medium,
+    Outfit_600SemiBold,
+    Outfit_700Bold,
   });
 
   useEffect(() => {
@@ -59,13 +61,13 @@ export default function RootLayout() {
   }, [fontError]);
 
   useEffect(() => {
-    if (fontsLoaded && interLoaded) {
+    if (fontsLoaded && outfitLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, interLoaded]);
+  }, [fontsLoaded, outfitLoaded]);
 
 
-  if (!fontsLoaded || !interLoaded) {
+  if (!fontsLoaded || !outfitLoaded) {
     return null;
   }
 
@@ -77,6 +79,16 @@ function RootLayoutNav() {
   const colors = Colors[colorScheme ?? 'light'];
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const [showForceUpdate, setShowForceUpdate] = useState(false);
+  const [minVersion, setMinVersion] = useState('');
+  const [currentVersion, setCurrentVersion] = useState('');
+
+  // Debug: log when showForceUpdate changes
+  useEffect(() => {
+    console.log('🔍 [VERSION CHECK] showForceUpdate state:', showForceUpdate);
+    console.log('🔍 [VERSION CHECK] minVersion:', minVersion);
+    console.log('🔍 [VERSION CHECK] currentVersion:', currentVersion);
+  }, [showForceUpdate, minVersion, currentVersion]);
 
 
   const customTheme = {
@@ -99,9 +111,7 @@ function RootLayoutNav() {
       const authStatus = await messaging().requestPermission();
       const enabled = authStatus === AuthorizationStatus.AUTHORIZED || authStatus === AuthorizationStatus.PROVISIONAL;
       if (enabled) {
-        console.log(enabled, 'ინეიბლი')
         const token = await messaging().getToken();
-        console.log('Token:', token);
       }
     };
 
@@ -135,6 +145,53 @@ function RootLayoutNav() {
       console.log('Message:', message);
     };
     messaging().onMessage(onMessageReceived);
+
+    // Check for force update
+    const checkForUpdate = async () => {
+      try {
+        console.log('🔍 [VERSION CHECK] Starting version check...');
+        const currentAppVersion = getCurrentAppVersion();
+        console.log('📱 [VERSION CHECK] Current app version:', currentAppVersion);
+        
+        const versionInfo = await checkVersionUpdate();
+        console.log('🌐 [VERSION CHECK] Version info from backend:', versionInfo);
+        
+        if (!versionInfo) {
+          console.warn('⚠️ [VERSION CHECK] No version info received from backend');
+          return;
+        }
+
+        // შევამოწმოთ ვერსია - თუ მომხმარებელს აქვს დაბალი ვერსია, გამოვაჩინოთ modal
+        const needsUpdate = compareVersions(currentAppVersion, versionInfo.minVersion);
+        console.log('🔄 [VERSION CHECK] Needs update?', needsUpdate);
+        console.log('📊 [VERSION CHECK] Current:', currentAppVersion, 'Min:', versionInfo.minVersion);
+        console.log('🔧 [VERSION CHECK] Force update flag from backend:', versionInfo.forceUpdate);
+        
+        // თუ ვერსია დაბალია, გამოვაჩინოთ modal
+        // forceUpdate flag-ი backend-ში აკონტროლებს force update-ს, მაგრამ თუ ვერსია დაბალია, მაინც გამოვაჩინოთ
+        // ეს უზრუნველყოფს რომ ძველი build-ებიც იმუშაოს
+        if (needsUpdate) {
+          // თუ forceUpdate არის true, მაშინ force update-ია (modal არ იხურება)
+          // თუ forceUpdate არის false ან undefined, მაინც გამოვაჩინოთ modal (თუმცა შეიძლება დახურულ იქნას)
+          console.log('🚨 [VERSION CHECK] Force update required!');
+          console.log('🚨 [VERSION CHECK] Setting minVersion:', versionInfo.minVersion);
+          console.log('🚨 [VERSION CHECK] Setting currentVersion:', currentAppVersion);
+          setMinVersion(versionInfo.minVersion);
+          setCurrentVersion(currentAppVersion);
+          console.log('🚨 [VERSION CHECK] Setting showForceUpdate to true');
+          setShowForceUpdate(true);
+          console.log('🚨 [VERSION CHECK] showForceUpdate should now be true');
+        } else {
+          console.log('✅ [VERSION CHECK] App version is up to date');
+        }
+      } catch (error) {
+        console.error('❌ [VERSION CHECK] Error checking for update:', error);
+        // თუ შეცდომა მოხდა, არ ვაბლოკებთ აპლიკაციას
+      }
+    };
+
+    // შევამოწმოთ ვერსია app-ის დაწყებისას
+    checkForUpdate();
 
 
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
@@ -180,17 +237,24 @@ function RootLayoutNav() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (RNText as any).defaultProps.style = [
                   (RNText as any).defaultProps.style,
-                  { fontFamily: 'Inter' },
+                  { fontFamily: 'Outfit' },
                 ];
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (RNTextInput as any).defaultProps = (RNTextInput as any).defaultProps || {};
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (RNTextInput as any).defaultProps.style = [
                   (RNTextInput as any).defaultProps.style,
-                  { fontFamily: 'Inter' },
+                  { fontFamily: 'Outfit' },
                 ];
                 return null;
               })()}
+              {showForceUpdate && (
+                <ForceUpdateModal
+                  visible={showForceUpdate}
+                  minVersion={minVersion}
+                  currentVersion={currentVersion}
+                />
+              )}
               <Stack>
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -206,6 +270,7 @@ function RootLayoutNav() {
               <Stack.Screen name="offers" options={{ headerShown: false }} />
               <Stack.Screen name="all-requests" options={{ headerShown: false }} />
               <Stack.Screen name="partner-dashboard" options={{ headerShown: false, presentation: 'card' }} />
+              <Stack.Screen name="partner-dashboard-store" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="partner" options={{ headerShown: false }} />
               <Stack.Screen name="parts-order" options={{ headerShown: false }} />
               <Stack.Screen name="parts" options={{ headerShown: false }} />

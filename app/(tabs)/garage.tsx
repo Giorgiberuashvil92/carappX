@@ -1033,7 +1033,7 @@ const styles = StyleSheet.create({
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '600',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     editPillsRow: {
       flexDirection: 'row',
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
       color: '#FFFFFF',
       fontSize: 12,
       fontWeight: '600',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       textAlign: 'center',
     },
     editActionsRow: {
@@ -1081,7 +1081,7 @@ const styles = StyleSheet.create({
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '700',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     cancelButton: {
       flex: 1,
@@ -1099,7 +1099,7 @@ const styles = StyleSheet.create({
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '700',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     // Modal Actions
     modalActions: {

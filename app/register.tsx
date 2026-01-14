@@ -54,10 +54,12 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [registerStep, setRegisterStep] = useState<RegisterStep>(REGISTER_STEPS.NAME);
   const [firstName, setFirstName] = useState('');
+  const [personalId, setPersonalId] = useState('');
   const [role, setRole] = useState<UserRole | null>(null);
 
   // Refs
   const nameInputRef = useRef<TextInput>(null);
+  const personalIdInputRef = useRef<TextInput>(null);
 
   // Hooks
   const colorScheme = useColorScheme();
@@ -67,8 +69,11 @@ export default function RegisterScreen() {
 
   // Memoized values
   const canProceedToNextStep = useMemo(
-    () => firstName.trim().length > 0 && firstName.trim().length <= MAX_NAME_LENGTH,
-    [firstName]
+    () => 
+      firstName.trim().length > 0 && 
+      firstName.trim().length <= MAX_NAME_LENGTH &&
+      personalId.trim().length === 11, // Georgian personal ID is 11 digits
+    [firstName, personalId]
   );
 
   useEffect(() => {
@@ -94,8 +99,13 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (!firstName.trim() || !role) {
-      error('შეცდომა', 'შეიყვანეთ სახელი და აირჩიეთ როლი');
+    if (!firstName.trim() || !personalId.trim() || !role) {
+      error('შეცდომა', 'შეიყვანეთ სახელი, პირადი ნომერი და აირჩიეთ როლი');
+      return;
+    }
+
+    if (personalId.trim().length !== 11) {
+      error('შეცდომა', 'პირადი ნომერი უნდა შედგებოდეს 11 ციფრისგან');
       return;
     }
 
@@ -107,6 +117,7 @@ export default function RegisterScreen() {
         body: JSON.stringify({
           userId,
           firstName: firstName.trim(),
+          personalId: personalId.trim(),
           role,
         }),
       });
@@ -130,7 +141,7 @@ export default function RegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [userId, firstName, role, error, success, login]);
+  }, [userId, firstName, personalId, role, error, success, login]);
 
   const styles = StyleSheet.create({
     safeArea: {
@@ -180,7 +191,7 @@ export default function RegisterScreen() {
     },
     badgeText: {
       fontSize: 12,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       color: '#4F46E5',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
@@ -209,7 +220,7 @@ export default function RegisterScreen() {
     },
     title: {
       fontSize: 28,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       color: '#111827',
       letterSpacing: -0.5,
       marginBottom: 8,
@@ -218,7 +229,7 @@ export default function RegisterScreen() {
       fontSize: 16,
       color: '#4B5563',
       lineHeight: 24,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       marginBottom: 24,
     },
     sectionCard: {
@@ -237,7 +248,7 @@ export default function RegisterScreen() {
     },
     label: {
       fontSize: 12,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       color: '#111827',
       letterSpacing: 0.5,
       textTransform: 'uppercase',
@@ -267,13 +278,13 @@ export default function RegisterScreen() {
       flex: 1,
       fontSize: 16,
       color: '#111827',
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: 'Outfit_600SemiBold',
       paddingVertical: 0,
     },
     helper: {
       fontSize: 12,
       color: '#9CA3AF',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     roleChipsRow: {
       gap: 12,
@@ -316,13 +327,13 @@ export default function RegisterScreen() {
     },
     roleChipTitle: {
       fontSize: 15,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       color: '#111827',
       letterSpacing: -0.2,
     },
     roleChipSubtitle: {
       fontSize: 12,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#6B7280',
       lineHeight: 16,
     },
@@ -342,7 +353,7 @@ export default function RegisterScreen() {
     },
     hintText: {
       fontSize: 13,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#065F46',
       flex: 1,
     },
@@ -389,7 +400,7 @@ export default function RegisterScreen() {
     primaryText: {
       color: '#FFFFFF',
       fontSize: 16,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
     },
     primaryTextDisabled: {
       color: '#9CA3AF',
@@ -472,13 +483,43 @@ export default function RegisterScreen() {
                     keyboardType="default"
                     returnKeyType="next"
                     onSubmitEditing={() => {
+                      personalIdInputRef.current?.focus();
+                    }}
+                  />
+                  <Text style={styles.helper}>{Math.min(firstName.trim().length, MAX_NAME_LENGTH)}/{MAX_NAME_LENGTH}</Text>
+                </View>
+              </View>
+
+              <View style={styles.sectionCard}>
+                <Text style={styles.label}>პირადი ნომერი *</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="card-outline"
+                    size={22}
+                    color="#9CA3AF"
+                  />
+                  <TextInput
+                    ref={personalIdInputRef}
+                    style={styles.input}
+                    value={personalId}
+                    onChangeText={(text) => {
+                      // Allow only digits and limit to 11 characters
+                      const cleaned = text.replace(/\D/g, '').slice(0, 11);
+                      setPersonalId(cleaned);
+                    }}
+                    placeholder="00000000000"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    maxLength={11}
+                    onSubmitEditing={() => {
                       if (canProceedToNextStep) {
                         Keyboard.dismiss();
                         setTimeout(() => setRegisterStep(REGISTER_STEPS.ROLE), 100);
                       }
                     }}
                   />
-                  <Text style={styles.helper}>{Math.min(firstName.trim().length, MAX_NAME_LENGTH)}/{MAX_NAME_LENGTH}</Text>
+                  <Text style={styles.helper}>{personalId.length}/11</Text>
                 </View>
               </View>
 

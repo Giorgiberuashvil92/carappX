@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   message: {
     fontSize: 16,
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 24,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   detailsCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -253,13 +253,13 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 14,
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   rememberCardInfo: {
     flexDirection: 'row',
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#22C55E',
     marginLeft: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   buttonContainer: {
     width: '100%',
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   secondaryButton: {
     flexDirection: 'row',
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#22C55E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   securityNotice: {
     flexDirection: 'row',
@@ -322,6 +322,6 @@ const styles = StyleSheet.create({
   securityText: {
     fontSize: 12,
     color: '#10B981',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });

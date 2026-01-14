@@ -667,13 +667,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   headerSubtitle: {
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   headerRight: {
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   tabBadge: {
     width: 20,
@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
   tabBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Orders
@@ -762,12 +762,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   orderLocation: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -778,7 +778,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   orderDetails: {
     marginBottom: 16,
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   levelBadge: {
     paddingHorizontal: 8,
@@ -809,7 +809,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   orderFooter: {
     flexDirection: 'row',
@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   orderActions: {
     flexDirection: 'row',
@@ -838,7 +838,7 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Empty State
@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   emptyDescription: {
@@ -869,7 +869,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     marginBottom: 24,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     lineHeight: 20,
   },
   emptyButton: {
@@ -882,7 +882,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Modal Styles
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   modalCloseButton: {
     padding: 8,
@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   modalInfoCard: {
     flexDirection: 'row',
@@ -944,13 +944,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     marginLeft: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   modalPrice: {
     fontSize: 24,
     fontWeight: '700',
     color: '#6366F1',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Searching Animation Styles
@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginLeft: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   searchingDots: {
     flexDirection: 'row',
@@ -1007,6 +1007,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginLeft: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });

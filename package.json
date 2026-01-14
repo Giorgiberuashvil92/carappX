@@ -18,7 +18,10 @@
     "build:ios:preview": "eas build --platform ios --profile preview",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:ios:dev": "eas build --platform ios --profile development",
-    "build:android:dev": "eas build --platform android --profile development"
+    "build:android:dev": "eas build --platform android --profile development",
+    "build:android:local": "cd android && ./gradlew assembleRelease && echo '✅ APK built successfully at: android/app/build/outputs/apk/release/app-release.apk'",
+    "build:android:local:debug": "cd android && ./gradlew assembleDebug && echo '✅ Debug APK built successfully at: android/app/build/outputs/apk/debug/app-debug.apk'",
+    "build:android:local:aab": "cd android && ./gradlew bundleRelease && echo '✅ AAB built successfully at: android/app/build/outputs/bundle/release/app-release.aab'"
   },
   "engines": {
     "node": ">=20.19.4"
@@ -28,6 +31,7 @@
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.2.3",
+    "@expo-google-fonts/outfit": "^0.4.3",
     "@expo/config-plugins": "~10.1.1",
     "@expo/vector-icons": "^14.0.0",
     "@gorhom/bottom-sheet": "^5.2.6",

@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 16,
     color: '#111827',
     fontWeight: '700',
@@ -105,13 +105,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   label: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     color: '#6B7280',
     fontWeight: '600',
   },
   value: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 13,
     color: '#111827',
     fontWeight: '700',
@@ -121,14 +121,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   sectionTitle: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 14,
     color: '#111827',
     marginBottom: 6,
     fontWeight: '700',
   },
   muted: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     color: '#9CA3AF',
   },

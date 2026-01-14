@@ -2791,7 +2791,7 @@ import {
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   modernStoreLikeButton: {
@@ -2810,7 +2810,7 @@ import {
   modernStoreActionText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   
@@ -2832,7 +2832,7 @@ import {
   modernStoreLocationText: {
     fontSize: 12,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   
@@ -2912,7 +2912,7 @@ import {
   modernStoreLocationButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     maxWidth: 80,
   },
@@ -2978,7 +2978,7 @@ import {
   modernPartUsername: {
     fontSize: 14,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     flex: 1,
   },
@@ -2999,7 +2999,7 @@ import {
   modernPartActionText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
 
@@ -3015,7 +3015,7 @@ import {
   modernPartNameInfo: {
     fontSize: 14,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
     marginBottom: 2,
   },
@@ -3023,7 +3023,7 @@ import {
   modernPartCategoryInfo: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
 
@@ -3047,7 +3047,7 @@ import {
   modernPartLocationText: {
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
 
@@ -3109,7 +3109,7 @@ import {
   modernPartLocationButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     maxWidth: 80,
   },
@@ -3134,7 +3134,7 @@ import {
   modernPartContactButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
 
@@ -3199,7 +3199,7 @@ import {
   modernDismantlerUsername: {
     fontSize: 14,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
     flex: 1,
   },
@@ -3220,7 +3220,7 @@ import {
   modernDismantlerActionText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
 
@@ -3247,7 +3247,7 @@ import {
   modernDismantlerCarInfoText: {
     fontSize: 12,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
 
@@ -3264,7 +3264,7 @@ import {
   modernDismantlerYearText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
 
@@ -3288,7 +3288,7 @@ import {
   modernDismantlerLocationText: {
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
 
@@ -3350,7 +3350,7 @@ import {
   modernDismantlerLocationButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     maxWidth: 80,
   },
@@ -3375,7 +3375,7 @@ import {
   modernDismantlerContactButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
 
@@ -3420,7 +3420,7 @@ import {
   modernStoreContactButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
 });

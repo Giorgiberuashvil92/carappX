@@ -23,6 +23,7 @@ import { photoService } from '../../services/photoService';
 import API_BASE_URL from '../../config/api';
 import SubscriptionModal from '../../components/ui/SubscriptionModal';
 import PremiumInfoModal from '../../components/ui/PremiumInfoModal';
+import { getCurrentAppVersion } from '../../services/versionCheck';
 
 const { width, height } = Dimensions.get('window');
 
@@ -407,6 +408,16 @@ export default function ProfileScreen() {
       textShadowRadius: 1.5,
       letterSpacing: 0.2,
     },
+    versionContainer: {
+      alignItems: 'center',
+      paddingVertical: 24,
+      marginTop: 8,
+    },
+    versionText: {
+      fontSize: 12,
+      fontWeight: '400',
+      color: '#9CA3AF',
+    },
   });
 
   const handleMenuItemPress = (item: any) => {
@@ -622,6 +633,13 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={18} color="#EF4444" />
             </View>
           </TouchableOpacity>
+        </View>
+
+        {/* App Version */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>
+            ვერსია {getCurrentAppVersion()}
+          </Text>
         </View>
 
       </ScrollView>

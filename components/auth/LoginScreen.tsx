@@ -71,7 +71,7 @@ export default function LoginScreen() {
   const [pendingIntent, setPendingIntent] = useState<AuthIntent | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [showOtpDisabledModal, setShowOtpDisabledModal] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
   const [manualOtpCode, setManualOtpCode] = useState<string | null>(null);
   const [testPassword, setTestPassword] = useState('');
 
@@ -107,7 +107,6 @@ export default function LoginScreen() {
     setOTP(Array(OTP_LENGTH).fill(''));
     setShowOTP(false);
     setVerificationId(null);
-    setManualOtpCode(null);
   }, []);
 
   // Event handlers
@@ -188,10 +187,11 @@ export default function LoginScreen() {
       setShowOTP(true);
       success('SMS გაიგზავნა!', `კოდი გაიგზავნა ნომერზე ${phone}`);
 
+      // Development mode: show OTP code in modal
       const otpCode = data.code ?? data.mockCode ?? data.otp;
       if (otpCode) {
         setManualOtpCode(String(otpCode));
-        setShowOtpDisabledModal(true);
+        setShowOtpModal(true);
       } else {
         setManualOtpCode(null);
       }
@@ -339,7 +339,7 @@ export default function LoginScreen() {
       letterSpacing: -0.2,
       marginBottom: 24,
       opacity: 0.8,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '600',
     },
     form: {
@@ -370,12 +370,12 @@ export default function LoginScreen() {
     prefix: {
       fontSize: 16,
       color: '#111827',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '600',
     },
     label: {
       fontSize: 16,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: colors.text,
       marginBottom: 8,
     },
@@ -386,7 +386,7 @@ export default function LoginScreen() {
       fontSize: 16,
       color: '#111827',
       letterSpacing: -0.2,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     inputFocused: {
       backgroundColor: colors.background,
@@ -414,7 +414,7 @@ export default function LoginScreen() {
     forgotPasswordText: {
       color: colors.primary,
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     loginButton: {
       backgroundColor: '#111827',
@@ -434,7 +434,7 @@ export default function LoginScreen() {
     loginButtonText: {
       color: '#FFFFFF',
       fontSize: 16,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       letterSpacing: -0.2,
     },
     loadingContainer: {
@@ -454,7 +454,7 @@ export default function LoginScreen() {
     testLoginToggleText: {
       color: colors.primary,
       fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: 'Outfit_600SemiBold',
       textDecorationLine: 'underline',
     },
     testCredentialsInfo: {
@@ -467,13 +467,13 @@ export default function LoginScreen() {
     },
     testCredentialsText: {
       fontSize: 13,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#4B5563',
       textAlign: 'center',
       lineHeight: 20,
     },
     testCredentialsBold: {
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       color: '#111827',
     },
     otpModal: {
@@ -494,7 +494,7 @@ export default function LoginScreen() {
     },
     otpTitle: {
       fontSize: 20,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       color: '#111827',
       textAlign: 'center',
       marginBottom: 8,
@@ -519,7 +519,7 @@ export default function LoginScreen() {
       borderColor: '#E5E7EB',
       borderRadius: 16,
       fontSize: 24,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       textAlign: 'center',
       color: '#111827',
       shadowColor: '#000',
@@ -539,7 +539,7 @@ export default function LoginScreen() {
     resendText: {
       color: colors.primary,
       fontSize: 15,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: 'Outfit_600SemiBold',
     },
     divider: {
       flexDirection: 'row',
@@ -555,7 +555,7 @@ export default function LoginScreen() {
       color: colors.secondary,
       paddingHorizontal: 16,
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     socialButtons: {
       gap: 12,
@@ -573,7 +573,7 @@ export default function LoginScreen() {
     },
     socialButtonText: {
       fontSize: 15,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: colors.text,
       letterSpacing: -0.2,
     },
@@ -585,12 +585,12 @@ export default function LoginScreen() {
     footerText: {
       color: colors.secondary,
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     signupLink: {
       color: colors.primary,
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       marginLeft: 4,
     },
     primaryCta: {
@@ -632,14 +632,14 @@ export default function LoginScreen() {
     },
     disabledTitle: {
       fontSize: 18,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '700',
       color: '#111827',
       textAlign: 'center',
     },
     disabledText: {
       fontSize: 15,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#4B5563',
       textAlign: 'center',
       lineHeight: 22,
@@ -655,7 +655,7 @@ export default function LoginScreen() {
     disabledButtonText: {
       color: '#FFFFFF',
       fontSize: 15,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '600',
     },
     codeBox: {
@@ -670,11 +670,62 @@ export default function LoginScreen() {
     },
     codeText: {
       fontSize: 28,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '700',
       letterSpacing: 10,
       textAlign: 'center',
       color: '#111827',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalHeader: {
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    modalTitle: {
+      fontSize: 24,
+      fontFamily: 'Outfit_700Bold',
+      color: '#111827',
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    modalSubtitle: {
+      fontSize: 14,
+      fontFamily: 'Outfit',
+      color: '#6B7280',
+      textAlign: 'center',
+    },
+    codeContainer: {
+      marginBottom: 24,
+    },
+    codeLabel: {
+      fontSize: 14,
+      fontFamily: 'Outfit',
+      color: '#6B7280',
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    codeHint: {
+      fontSize: 12,
+      fontFamily: 'Outfit',
+      color: '#9CA3AF',
+      textAlign: 'center',
+      marginTop: 8,
+    },
+    modalButton: {
+      backgroundColor: '#4F46E5',
+      borderRadius: 16,
+      paddingVertical: 16,
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    modalButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontFamily: 'Outfit_700Bold',
     },
   });
 
@@ -819,27 +870,37 @@ export default function LoginScreen() {
       {/* Manual OTP Modal */}
       <Modal
         transparent
-        animationType="fade"
-        visible={showOtpDisabledModal}
-        onRequestClose={() => setShowOtpDisabledModal(false)}
+        animationType="slide"
+        visible={showOtpModal}
+        onRequestClose={() => setShowOtpModal(false)}
       >
-        <View style={styles.overlay}>
-          <View style={styles.disabledCard}>
-            <Ionicons name="alert-circle" size={48} color="#F97316" />
-            <Text style={styles.disabledTitle}>ავტორიზაციის კოდი</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.otpModal}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="key-outline" size={32} color="#4F46E5" />
+              <Text style={styles.modalTitle}>ვერიფიკაციის კოდი</Text>
+              <Text style={styles.modalSubtitle}>
+                Development რეჟიმში კოდი აქ ჩანს
+              </Text>
+            </View>
+
             {manualOtpCode && (
-              <View style={styles.codeBox}>
-                <Text style={styles.codeText}>{manualOtpCode}</Text>
+              <View style={styles.codeContainer}>
+                <Text style={styles.codeLabel}>OTP კოდი:</Text>
+                <View style={styles.codeBox}>
+                  <Text style={styles.codeText}>{manualOtpCode}</Text>
+                </View>
+                <Text style={styles.codeHint}>
+                  გადააკოპირე და შეიყვანე OTP ველში
+                </Text>
               </View>
             )}
-            <Text style={styles.disabledText}>
-              SMS უკვე გაგზავნილია, მაგრამ ტესტ რეჟიმში კოდი აქაც ჩანს. გადააკოპირე და შეიყვანე OTP ველში.
-            </Text>
+
             <TouchableOpacity
-              style={styles.disabledButton}
-              onPress={() => setShowOtpDisabledModal(false)}
+              style={styles.modalButton}
+              onPress={() => setShowOtpModal(false)}
             >
-              <Text style={styles.disabledButtonText}>კოდის შეყვანა</Text>
+              <Text style={styles.modalButtonText}>გასაგებია</Text>
             </TouchableOpacity>
           </View>
         </View>

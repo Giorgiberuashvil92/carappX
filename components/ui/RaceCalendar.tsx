@@ -570,13 +570,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: 1,
   },
   subtitle: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   viewAllButton: {
@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   racingStripes: {
     flexDirection: 'row',
@@ -626,13 +626,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 2,
   },
   statsBannerLabel: {
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.9)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   statsBannerDivider: {
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   selectedFilterText: {
     color: '#FFFFFF',
@@ -737,13 +737,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 2,
   },
   raceType: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
   raceInfoText: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     flex: 1,
     fontWeight: '500',
   },
@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   raceStats: {
     flexDirection: 'row',
@@ -814,12 +814,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   statLabel: {
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   difficultyDot: {
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   registerButton: {
     paddingHorizontal: 16,
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   unregisterButtonText: {
     color: '#FFFFFF',
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
   quickActionText: {
     fontSize: 11,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   loadingContainer: {
     alignItems: 'center',
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -911,13 +911,13 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginTop: 12,
     marginBottom: 4,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptySubtitle: {
     fontSize: 12,
     color: '#6B7280',
     textAlign: 'center',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   errorContainer: {
     flex: 1,
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 18,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   backButton: {
     marginTop: 24,
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   imageGalleryContainer: {
     width: width,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   availabilityText: {
     color: '#fff',
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   imageIndicators: {
     position: 'absolute',
@@ -488,13 +488,13 @@ const styles = StyleSheet.create({
   brand: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   model: {
     fontSize: 28,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     letterSpacing: -1,
     marginTop: 4,
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 16,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 4,
   },
   ratingContainer: {
@@ -512,13 +512,13 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 18,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
   },
   reviewsText: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   specsCard: {
     flexDirection: 'row',
@@ -545,12 +545,12 @@ const styles = StyleSheet.create({
   specLabel: {
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   specValue: {
     fontSize: 14,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   priceCard: {
     backgroundColor: '#fff',
@@ -570,14 +570,14 @@ const styles = StyleSheet.create({
   },
   priceAmount: {
     fontSize: 36,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     letterSpacing: -1.5,
   },
   priceUnit: {
     fontSize: 16,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   altPrice: {
     backgroundColor: '#F3F4F6',
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
   altPriceText: {
     fontSize: 14,
     color: '#4B5563',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   depositInfo: {
     flexDirection: 'row',
@@ -602,14 +602,14 @@ const styles = StyleSheet.create({
   depositText: {
     fontSize: 14,
     color: '#92400E',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     marginBottom: 12,
   },
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     color: '#4B5563',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   featuresGrid: {
     gap: 12,
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 15,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   extrasContainer: {
     gap: 10,
@@ -652,12 +652,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   extraPrice: {
     fontSize: 15,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   locationCard: {
     flexDirection: 'row',
@@ -678,12 +678,12 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 16,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   addressText: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 4,
   },
   contactButton: {
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

@@ -117,7 +117,6 @@ export default function CarRentalListScreen() {
       }
       
       const data = await response.json();
-      console.log('🎯 Filters loaded:', data);
       setFilters(data);
     } catch (error) {
       console.error('Error fetching filters:', error);
@@ -138,8 +137,7 @@ export default function CarRentalListScreen() {
       }
 
       const data = await response.json();
-      console.log('🚗 Fetched cars data:', data);
-      console.log('🚗 First car:', data[0]);
+
       setCars(data);
     } catch (error) {
       console.error('Error fetching cars:', error);
@@ -370,7 +368,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 15,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   headerContainer: {
     backgroundColor: '#FFFFFF',
@@ -399,7 +397,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
   },
   searchContainer: {
@@ -419,7 +417,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
   },
   categoriesContainer: {
@@ -447,7 +445,7 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 14,
     fontWeight: '500',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
   },
   categoryTextActive: {
@@ -476,7 +474,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#111827',
     textAlign: 'center',
     marginBottom: 6,
@@ -484,7 +482,7 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
   clearSearchButton: {
@@ -497,7 +495,7 @@ const styles = StyleSheet.create({
   clearSearchText: {
     fontSize: 14,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#FFFFFF',
   },
 });

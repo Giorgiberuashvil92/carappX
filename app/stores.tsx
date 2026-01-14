@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Platform,
   Dimensions,
   RefreshControl,
@@ -15,19 +14,22 @@ import {
   Alert,
   Animated,
   Image,
-  Modal,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '../contexts/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import AddModal, { AddModalType } from '../components/ui/AddModal';
 import DetailModal, { DetailItem } from '../components/ui/DetailModal';
+import SpecialOfferModal, { SpecialOfferModalData } from '../components/ui/SpecialOfferModal';
 import { addItemApi } from '../services/addItemApi';
 import API_BASE_URL from '../config/api';
+import { engagementApi } from '../services/engagementApi';
+import { specialOffersApi, SpecialOffer } from '../services/specialOffersApi';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,19 +37,12 @@ export default function StoresScreen() {
   const router = useRouter();
   const { user } = useUser();
   const { success, error } = useToast();
-  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
+  const [vipStores, setVipStores] = useState<any[]>([]);
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
-  // Filter states
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [filterLocation, setFilterLocation] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterRating, setFilterRating] = useState('');
-  const [locations, setLocations] = useState<string[]>([]);
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -55,48 +50,92 @@ export default function StoresScreen() {
   // Detail modal state
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
+  
+  // Special offer modal state
+  const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState<SpecialOfferModalData | null>(null);
+
+  // Map Banner pulse animation
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.3,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [pulseAnim]);
 
   const loadStores = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage(null);
-      const filters: any = {};
-      if (filterLocation) filters.location = filterLocation;
-      if (filterType) filters.type = filterType;
-      if (filterRating) filters.rating = filterRating;
       
-      const response = await addItemApi.getStores(filters);
-      if (response.success && response.data) {
-        setStores(response.data);
+      // Load stores and special offers in parallel
+      const [storesResponse, offersResponse] = await Promise.all([
+        addItemApi.getStores({}),
+        specialOffersApi.getSpecialOffers(true),
+      ]);
+      
+      if (storesResponse.success && storesResponse.data) {
+        const allStores = storesResponse.data;
+        
+        // Separate VIP stores (you can add isVip field in backend)
+        const vip = allStores.filter((s: any) => s.isVip || s.featured);
+        const regular = allStores.filter((s: any) => !s.isVip && !s.featured);
+        
+        setVipStores(vip.length > 0 ? vip : allStores.slice(0, 3));
+        setStores(regular.length > 0 ? regular : allStores);
+        
+        // Load special offers and merge with store data
+        if (offersResponse && offersResponse.length > 0) {
+          const offersWithStores = offersResponse.map((offer: SpecialOffer) => {
+            const store = allStores.find(
+              (s: any) => (s.id || s._id) === offer.storeId,
+            );
+            if (store) {
+              return {
+                ...store,
+                ...offer,
+                // Use offer image if available, otherwise use store image
+                image: offer.image || store.photos?.[0] || store.images?.[0],
+              };
+            }
+            return null;
+          }).filter(Boolean);
+          
+          setSpecialOffers(offersWithStores);
+        } else {
+          // Fallback: no special offers
+          setSpecialOffers([]);
+        }
       } else {
         setErrorMessage('მაღაზიების ჩატვირთვა ვერ მოხერხდა');
+        setSpecialOffers([]);
       }
     } catch (err) {
       console.error('Error loading stores:', err);
       setErrorMessage('მაღაზიების ჩატვირთვა ვერ მოხერხდა');
+      setSpecialOffers([]);
     } finally {
       setLoading(false);
-    }
-  }, [filterLocation, filterType, filterRating]);
-
-  const loadLocations = useCallback(async () => {
-    try {
-      const response = await addItemApi.getStoreLocations();
-      if (response.success && response.data) {
-        setLocations(response.data);
-      }
-    } catch (err) {
-      console.error('Error loading locations:', err);
     }
   }, []);
 
   useEffect(() => {
     loadStores();
   }, [loadStores]);
-
-  useEffect(() => {
-    loadLocations();
-  }, [loadLocations]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -118,65 +157,179 @@ export default function StoresScreen() {
     
     return {
       id: store.id || store._id,
-      title: store.name,
+      title: store.title || store.name,
       name: store.name,
+      description: store.description || `${store.name} არის საქართველოში წამყვანი ავტონაწილების მაღაზია, რომელიც გთავაზობთ ხარისხიან პროდუქტებს და მომსახურებას. ჩვენ ვთავაზობთ ფართო ასორტიმენტს ავტომანქანების ნაწილებისა და აქსესუარების, პროფესიონალურ კონსულტაციას და სწრაფ მიწოდებას მთელი საქართველოს მასშტაბით.`,
       image: mainImage,
       type: 'store',
       location: store.location,
       phone: store.phone,
-      workingHours: '09:00 - 18:00',
-      address: store.location,
-      services: ['ნაწილების მიყიდვა', 'კონსულტაცია', 'მონტაჟი', 'გარანტია'],
-      features: ['გამოცდილი პერსონალი', 'ხარისხიანი სერვისი'],
+      alternativePhone: store.alternativePhone,
+      email: store.email,
+      website: store.website,
+      workingHours: store.workingHours || '09:00 - 18:00',
+      address: store.address || store.location,
+      services: store.services || ['ნაწილების მიყიდვა', 'კონსულტაცია', 'მონტაჟი', 'გარანტია', '24/7 მხარდაჭერა'],
+      features: store.features || ['გამოცდილი პერსონალი', 'ხარისხიანი სერვისი', 'ორიგინალური ნაწილები'],
+      specializations: store.specializations,
       gallery: gallery,
+      ownerName: store.ownerName,
+      managerName: store.managerName,
+      facebook: store.facebook,
+      instagram: store.instagram,
+      youtube: store.youtube,
+      yearEstablished: store.yearEstablished,
+      employeeCount: store.employeeCount,
+      license: store.license,
+      latitude: store.latitude,
+      longitude: store.longitude,
       specifications: {
+        'ძრავა': store.specifications?.engine || 'ყველა ტიპი',
+        'დრო': store.specifications?.deliveryTime || '24 საათი',
+        'ტრანსმისია': store.specifications?.transmission || 'ყველა ტიპი',
         'ტიპი': store.type || 'ავტომაღაზია',
-        'მდებარეობა': store.location,
+        'მდებარეობა': store.location || 'თბილისი',
         'ტელეფონი': store.phone || 'მიუთითებელი არ არის',
       }
     };
   };
 
-  const handleStorePress = (store: any) => {
+  const handleStorePress = async (store: any) => {
+    const storeId = store.id || store._id;
+    console.log('🏪 [STORES] Store pressed:', {
+      storeId: storeId,
+      storeName: store.name,
+      userId: user?.id,
+      rawStore: { id: store.id, _id: store._id },
+    });
+    
+    // თუ ეს შეთავაზებაა (აქვს discount ან storeId), გავხსნათ SpecialOfferModal
+    if (store.discount || store.storeId) {
+      setSelectedOffer(store);
+      setShowSpecialOfferModal(true);
+      return;
+    }
+    
+    // Track view
+    if (user?.id && storeId) {
+      console.log('👁️ [STORES] Tracking view for store:', storeId, 'user:', user.id);
+      engagementApi.trackStoreView(storeId, user.id).catch((err) => {
+        console.error('❌ [STORES] Error tracking store view:', err);
+      });
+    } else {
+      console.warn('⚠️ [STORES] Cannot track view - missing userId or storeId:', {
+        userId: user?.id,
+        storeId: storeId,
+      });
+    }
+    
     setSelectedDetailItem(convertStoreToDetailItem(store));
     setShowDetailModal(true);
   };
 
-  const filteredStores = useMemo(() => {
-    let list = stores;
+  const renderVIPStore = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={styles.vipCard}
+      onPress={() => handleStorePress(item)}
+      activeOpacity={0.7}
+    >
+      <ImageBackground
+        source={{ 
+          uri: item.photos?.[0] || item.images?.[0] || item.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop' 
+        }}
+        style={styles.vipCardImage}
+        imageStyle={styles.vipCardImageStyle}
+      >
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.vipCardGradient}
+        >
+          <View style={styles.vipBadge}>
+            <Ionicons name="star" size={12} color="#F59E0B" />
+            <Text style={styles.vipBadgeText}>VIP</Text>
+          </View>
+          <View style={styles.vipCardContent}>
+            <Text style={styles.vipCardTitle} numberOfLines={2}>{item.name}</Text>
+            <View style={styles.vipCardMeta}>
+              <Ionicons name="location" size={14} color="#FFFFFF" />
+              <Text style={styles.vipCardLocation}>{item.location}</Text>
+            </View>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    </TouchableOpacity>
+  );
+
+  const renderOfferCard = (offer: any, index: number) => {
+    // დავითვალოთ რამდენი შეთავაზებაა ამ მაღაზიაზე
+    const storeId = offer.storeId || offer.id || offer._id;
+    const offersCount = specialOffers.filter(
+      (o: any) => (o.storeId || o.id || o._id) === storeId
+    ).length;
     
-    // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(store => 
-        (store.name || '').toLowerCase().includes(q) || 
-        (store.location || '').toLowerCase().includes(q) ||
-        (store.description || '').toLowerCase().includes(q) ||
-        (store.type || '').toLowerCase().includes(q)
-      );
-    }
-    
-    return list;
-  }, [stores, searchQuery]);
+    return (
+    <TouchableOpacity
+      key={index}
+      style={styles.offerCard}
+      onPress={() => handleStorePress(offer)}
+      activeOpacity={0.7}
+    >
+      <ImageBackground
+        source={{ 
+          uri: offer.photos?.[0] || offer.images?.[0] || offer.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop' 
+        }}
+          style={styles.offerCardImage}
+          imageStyle={styles.offerCardImageStyle}
+      >
+        <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.offerCardGradient}
+          >
+            {/* Discount Badge - მარცხნივ */}
+            <View style={styles.offerDiscountBadge}>
+              <Text style={styles.offerDiscountBadgeText}>-{offer.discount}%</Text>
+            </View>
+            
+            {/* შეთავაზება Badge - მარჯვნივ */}
+            <View style={styles.offerLabelBadge}>
+              <Ionicons name="pricetag" size={14} color="#FFFFFF" />
+              <Text style={styles.offerLabelBadgeText}>შეთავაზება</Text>
+            </View>
+            
+            {/* რაოდენობის Badge - ყოველთვის ჩანს */}
+            <View style={styles.offerCountBadge}>
+              <Text style={styles.offerCountBadgeText}>+{offersCount > 1 ? offersCount - 1 : 1}</Text>
+            </View>
+            
+            <View style={styles.offerCardContent}>
+              <Text style={styles.offerCardTitle} numberOfLines={2}>{offer.name}</Text>
+              <View style={styles.offerCardMeta}>
+                <Ionicons name="location" size={14} color="#FFFFFF" />
+                <Text style={styles.offerCardLocation}>{offer.location || 'თბილისი'}</Text>
+              </View>
+        <View style={styles.offerPriceRow}>
+                {offer.oldPrice && (
+          <Text style={styles.offerOldPrice}>{offer.oldPrice}</Text>
+                )}
+                <Text style={styles.offerNewPrice}>{offer.newPrice || offer.price}</Text>
+        </View>
+      </View>
+          </LinearGradient>
+        </ImageBackground>
+    </TouchableOpacity>
+  );
+  };
 
   const handleAddItem = (type: AddModalType, data: any) => {
     console.log('Store successfully added:', { type, data });
     loadStores();
   };
 
-  const resetFilters = () => {
-    setFilterLocation('');
-    setFilterType('');
-    setFilterRating('');
-  };
-
-  const getCurrentFilters = () => {
-    return { location: filterLocation, type: filterType, rating: filterRating };
-  };
-
   return (
-    <View style={styles.innovativeContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.innovativeContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       
       {/* Innovative Header */}
       <LinearGradient
@@ -208,49 +361,29 @@ export default function StoresScreen() {
               <Text style={styles.addLabel}>მაღაზიის დამატება</Text>
             </View>
           </View>
-
-          {/* AI Search Section */}
-          <View style={styles.aiSearchSection}>
-            {/* Simple Filter Button */}
-            <TouchableOpacity 
-              style={styles.simpleFilterButton}
-              onPress={() => setShowFilterModal(true)}
-              activeOpacity={0.9}
-            >
-              <View style={styles.simpleFilterContent}>
-                <View style={styles.simpleFilterLeft}>
-                  <Ionicons name="options" size={20} color="#3B82F6" />
-                  <Text style={styles.simpleFilterText}>
-                    {Object.values(getCurrentFilters()).some(v => v) ? 'ფილტრები აქტიურია' : 'ფილტრაცია'}
-                  </Text>
-                </View>
-                <View style={styles.simpleFilterRight}>
-                  {Object.values(getCurrentFilters()).some(v => v) && (
-                    <View style={styles.simpleFilterBadge}>
-                      <Text style={styles.simpleFilterBadgeText}>
-                        {Object.values(getCurrentFilters()).filter(v => v).length}
-                      </Text>
-                    </View>
-                  )}
-                  <Ionicons name="chevron-forward" size={16} color="#6B7280" />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#3B82F6"
+            colors={['#3B82F6']}
+          />
+        }
+      >
         
         {/* Loading State */}
-        {loading && (
+        {loading ? (
           <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3B82F6" />
             <Text style={styles.loadingText}>იტვირთება...</Text>
           </View>
-        )}
-
-        {/* Error State */}
-        {errorMessage && (
+        ) : errorMessage ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{errorMessage}</Text>
             <TouchableOpacity 
@@ -260,264 +393,269 @@ export default function StoresScreen() {
               <Text style={styles.retryText}>თავიდან ცდა</Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* Content */}
-        {!loading && !errorMessage && (
+        ) : (
           <>
-            <View style={styles.modernSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.modernSectionTitle}>ყველა მაღაზია</Text>
-                
+            {/* VIP Section */}
+            {vipStores.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="star" size={20} color="#F59E0B" />
+                  <Text style={styles.sectionTitle}>VIP მაღაზიები</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  data={vipStores}
+                  renderItem={renderVIPStore}
+                  keyExtractor={(item, index) => item.id || item._id || index.toString()}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.vipList}
+                />
               </View>
-              {filteredStores.length > 0 ? (
-                <View style={styles.modernStoresContainer}>
-                  {filteredStores?.map((store, index) => (
-                    <View key={store.id || index} style={styles.modernStoreCard}>
-                      {/* Background Image */}
-                      <ImageBackground 
-                        source={{
-                          uri: store.photos && store.photos.length > 0 
-                            ? store.photos[0] 
-                            : store.images && store.images.length > 0 
-                              ? store.images[0]
-                              : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop'
-                        }}
-                        style={styles.modernStoreBackgroundImage}
-                        resizeMode="cover"
-                      >
-                        {/* Gradient Overlay */}
-                        <LinearGradient
-                          colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
-                          style={styles.modernStoreGradientOverlay}
+            )}
+
+            {/* Special Offers */}
+            {specialOffers.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="pricetag" size={20} color="#EF4444" />
+                  <Text style={styles.sectionTitle}>სპეციალური შეთავაზებები</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  data={specialOffers}
+                  renderItem={({ item, index }) => renderOfferCard(item, index)}
+                  keyExtractor={(item, index) => item.id || item._id || index.toString()}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.offersList}
+                />
+              </View>
+            )}
+
+            {/* Map Banner */}
+            <View style={styles.section}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => router.push('/map')}
+                style={styles.mapBannerContainer}
+              >
+                <LinearGradient
+                  colors={['#1F2937', '#111827']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.mapBanner}
+                >
+                  <View style={styles.mapBannerContent}>
+                    <View style={styles.mapBannerIconWrapper}>
+                      <View style={styles.mapBannerIconInner}>
+                        <Ionicons name="map" size={22} color="#111827" />
+                      </View>
+                      <Animated.View
+                        style={[
+                          styles.mapBannerPulse,
+                          {
+                            transform: [{ scale: pulseAnim }],
+                            opacity: pulseAnim.interpolate({
+                              inputRange: [1, 1.3],
+                              outputRange: [0.2, 0],
+                            }),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.mapBannerTextContainer}>
+                      <Text style={styles.mapBannerTitle}>მოძებნე მაღაზიები</Text>
+                      <Text style={styles.mapBannerSubtitle}>
+                        იპოვე შენთან ახლოს მყოფი მაღაზიები
+                      </Text>
+                    </View>
+                    <View style={styles.mapBannerArrow}>
+                      <Ionicons name="arrow-forward" size={18} color="#111827" />
+                    </View>
+                  </View>
+                  <View style={styles.mapBannerDecoration}>
+                    <View style={styles.mapBannerDot1} />
+                    <View style={styles.mapBannerDot2} />
+                    <View style={styles.mapBannerDot3} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* All Stores */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="storefront" size={20} color="#3B82F6" />
+                <Text style={styles.sectionTitle}>ყველა მაღაზია</Text>
+              </View>
+              
+              {stores.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconContainer}>
+                    <Ionicons name="storefront-outline" size={64} color="#3B82F6" />
+                  </View>
+                  <Text style={styles.emptyTitle}>მაღაზიები არ მოიძებნა</Text>
+                  <Text style={styles.emptySubtitle}>
+                    მაღაზიები ჯერ არ დაემატა
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={stores}
+                  numColumns={2}
+                  scrollEnabled={false}
+                  keyExtractor={(item, index) => item.id || item._id || index.toString()}
+                  contentContainerStyle={styles.grid}
+                  columnWrapperStyle={styles.gridRow}
+                  renderItem={({ item: store, index }) => (
+                    <TouchableOpacity
+                      key={store.id || store._id || index}
+                      style={styles.card}
+                      onPress={() => handleStorePress(store)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.cardHeader}>
+                        <ImageBackground
+                          source={{ 
+                            uri: store.photos?.[0] || store.images?.[0] || store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop' 
+                          }}
+                          style={styles.cardImage}
+                          imageStyle={styles.cardImageStyle}
                         >
-                          {/* Header */}
-                          <View style={styles.modernStoreHeader}>
-                            <View style={styles.modernStoreProfileSection}>
-                              <View style={styles.modernStoreAvatarPlaceholder}>
-                                <Image 
-                                  source={{
-                                    uri: store.photos && store.photos.length > 0 
-                                      ? store.photos[0] 
-                                      : store.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop'
-                                  }} 
-                                  style={styles.modernStoreAvatar} 
-                                />
+                          <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.7)']}
+                            style={styles.cardGradient}
+                          >
+                            <View style={styles.cardBadges}>
+                              <View style={styles.verifiedBadge}>
+                                <Ionicons name="checkmark-circle" size={12} color="#10B981" />
                               </View>
-                              <Text style={styles.modernStoreUsername}>{store.name}</Text>
                             </View>
+                          </LinearGradient>
+                        </ImageBackground>
+                      </View>
+                      
+                      <View style={styles.cardContent}>
+                        <Text style={styles.cardTitle} numberOfLines={2}>
+                          {store.name}
+                        </Text>
+                        
+                        <View style={styles.cardMeta}>
+                          <View style={styles.cardLocation}>
+                            <Ionicons name="location" size={12} color="#3B82F6" />
+                            <View style={styles.cardLocationTextContainer}>
+                              {store.location && (
+                                <Text style={styles.cardLocationText} numberOfLines={1}>
+                                  {store.location}
+                                </Text>
+                              )}
+                              {store.address && (
+                                <Text style={styles.cardAddressText} numberOfLines={1}>
+                                  {store.address}
+                                </Text>
+                              )}
+                              {!store.location && !store.address && (
+                                <Text style={styles.cardLocationText} numberOfLines={1}>
+                                  თბილისი
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.cardFooter}>
+                          <View style={styles.cardRating}>
+                            <Ionicons name="star" size={12} color="#F59E0B" />
+                            <Text style={styles.cardRatingText}>4.8</Text>
+                          </View>
+                          {store.phone && (
                             <TouchableOpacity 
-                              style={styles.modernStoreLikeButton}
-                              onPress={(e) => {
+                              style={styles.cardCallButton}
+                              onPress={async (e) => {
                                 e.stopPropagation();
+                                const storeId = store.id || store._id;
+                                
+                                
+                                try {
+                                  // Track call
+                                  if (user?.id && storeId) {
+                                    engagementApi.trackStoreCall(storeId, user.id).catch((err) => {
+                                      console.error('❌ [STORES] Error tracking store call:', err);
+                                    });
+                                  } else {
+                                    console.warn('⚠️ [STORES] Cannot track call - missing userId or storeId:', {
+                                      userId: user?.id,
+                                      storeId: storeId,
+                                    });
+                                  }
+                                  
+                                  // Clean phone number - remove spaces, dashes, and other characters
+                                  const cleanPhone = store.phone.replace(/[\s\-\(\)]/g, '');
+                                  // Add +995 if it doesn't start with it
+                                  const phoneNumber = cleanPhone.startsWith('+995') 
+                                    ? cleanPhone 
+                                    : cleanPhone.startsWith('995')
+                                    ? `+${cleanPhone}`
+                                    : `+995${cleanPhone}`;
+                                  
+                                  Linking.openURL(`tel:${phoneNumber}`).catch((err) => {
+                                    console.error('Error opening phone:', err);
+                                    error('ტელეფონის გახსნა ვერ მოხერხდა');
+                                  });
+                                } catch (err) {
+                                  console.error('Error processing phone:', err);
+                                  error('ტელეფონის ნომერი არასწორია');
+                                }
                               }}
                               activeOpacity={0.7}
                             >
-                              <Ionicons name="heart" size={16} color="#FFFFFF" />
-                              <Text style={styles.modernStoreActionText}>127</Text>
+                              <Ionicons name="call" size={12} color="#3B82F6" />
                             </TouchableOpacity>
-                          </View>
-                          
-                          {/* Main Card */}
-                          <TouchableOpacity 
-                            style={styles.modernStoreMainCard}
-                            onPress={() => handleStorePress(store)}
-                            activeOpacity={0.95}
-                          >
-                            {/* Store Info */}
-                            <View style={styles.modernStoreInfoSection}>
-                              {store.type && (
-                                <Text style={styles.modernStoreTypeText}>{store.type}</Text>
-                              )}
-                            </View>
-                            
-                            {/* Separator Line */}
-                            <View style={styles.modernStoreSeparator} />
-                            
-                            {/* Store Type Section */}
-                            <View style={styles.modernStoreTypeSection}>
-                              <View style={styles.modernStoreTypeLeft}>
-                                {/* Store type info */}
-                              </View>
-                              
-                              {/* Call Button */}
-                              <TouchableOpacity 
-                                style={styles.modernStoreCallButton}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  const phoneNumber = store.phone || '555-123-456';
-                                  Linking.openURL(`tel:${phoneNumber}`).catch(() => {});
-                                }}
-                                activeOpacity={0.7}
-                              >
-                                <Ionicons name="call-outline" size={14} color="#FFFFFF" />
-                              </TouchableOpacity>
-                            </View>
-                            
-                            {/* Actions Footer */}
-                            <View style={styles.modernStoreActionsFooter}>
-                              <View style={styles.modernStoreActionsLeft}>
-                                <TouchableOpacity 
-                                  style={styles.modernStoreActionButton}
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    console.log('Store comments:', store.name);
-                                  }}
-                                  activeOpacity={0.7}
-                                >
-                                  <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
-                                </TouchableOpacity>
-                                
-                                <View style={styles.modernStoreLocationButton}>
-                                  <Ionicons name="location-outline" size={16} color="#FFFFFF" />
-                                  <Text style={styles.modernStoreLocationButtonText}>
-                                    {store.location || 'მდებარეობა'}
-                                  </Text>
-                                </View>
-                              </View>
-                              
-                              <TouchableOpacity 
-                                style={styles.modernStoreContactButton}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  handleStorePress(store);
-                                }}
-                                activeOpacity={0.8}
-                              >
-                                <Ionicons name="information-outline" size={14} color="#FFFFFF" />
-                                <Text style={styles.modernStoreContactButtonText}>ინფო</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </TouchableOpacity>
-                        </LinearGradient>
-                      </ImageBackground>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>მაღაზიები არ მოიძებნა</Text>
-                </View>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
               )}
             </View>
+
+            <View style={{ height: 40 }} />
           </>
         )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Filter Modal */}
-      <Modal
-        visible={showFilterModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <SafeAreaView style={styles.modalContent}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                style={styles.modalCloseBtn}
-                onPress={() => setShowFilterModal(false)}
-              >
-                <Ionicons name="close" size={24} color="#111827" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>ფილტრები</Text>
-              <TouchableOpacity 
-                style={styles.modalResetBtn}
-                onPress={resetFilters}
-              >
-                <Text style={styles.modalResetText}>გასუფთავება</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>მდებარეობა</Text>
-                <TouchableOpacity
-                  style={styles.filterInput}
-                  onPress={() => setShowLocationDropdown(!showLocationDropdown)}
-                >
-                  <Text style={[styles.filterInputText, !filterLocation && styles.placeholderText]}>
-                    {filterLocation || 'აირჩიეთ ქალაქი'}
-                  </Text>
-                  <Ionicons 
-                    name={showLocationDropdown ? "chevron-up" : "chevron-down"} 
-                    size={20} 
-                    color="#6B7280" 
-                  />
-                </TouchableOpacity>
-                {showLocationDropdown && (
-                  <View style={styles.dropdownContainer}>
-                    <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-                      <TouchableOpacity
-                        style={styles.dropdownItem}
-                        onPress={() => {
-                          setFilterLocation('');
-                          setShowLocationDropdown(false);
-                        }}
-                      >
-                        <Text style={[styles.dropdownItemText, !filterLocation && styles.dropdownItemTextSelected]}>
-                          ყველა ქალაქი
-                        </Text>
-                      </TouchableOpacity>
-                      {locations.map((location, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setFilterLocation(location);
-                            setShowLocationDropdown(false);
-                          }}
-                        >
-                          <Text style={[styles.dropdownItemText, filterLocation === location && styles.dropdownItemTextSelected]}>
-                            {location}
-                          </Text>
-                          {filterLocation === location && (
-                            <Ionicons name="checkmark" size={20} color="#3B82F6" />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>ტიპი</Text>
-                <TextInput
-                  style={styles.filterInput}
-                  placeholder="მაღაზიის ტიპი"
-                  value={filterType}
-                  onChangeText={setFilterType}
-                />
-              </View>
-
-              
-
-              <View style={{ height: 100 }} />
-            </ScrollView>
-
-            {/* Apply Button */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={styles.applyFiltersBtn}
-                onPress={() => setShowFilterModal(false)}
-              >
-                <Text style={styles.applyFiltersBtnText}>
-                  {`მაღაზიების ნახვა (${filteredStores.length})`}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </View>
-      </Modal>
-
       {/* Detail Modal */}
       <DetailModal
         visible={showDetailModal}
         item={selectedDetailItem}
         onClose={() => setShowDetailModal(false)}
+      />
+
+      {/* Special Offer Modal */}
+      <SpecialOfferModal
+        visible={showSpecialOfferModal}
+        offer={selectedOffer}
+        onClose={() => {
+          setShowSpecialOfferModal(false);
+          setSelectedOffer(null);
+        }}
+        onContact={() => {
+          if (selectedOffer?.phone) {
+            const cleanPhone = selectedOffer.phone.replace(/[\s\-\(\)]/g, '');
+            const phoneNumber = cleanPhone.startsWith('+995') 
+              ? cleanPhone 
+              : cleanPhone.startsWith('995')
+              ? `+${cleanPhone}`
+              : `+995${cleanPhone}`;
+            
+            Linking.openURL(`tel:${phoneNumber}`).catch((err) => {
+              console.error('Error opening phone:', err);
+              error('ტელეფონის გახსნა ვერ მოხერხდა');
+            });
+          }
+        }}
       />
 
       {/* Add Modal */}
@@ -527,7 +665,8 @@ export default function StoresScreen() {
         onSave={handleAddItem}
         defaultType="store"
       />
-    </View>
+      </View>
+    </>
   );
 }
 
@@ -540,12 +679,12 @@ const styles = StyleSheet.create({
 
   // Innovative Header
   innovativeHeader: {
-    paddingBottom: 20,
+    paddingBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 12,
   },
   headerContent: {
     flexDirection: 'row',
@@ -553,36 +692,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 20,
-    marginBottom: 24,
+    marginBottom: 8,
   },
   backBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#111827',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   headerCenter: {
     alignItems: 'center',
   },
   innovativeTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#111827',
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
+    fontFamily: 'Inter',
   },
   titleUnderline: {
-    width: 40,
-    height: 3,
+    width: 50,
+    height: 4,
     backgroundColor: '#3B82F6',
     borderRadius: 2,
-    marginTop: 4,
+    marginTop: 6,
   },
   headerRightSection: {
     alignItems: 'center',
@@ -594,21 +736,20 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     letterSpacing: -0.1,
     textAlign: 'center',
+    fontFamily: 'Inter',
   },
   headerAddBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 10,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   addBtnContent: {
     alignItems: 'center',
@@ -625,62 +766,6 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
 
-  // AI Search Section
-  aiSearchSection: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    gap: 12,
-  },
-
-  // Simple Filter Button
-  simpleFilterButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  simpleFilterContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  simpleFilterLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  simpleFilterText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  simpleFilterRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  simpleFilterBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  simpleFilterBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
   content: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -689,33 +774,130 @@ const styles = StyleSheet.create({
   // Modern Section Styles
   modernSection: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 20,
   },
-  sectionHeader: {
+  
+  // Grid Container
+  gridContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 16,
+  },
+  
+  // Product Card (2 columns)
+  productCard: {
+    width: (width - 56) / 2, // 20px padding on each side + 16px gap
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  
+  // Image Container
+  imageContainer: {
+    width: '100%',
+    height: 220,
+    backgroundColor: '#F9FAFB',
+    position: 'relative',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  
+  productImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  
+  // Heart Button
+  heartButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  modernSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  
+  // Price Badge
+  priceBadge: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: '#000000',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  priceText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    fontFamily: 'Inter',
+  },
+  
+  // Card Content
+  cardContent: {
+    padding: 12,
+    paddingTop: 10,
+  },
+  
+  productTitle: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#111827',
-    letterSpacing: -0.2,
+    marginBottom: 4,
+    letterSpacing: -0.3,
+    lineHeight: 18,
+    fontFamily: 'Inter',
   },
-  seeAllBtn: {
+  
+  productCategory: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#6B7280',
+    marginBottom: 8,
+    letterSpacing: -0.1,
+    fontFamily: 'Inter',
+  },
+  
+  // Rating
+  ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    marginTop: 2,
   },
-  seeAllText: {
+  
+  ratingNumber: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#3B82F6',
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Inter',
   },
 
   // Loading & Error States
@@ -728,6 +910,7 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#6B7280',
+    fontFamily: 'Inter',
   },
   errorContainer: {
     flex: 1,
@@ -741,6 +924,7 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     marginBottom: 16,
+    fontFamily: 'Inter',
   },
   retryButton: {
     paddingHorizontal: 24,
@@ -751,349 +935,484 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#FFFFFF',
     fontWeight: '600',
+    fontFamily: 'Inter',
   },
   emptyState: {
-    paddingVertical: 60,
+    paddingVertical: 100,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 20,
+    textAlign: 'center',
+    fontFamily: 'Inter',
+  },
+  emptySubtext: {
+    fontSize: 15,
     color: '#9CA3AF',
-  },
-
-  // Modern Store Card Styles
-  modernStoresContainer: {
-    gap: 12,
-  },
-  
-  modernStoreCard: {
-    height: 220,
-    marginBottom: 10,
-    borderRadius: 10,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  
-  modernStoreBackgroundImage: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'space-between',
-    borderRadius: 10,
-  },
-  
-  modernStoreGradientOverlay: {
-    flex: 1,
-    justifyContent: 'space-between',
-    padding: 12,
-  },
-  
-  modernStoreHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  
-  modernStoreProfileSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  
-  modernStoreAvatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    overflow: 'hidden',
-  },
-  
-  modernStoreAvatar: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  
-  modernStoreUsername: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 22,
     fontFamily: 'Inter',
   },
-  
-  modernStoreLikeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    backdropFilter: 'blur(10px)',
+  // Section Styles
+  section: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    marginBottom: 8,
   },
-  
-  modernStoreActionText: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    fontFamily: 'Inter',
-    fontWeight: '500',
-  },
-  
-  modernStoreMainCard: {
-    borderRadius: 8,
-    padding: 8,
-  },
-  
-  modernStoreInfoSection: {
-    marginBottom: 12,
-  },
-  
-  modernStoreTypeText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
-    fontWeight: '500',
-  },
-  
-  modernStoreSeparator: {
-    height: 1,
-    marginVertical: 8,
-  },
-  
-  modernStoreTypeSection: {
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  
-  modernStoreTypeLeft: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 16,
   },
-  
-  modernStoreCallButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(17, 24, 39, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Inter',
+  },
+
+  // VIP Card Styles
+  vipCard: {
+    width: width * 0.75,
+    height: 200,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  
-  modernStoreActionsFooter: {
+  vipCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vipCardImageStyle: {
+    borderRadius: 20,
+  },
+  vipCardGradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  vipBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  
-  modernStoreActionsLeft: {
+  vipBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+    fontFamily: 'Inter',
+  },
+  vipCardContent: {
+    gap: 8,
+  },
+  vipCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  vipCardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  
-  modernStoreActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    backdropFilter: 'blur(10px)',
-  },
-  
-  modernStoreLocationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    backdropFilter: 'blur(10px)',
-  },
-  
-  modernStoreLocationButtonText: {
-    fontSize: 10,
+  vipCardLocation: {
+    fontSize: 13,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
     fontWeight: '500',
-    maxWidth: 80,
+    fontFamily: 'Inter',
+  },
+  vipList: {
+    paddingRight: 20,
   },
 
-  modernStoreContactButton: {
+  // Offer Card Styles (VIP-ის მსგავსი)
+  offerCard: {
+    width: width * 0.75,
+    height: 200,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  offerCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  offerCardImageStyle: {
+    borderRadius: 20,
+  },
+  offerCardGradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  offerLabelBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 15,
-    backgroundColor: 'rgba(17, 24, 39, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: 5,
+    backgroundColor: 'rgba(139, 92, 246, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    zIndex: 10,
   },
-
-  modernStoreContactButtonText: {
-    fontSize: 10,
+  offerLabelBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
     fontFamily: 'Inter',
-    fontWeight: '600',
+  },
+  offerCountBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(59, 130, 246, 0.95)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    zIndex: 11,
+    marginTop: 38, // შეთავაზება badge-ის ქვემოთ
+  },
+  offerCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerDiscountBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  offerDiscountBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCardContent: {
+    gap: 8,
+  },
+  offerCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  offerCardLocation: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    fontFamily: 'Inter',
+  },
+  offerPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  offerOldPrice: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    textDecorationLine: 'line-through',
+    fontFamily: 'Inter',
+  },
+  offerNewPrice: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offersList: {
+    paddingRight: 20,
   },
 
-  // Modal Styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  // Map Banner Styles
+  mapBannerContainer: {
+    marginHorizontal: 0,
   },
-  modalContent: {
-    flex: 1,
+  mapBanner: {
+    borderRadius: 20,
+    padding: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  modalHeader: {
+  mapBannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    zIndex: 2,
   },
-  modalCloseBtn: {
+  mapBannerIconWrapper: {
+    position: 'relative',
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapBannerIconInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    zIndex: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  mapBannerPulse: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    zIndex: 1,
+  },
+  mapBannerTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+    gap: 2,
+  },
+  mapBannerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+    letterSpacing: -0.3,
+  },
+  mapBannerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontFamily: 'Inter',
+    fontWeight: '400',
+    letterSpacing: 0.1,
+  },
+  mapBannerArrow: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  mapBannerDecoration: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
+  },
+  mapBannerDot1: {
+    position: 'absolute',
+    top: 16,
+    right: 80,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  mapBannerDot2: {
+    position: 'absolute',
+    top: 40,
+    right: 100,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  mapBannerDot3: {
+    position: 'absolute',
+    bottom: 20,
+    right: 60,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+
+  // Card Styles (for grid)
+  card: {
+    width: (width - 56) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  cardHeader: {
+    width: '100%',
+    height: 140,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardImageStyle: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  cardGradient: {
+    flex: 1,
+  },
+  cardBadges: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  verifiedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+    fontFamily: 'Inter',
+    lineHeight: 20,
+  },
+  cardMeta: {
+    marginBottom: 12,
+  },
+  cardLocation: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  cardLocationTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  cardLocationText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Inter',
+  },
+  cardAddressText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontFamily: 'Inter',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardRatingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'Inter',
+  },
+  cardCallButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalTitle: {
-    fontSize: 18,
+  grid: {
+    paddingBottom: 8,
+  },
+  gridRow: {
+    justifyContent: 'space-between',
+  },
+
+  // Empty State Styles
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
-  },
-  modalResetBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  modalResetText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-  modalScroll: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  filterSection: {
-    marginTop: 20,
-  },
-  filterSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
     color: '#111827',
     marginBottom: 8,
+    textAlign: 'center',
+    fontFamily: 'Inter',
   },
-  filterInput: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 14,
+  emptySubtitle: {
     fontSize: 15,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  filterInputText: {
-    fontSize: 15,
-    color: '#111827',
-    flex: 1,
-  },
-  placeholderText: {
-    color: '#9CA3AF',
-  },
-  dropdownContainer: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    maxHeight: 200,
-  },
-  dropdownScroll: {
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  dropdownItemText: {
-    fontSize: 15,
-    color: '#111827',
-    flex: 1,
-  },
-  dropdownItemTextSelected: {
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  modalFooter: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  applyFiltersBtn: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  applyFiltersBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: 'Inter',
   },
 });

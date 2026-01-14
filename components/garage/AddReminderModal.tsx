@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../../contexts/ToastContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import Toast from '../ui/Toast';
 
 const { width } = Dimensions.get('window');
 
@@ -34,12 +35,16 @@ interface AddReminderModalProps {
 }
 
 const REMINDER_TYPES = [
-  { id: 'service', name: 'სერვისი', icon: 'build-outline', accent: '#2563EB' },
-  { id: 'oil', name: 'ზეთი', icon: 'water-outline', accent: '#0EA5E9' },
-  { id: 'tires', name: 'ტირეები', icon: 'ellipse-outline', accent: '#8B5CF6' },
-  { id: 'battery', name: 'ბატარეა', icon: 'battery-half-outline', accent: '#F59E0B' },
-  { id: 'insurance', name: 'დაზღვევა', icon: 'shield-outline', accent: '#EF4444' },
+  { id: 'maintenance', name: 'მოვლა-პატრონობა', icon: 'build-outline', accent: '#2563EB' },
+  { id: 'service', name: 'სერვისი', icon: 'settings-outline', accent: '#3B82F6' },
+  { id: 'oil', name: 'ზეთის შეცვლა', icon: 'water-outline', accent: '#0EA5E9' },
+  { id: 'tires', name: 'ბორბლები', icon: 'ellipse-outline', accent: '#8B5CF6' },
+  { id: 'battery', name: 'აკუმულატორი', icon: 'battery-half-outline', accent: '#F59E0B' },
   { id: 'inspection', name: 'ტექდათვალიერება', icon: 'search-outline', accent: '#10B981' },
+  { id: 'carwash', name: 'სამრეცხაო', icon: 'water-outline', accent: '#22C55E' },
+  { id: 'insurance', name: 'დაზღვევა', icon: 'shield-outline', accent: '#EF4444' },
+  { id: 'fuel', name: 'საწვავი', icon: 'car-outline', accent: '#F97316' },
+  { id: 'parts', name: 'ნაწილები', icon: 'construct-outline', accent: '#EC4899' },
 ];
 
 const PRIORITY_LEVELS = [
@@ -50,12 +55,13 @@ const PRIORITY_LEVELS = [
 
 export default function AddReminderModal({ visible, onClose, onAddReminder, cars }: AddReminderModalProps) {
   const insets = useSafeAreaInsets();
-  const { error } = useToast();
+  const { error: globalError } = useToast();
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempDate, setTempDate] = useState(new Date());
   const [tempTime, setTempTime] = useState(new Date());
+  const [localToast, setLocalToast] = useState<{ id: string; title: string; message?: string } | null>(null);
 
   const formatDate = (d: Date) => {
     const year = d.getFullYear();
@@ -101,7 +107,7 @@ export default function AddReminderModal({ visible, onClose, onAddReminder, cars
     carId: '',
     reminderDate: formatDate(new Date()),
     reminderTime: formatTime(new Date()),
-    type: 'service',
+    type: 'maintenance',
     priority: 'medium',
   });
 
@@ -113,17 +119,26 @@ export default function AddReminderModal({ visible, onClose, onAddReminder, cars
         carId: '',
         reminderDate: formatDate(new Date()),
         reminderTime: formatTime(new Date()),
-        type: 'service',
+        type: 'maintenance',
         priority: 'medium',
       });
       setTempDate(new Date());
       setTempTime(new Date());
+      setLocalToast(null);
     }
   }, [visible]);
 
+  const showLocalError = useCallback((title: string, message?: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setLocalToast({ id, title, message });
+    setTimeout(() => {
+      setLocalToast(null);
+    }, 4000);
+  }, []);
+
   const handleSubmit = () => {
     if (!reminderData.carId || !reminderData.reminderDate || !reminderData.title) {
-      error('აუცილებელია მანქანა, თარიღი და სათაური');
+      showLocalError('აუცილებელია მანქანა, თარიღი და სათაური');
       return;
     }
     onAddReminder(reminderData);
@@ -343,6 +358,19 @@ export default function AddReminderModal({ visible, onClose, onAddReminder, cars
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      )}
+
+      {localToast && (
+        <View style={[styles.toastWrapper, { paddingTop: insets.top + 12 }]} pointerEvents="box-none">
+          <Toast
+            id={localToast.id}
+            type="error"
+            title={localToast.title}
+            message={localToast.message}
+            onDismiss={() => setLocalToast(null)}
+            position="top"
+          />
         </View>
       )}
     </Modal>
@@ -611,5 +639,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 8,
+  },
+  toastWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10000,
+    pointerEvents: 'box-none',
   },
 });

@@ -132,6 +132,13 @@ class AIApiService {
         location: string;
         address: string;
         images: string[];
+        createdAt?: string;
+        nextPaymentDate?: string;
+        lastPaymentDate?: string;
+        paymentStatus?: string;
+        paymentAmount?: number;
+        paymentPeriod?: string;
+        totalPaid?: number;
       }>;
       ownedParts: Array<{
         id: string;

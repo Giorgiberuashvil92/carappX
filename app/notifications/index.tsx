@@ -188,7 +188,7 @@ export default function NotificationsScreen() {
     const carwashId = d.carwashId as string | undefined;
     const chatId = d.chatId as string | undefined;
     if (screen === 'AIRecommendations' || screen === 'PartDetails') {
-      router.push('/offers');
+      router.push('/offers' as any);
     } else if (screen === 'RequestDetails' && requestId) {
       router.push(`/offers/${requestId}`);
     } else if (screen === 'OfferDetails' && (offerId || requestId)) {
@@ -198,8 +198,9 @@ export default function NotificationsScreen() {
     } else if (screen === 'Chat' && (chatId || offerId)) {
       router.push(`/chat/${chatId || offerId}`);
     } else {
-      // fallback details
-      router.push('/notifications');
+      // თუ სპეციფიკური route არ არის, უბრალოდ არაფერი არ ვაკეთებთ
+      // რათა არ მოხდეს უსასრულო მარყუჟი
+      return;
     }
   };
 
@@ -379,7 +380,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#F8FAFC',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   markAllButton: {
     paddingHorizontal: 12,
@@ -393,7 +394,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#F8FAFC',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   unreadBadge: {
     marginTop: 12,
@@ -409,7 +410,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   content: {
     flex: 1,
@@ -437,7 +438,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
   },
   sectionTitleText: {
     color: '#94A3B8',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
   },
   loadMoreText: {
     color: '#F8FAFC',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -521,7 +522,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     flex: 1,
   },
   unreadTitle: {
@@ -540,12 +541,12 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     lineHeight: 20,
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   timestamp: {
     fontSize: 12,
     color: '#A1A1AA',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   actionButton: {
     paddingHorizontal: 16,
@@ -559,7 +560,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptyState: {
     flex: 1,
@@ -573,13 +574,13 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginTop: 16,
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptySubtitle: {
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

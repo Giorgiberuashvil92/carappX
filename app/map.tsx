@@ -200,7 +200,7 @@ const PickerLocationInfo: React.FC<{ latitude: number; longitude: number; onConf
 
 export default function MapScreen() {
   const router = useRouter();
-  const navParams = useLocalSearchParams<{ lat?: string; lng?: string; storeName?: string; picker?: string; pin?: string }>();
+  const navParams = useLocalSearchParams<{ lat?: string; lng?: string; storeName?: string; picker?: string; pin?: string; type?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
@@ -216,6 +216,7 @@ export default function MapScreen() {
   });
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<Supercluster | null>(null);
+  const typeParamRef = useRef<string | undefined>(navParams.type);
   const [sortBy, setSortBy] = useState<'nearest' | 'topRated'>('nearest');
   const [radiusKm, setRadiusKm] = useState<number>(50); // დიდი რადიუსი რომ ყველა ჩანდეს
   
@@ -226,6 +227,13 @@ export default function MapScreen() {
   // Categories for filtering - extracted from locations
   const [availableCategories, setAvailableCategories] = useState<Array<{name: string; color: string; type?: string}>>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  
+  // Update ref when type changes
+  useEffect(() => {
+    if (navParams.type !== typeParamRef.current) {
+      typeParamRef.current = navParams.type;
+    }
+  }, [navParams.type]);
 
   const styles = StyleSheet.create({
     container: {
@@ -828,7 +836,12 @@ export default function MapScreen() {
     const loadLocations = async () => {
       try {
         setLoadingLocations(true);
-        console.log('🗺️ [MAP] Loading locations from API...');
+        const currentType = typeParamRef.current;
+
+        
+        // Always load all services to show all categories
+        // Filtering will be done via selectedCategories
+        let services: any[] = [];
         
         // Use new /services/map endpoint that returns all services with coordinates
         const response = await fetch(`${API_BASE_URL}/services/map`);
@@ -838,10 +851,36 @@ export default function MapScreen() {
         }
 
         const result = await response.json();
-        const services = result.success ? result.data : [];
+        services = result.success ? result.data : [];
+        
+        // Also load stores if type parameter exists (to ensure we have stores data)
+        if (currentType) {
+          try {
+            // Use specific endpoints for detailing and interior
+            let storesResponse;
+            if (currentType === 'დითეილინგი' || currentType === 'detailing') {
+              storesResponse = await addItemApi.getDetailingStores({ includeAll: true });
+            } else if (currentType === 'ავტომობილის ინტერიერი' || currentType === 'interior') {
+              storesResponse = await addItemApi.getInteriorStores({ includeAll: true });
+            } else {
+              storesResponse = await addItemApi.getStores({ type: currentType });
+            }
+            if (storesResponse.success && storesResponse.data) {
+              // Merge stores with services, avoiding duplicates
+              const storeIds = new Set(services.map((s: any) => s._id || s.id));
+              const newStores = storesResponse.data.filter((store: any) => 
+                !storeIds.has(store._id || store.id) && 
+                store.latitude && 
+                store.longitude
+              );
+              services = [...services, ...newStores];
+            }
+          } catch (err) {
+            console.warn('🗺️ [MAP] Could not load stores:', err);
+          }
+        }
 
-        console.log('🗺️ [MAP] Received services:', services.length);
-        console.log('🗺️ [MAP] Sample service:', services[0]);
+       
 
         const allLocationsData: any[] = services
           .filter((service: any) => {
@@ -881,8 +920,6 @@ export default function MapScreen() {
             };
           });
 
-        console.log('🗺️ [MAP] Processed locations with coordinates:', allLocationsData.length);
-        console.log('🗺️ [MAP] Sample location:', allLocationsData[0]);
         
         if (allLocationsData.length > 0) {
           setAllLocations(allLocationsData);
@@ -903,8 +940,28 @@ export default function MapScreen() {
           });
           
           const uniqueCategories = Array.from(categoryMap.values());
-          console.log('🗺️ [MAP] Extracted categories:', uniqueCategories.length);
           setAvailableCategories(uniqueCategories);
+          
+          // Auto-select category if type parameter is provided
+          const currentType = typeParamRef.current;
+          if (currentType && uniqueCategories.length > 0) {
+            // Try to find category by type first, then by name
+            const matchingCategory = uniqueCategories.find(
+              cat => cat.type === currentType || cat.name === currentType
+            );
+            if (matchingCategory) {
+              setSelectedCategories([matchingCategory.name]);
+            } else {
+              // If not found, try to find by checking if any location has this type
+              const hasType = allLocationsData.some(
+                loc => (loc.type === currentType || loc.category === currentType)
+              );
+              if (hasType) {
+                // Use the type parameter directly as category name
+                setSelectedCategories([currentType]);
+              }
+            }
+          }
         } else {
           console.warn('🗺️ [MAP] No locations with coordinates found, using fallback');
           setAllLocations(CAR_WASH_LOCATIONS);
@@ -920,9 +977,28 @@ export default function MapScreen() {
     };
 
     loadLocations();
-  }, []);
+  }, []); // Run only once on mount
 
-  // Initialize supercluster
+  // Update selected category when type parameter changes (without re-rendering map)
+  useEffect(() => {
+    if (navParams.type && availableCategories.length > 0) {
+      const matchingCategory = availableCategories.find(
+        cat => cat.type === navParams.type || cat.name === navParams.type
+      );
+      if (matchingCategory) {
+        setSelectedCategories([matchingCategory.name]);
+      } else {
+        // Check if any location has this type
+        const hasType = allLocations.some(
+          loc => (loc.type === navParams.type || loc.category === navParams.type)
+        );
+        if (hasType) {
+          setSelectedCategories([navParams.type]);
+        }
+      }
+    }
+  }, [navParams.type, availableCategories, allLocations]);
+
   useEffect(() => {
     const cluster = new Supercluster({
       radius: 60,
@@ -1004,7 +1080,6 @@ export default function MapScreen() {
         { duration: 800 }
       );
     } catch (error) {
-      console.log('Error animating to location:', error);
     }
   };
 

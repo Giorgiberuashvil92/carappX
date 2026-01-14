@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, View, Image, Text, TouchableWithoutFeedback, StyleSheet, Dimensions, Animated, PanResponder } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import API_BASE_URL from '../../config/api';
 import type { Story } from '../../types/story';
@@ -264,7 +265,7 @@ export default function StoryOverlay({ visible, stories, initialIndex, onClose, 
               <View style={styles.dragHandle}>
                 <View style={styles.dragBar} />
               </View>
-              <View style={styles.headerOverlay}>
+              <SafeAreaView style={styles.headerOverlay} edges={['top']}>
                 <View style={styles.headerBar}>
                   <View style={styles.headerLeft}>
                     <View style={styles.headerAvatar} />
@@ -277,7 +278,7 @@ export default function StoryOverlay({ visible, stories, initialIndex, onClose, 
                 <View style={styles.headerProgressTrack}>
                   <Animated.View style={[styles.headerProgressFill, { width: itemProgress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
                 </View>
-              </View>
+              </SafeAreaView>
 
               {/* media */}
               {!currentStory?.items || currentStory.items.length === 0 ? (
@@ -387,7 +388,7 @@ const styles = StyleSheet.create({
   dragHandle: { position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
   dragBar: { width: 46, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.35)' },
   headerBar: { marginTop: 22, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerOverlay: { position: 'absolute', top: 12, left: 0, right: 0, zIndex: 5 },
+  headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.25)' },
   headerTitle: { color: '#fff', fontWeight: '700' },

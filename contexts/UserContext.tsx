@@ -157,6 +157,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let unsubscribeOnMessage: (() => void) | undefined;
     let unsubscribeOnNotificationOpened: (() => void) | undefined;
+    const processedMessageIds = new Set<string>();
     const handleNavigateFromData = (data?: Record<string, any>) => {
       if (!data) return;
       // Prefer explicit screen param
@@ -213,6 +214,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setShouldOpenPremiumModal(true);
         return;
       }
+      if (type === 'garage_reminder' || screen === 'Garage') {
+        router.push('/(tabs)/garage');
+        return;
+      }
       router.push('/notifications');
     };
     (async () => {
@@ -240,6 +245,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // Foreground messages → show local notification via Notifee
         unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
           try {
+            // Deduplication: შევამოწმოთ messageId
+            const messageId = remoteMessage.messageId;
+            if (messageId && processedMessageIds.has(messageId)) {
+              console.log('🔔 [NOTIFICATIONS] Duplicate notification ignored:', messageId);
+              return;
+            }
+            
+            if (messageId) {
+              processedMessageIds.add(messageId);
+              // Cleanup old messageIds (keep last 100)
+              if (processedMessageIds.size > 100) {
+                const firstId = processedMessageIds.values().next().value;
+                if (firstId) {
+                  processedMessageIds.delete(firstId);
+                }
+              }
+            }
+            
             const title = remoteMessage.notification?.title || 'შეტყობინება';
             const body = remoteMessage.notification?.body || '';
             await notifee.displayNotification({
@@ -309,14 +332,49 @@ export function UserProvider({ children }: { children: ReactNode }) {
         phone: user.phone,
         role: user.role,
       });
-      registerDeviceToken(user.id);
-      // Track app open/login history (async, don't wait for it)
-      trackLoginHistory(user).catch((err) => {
-        console.error('Error tracking login history on app open:', err);
-      });
+      
+      // Check if user role is 'customer' - should logout
+      if (user.role === 'customer') {
+        console.warn('⚠️ [USERCONTEXT] User has customer role, logging out...');
+        logout();
+        return;
+      }
+      
+      // Verify user exists in backend
+      const verifyUser = async () => {
+        try {
+          const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-user/${user.id}`);
+          const verifyData = await verifyResponse.json();
+          
+          if (!verifyData.exists || !verifyData.valid) {
+            console.warn('⚠️ [USERCONTEXT] User not found in backend or invalid, logging out...');
+            console.warn('⚠️ [USERCONTEXT] Reason:', verifyData.reason || 'user_not_found');
+            await logout();
+            return;
+          }
+          
+          // User is valid, proceed with registration
+          registerDeviceToken(user.id);
+          // Track app open/login history (async, don't wait for it)
+          trackLoginHistory(user).catch((err) => {
+            console.error('Error tracking login history on app open:', err);
+          });
+        } catch (verifyError) {
+          console.error('❌ [USERCONTEXT] Error verifying user:', verifyError);
+          // If verification fails, still proceed but log warning
+          console.warn('⚠️ [USERCONTEXT] Could not verify user, but proceeding');
+          registerDeviceToken(user.id);
+          trackLoginHistory(user).catch((err) => {
+            console.error('Error tracking login history on app open:', err);
+          });
+        }
+      };
+      
+      verifyUser();
     } else {
       console.log('⚠️ [USERCONTEXT] useEffect triggered but user.id is missing');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const loadUserFromStorage = async () => {
@@ -333,7 +391,26 @@ export function UserProvider({ children }: { children: ReactNode }) {
         console.log('🔍 [USERCONTEXT] User role:', parsedUser.role);
         console.log('🔍 [USERCONTEXT] User ownedCarwashes:', parsedUser.ownedCarwashes);
         console.log('🔍 [USERCONTEXT] User ownedCarwashes length:', parsedUser.ownedCarwashes.length);
-        setUser(parsedUser);
+        try {
+          const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-user/${parsedUser.id}`);
+          const verifyData = await verifyResponse.json();
+          
+          if (!verifyData.exists || !verifyData.valid) {
+            console.warn('⚠️ [USERCONTEXT] User not found in backend or invalid role, logging out...');
+            console.warn('⚠️ [USERCONTEXT] Reason:', verifyData.reason || 'user_not_found');
+            await logout();
+            setUser(null);
+            return;
+          }
+          
+          // User is valid, set it
+          setUser(parsedUser);
+        } catch (verifyError) {
+          console.error('❌ [USERCONTEXT] Error verifying user:', verifyError);
+          // If verification fails, still set user but log warning
+          console.warn('⚠️ [USERCONTEXT] Could not verify user, but keeping logged in');
+          setUser(parsedUser);
+        }
       } else {
         // No user found, wait for login
         console.log('❌ [USERCONTEXT] No user found in storage, waiting for login...');
@@ -460,6 +537,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.removeItem('user_subscription');
       setUser(null);
       console.log('User logged out and storage cleared');
+      // Navigate to login page
+      router.replace('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }

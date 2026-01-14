@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     color: '#111827',
     letterSpacing: -0.5,
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     color: '#6B7280',
     lineHeight: 20,
   },

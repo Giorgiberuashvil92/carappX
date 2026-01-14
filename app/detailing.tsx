@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   ImageBackground,
   Linking,
   RefreshControl,
+  ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +24,9 @@ import { useUser } from '../contexts/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import { addItemApi } from '../services/addItemApi';
 import API_BASE_URL from '../config/api';
+import { specialOffersApi, SpecialOffer } from '../services/specialOffersApi';
+import SpecialOfferModal, { SpecialOfferModalData } from '../components/ui/SpecialOfferModal';
+import DetailModal, { DetailItem } from '../components/ui/DetailModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -50,11 +55,17 @@ export default function DetailingScreen() {
   const router = useRouter();
   const { user } = useUser();
   const [services, setServices] = useState<DetailingService[]>([]);
+  const [vipStores, setVipStores] = useState<any[]>([]);
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<'all' | 'open' | 'verified'>('all');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
+  const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState<SpecialOfferModalData | null>(null);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -81,24 +92,29 @@ export default function DetailingScreen() {
     try {
       setLoading(true);
       
-      // Load from stores API with type filter
-      const storesResponse = await addItemApi.getStores({ type: 'სხვა' });
-      
-      // Also try services API
-      const servicesResponse = await fetch(`${API_BASE_URL}/services/list`);
-      const servicesResult = await servicesResponse.json();
+      // Load stores and special offers in parallel
+      const [storesResponse, offersResponse] = await Promise.all([
+        addItemApi.getDetailingStores({ includeAll: true }),
+        specialOffersApi.getSpecialOffers(true),
+      ]);
       
       const allServices: DetailingService[] = [];
       
-      
       if (storesResponse.success && storesResponse.data) {
-        const stores = storesResponse.data
-          .filter((store: any) => store.type === 'სხვა')
-          .map((store: any) => ({
+        // All stores from detailing endpoint are already filtered
+        const detailingStores = storesResponse.data;
+        
+        // Separate VIP stores
+        const vip = detailingStores.filter((s: any) => s.isVip || s.featured);
+        const regular = detailingStores.filter((s: any) => !s.isVip && !s.featured);
+        
+        setVipStores(vip.length > 0 ? vip : detailingStores.slice(0, 3));
+        
+        const stores = detailingStores.map((store: any) => ({
           id: store.id || store._id,
           name: store.name || store.title,
           description: store.description || '',
-          category: store.type || 'სხვა',
+          category: store.type || 'დითეილინგი',
           location: store.location || '',
           address: store.address || store.location || '',
           phone: store.phone || '',
@@ -115,42 +131,55 @@ export default function DetailingScreen() {
           waitTime: undefined,
         }));
         allServices.push(...stores);
+        setServices(regular.length > 0 ? regular.map((s: any) => ({
+          id: s.id || s._id,
+          name: s.name || s.title,
+          description: s.description || '',
+          category: s.type || 'დითეილინგი',
+          location: s.location || '',
+          address: s.address || s.location || '',
+          phone: s.phone || '',
+          price: undefined,
+          rating: 4.5,
+          reviews: 0,
+          images: s.images || s.photos || [],
+          avatar: s.avatar,
+          isOpen: true,
+          verified: false,
+          services: s.services || [],
+          features: s.features,
+          workingHours: s.workingHours,
+          waitTime: undefined,
+        })) : allServices);
+        
+        // Load special offers and merge with store data (only for detailing stores)
+        if (offersResponse && offersResponse.length > 0) {
+          const offersWithStores = offersResponse
+            .map((offer: SpecialOffer) => {
+              const store = detailingStores.find(
+                (s: any) => (s.id || s._id) === offer.storeId,
+              );
+              if (store) {
+                return {
+                  ...store,
+                  ...offer,
+                  // Use offer image if available, otherwise use store image
+                  image: offer.image || store.photos?.[0] || store.images?.[0],
+                };
       }
-      
-      if (servicesResult.success && servicesResult.data) {
-        const services = servicesResult.data
-          .filter((s: any) => 
-            s.type === 'other' ||
-            s.type === 'სხვა' ||
-            s.category?.toLowerCase() === 'სხვა' ||
-            s.category?.toLowerCase().includes('სხვა')
-          )
-          .map((service: any) => ({
-            id: service.id || service._id,
-            name: service.name || service.title,
-            description: service.description || '',
-            category: service.category || 'სხვა',
-            location: service.location || '',
-            address: service.address || service.location || '',
-            phone: service.phone || '',
-            price: service.price,
-            rating: service.rating || 4.5,
-            reviews: service.reviews || 0,
-            images: service.images || [],
-            avatar: service.avatar,
-            isOpen: service.isOpen !== undefined ? service.isOpen : true,
-            verified: service.verified || service.status === 'verified',
-            services: service.services || [],
-            features: service.features,
-            workingHours: service.workingHours,
-            waitTime: service.waitTime,
-          }));
-        allServices.push(...services);
+              return null;
+            })
+            .filter(Boolean);
+          
+          setSpecialOffers(offersWithStores);
+        } else {
+          // Fallback: no special offers
+          setSpecialOffers([]);
+        }
       }
-      
-      setServices(allServices);
     } catch (error) {
       console.error('Error loading detailing services:', error);
+      setSpecialOffers([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -194,22 +223,58 @@ export default function DetailingScreen() {
     return filtered;
   }, [services, searchQuery, activeFilter]);
 
+  const convertStoreToDetailItem = (store: any): DetailItem => {
+    const mainImage = store.images?.[0] || store.image || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=800&auto=format&fit=crop';
+    const gallery = store.images || [mainImage];
+    
+    return {
+      id: store.id || store._id,
+      title: store.name,
+      name: store.name,
+      description: store.description || `${store.name} - ხარისხიანი დითეილინგ სერვისები`,
+      image: mainImage,
+      gallery: gallery,
+      type: 'store' as const,
+      phone: store.phone,
+      address: store.address || store.location,
+      location: store.location,
+      workingHours: store.workingHours,
+      services: store.services || [],
+      latitude: store.latitude,
+      longitude: store.longitude,
+    };
+  };
+
+  const handleStorePress = (store: any) => {
+    // თუ ეს შეთავაზებაა (აქვს discount ან storeId), გავხსნათ SpecialOfferModal
+    if (store.discount || store.storeId) {
+      const offerData: SpecialOfferModalData = {
+        id: store.id || store._id,
+        name: store.name,
+        title: store.title || store.name,
+        description: store.description,
+        location: store.location || store.address,
+        phone: store.phone,
+        discount: store.discount,
+        oldPrice: store.oldPrice,
+        newPrice: store.newPrice,
+        image: store.image || store.images?.[0] || store.photos?.[0],
+        address: store.address || store.location,
+      };
+      setSelectedOffer(offerData);
+      setShowSpecialOfferModal(true);
+    } else {
+      // ჩვეულებრივი მაღაზია - DetailModal
+      const detailItem = convertStoreToDetailItem(store);
+      setSelectedDetailItem(detailItem);
+      setShowDetailModal(true);
+    }
+  };
+
   const handleServicePress = (service: DetailingService) => {
-    router.push({
-      pathname: '/details',
-      params: {
-        id: service.id,
-        type: 'service',
-        title: service.name,
-        description: service.description,
-        image: service.images?.[0] || '',
-        rating: service.rating?.toFixed(1) || '4.5',
-        address: service.address || service.location || '',
-        phone: service.phone || '',
-        price: service.price ? (typeof service.price === 'string' ? service.price : `${service.price}₾`) : '',
-        category: service.category || 'დითეილინგი',
-      }
-    });
+    const detailItem = convertStoreToDetailItem(service);
+    setSelectedDetailItem(detailItem);
+    setShowDetailModal(true);
   };
 
   return (
@@ -278,11 +343,126 @@ export default function DetailingScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
         }
       >
-        {loading && services.length === 0 ? (
+        {loading && services.length === 0 && vipStores.length === 0 && specialOffers.length === 0 ? (
           <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6366F1" />
             <Text style={styles.loadingText}>იტვირთება...</Text>
           </View>
-        ) : filteredServices.length > 0 ? (
+        ) : (
+          <>
+            {/* VIP Section */}
+            {vipStores.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="star" size={20} color="#F59E0B" />
+                  <Text style={styles.sectionTitle}>VIP მაღაზიები</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  data={vipStores}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.vipCard}
+                      onPress={() => handleStorePress(item)}
+                      activeOpacity={0.7}
+                    >
+                      <ImageBackground
+                        source={{ uri: item.images?.[0] || item.image || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=800&auto=format&fit=crop' }}
+                        style={styles.vipCardImage}
+                        imageStyle={styles.vipCardImageStyle}
+                      >
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.8)']}
+                          style={styles.vipCardGradient}
+                        >
+                          <View style={styles.vipBadge}>
+                            <Ionicons name="star" size={12} color="#F59E0B" />
+                            <Text style={styles.vipBadgeText}>VIP</Text>
+                          </View>
+                          <View style={styles.vipCardContent}>
+                            <Text style={styles.vipCardTitle} numberOfLines={2}>{item.name}</Text>
+                            <View style={styles.vipCardMeta}>
+                              <Ionicons name="location" size={14} color="#FFFFFF" />
+                              <Text style={styles.vipCardLocation}>{item.location}</Text>
+                            </View>
+                          </View>
+                        </LinearGradient>
+                      </ImageBackground>
+                    </TouchableOpacity>
+                  )}
+                  keyExtractor={(item, index) => item.id || item._id || index.toString()}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.vipList}
+                />
+              </View>
+            )}
+
+            {/* Special Offers */}
+            {specialOffers.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="pricetag" size={20} color="#EF4444" />
+                  <Text style={styles.sectionTitle}>სპეციალური შეთავაზებები</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.offersList}
+                >
+                  {specialOffers.map((offer, index) => {
+                    const storeId = offer.storeId || offer.id || offer._id;
+                    const offersCount = specialOffers.filter(
+                      (o: any) => (o.storeId || o.id || o._id) === storeId
+                    ).length;
+                    
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.offerCard}
+                        onPress={() => handleStorePress(offer)}
+                        activeOpacity={0.7}
+                      >
+                        <ImageBackground
+                          source={{ 
+                            uri: offer.photos?.[0] || offer.images?.[0] || offer.image || 'https://images.unsplash.com/photo-1517672651691-24622a91b550?q=80&w=800&auto=format&fit=crop' 
+                          }}
+                          style={styles.offerCardImage}
+                          imageStyle={styles.offerCardImageStyle}
+                        >
+                          <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.8)']}
+                            style={styles.offerCardGradient}
+                          >
+                            <View style={styles.offerDiscountBadge}>
+                              <Text style={styles.offerDiscountBadgeText}>-{offer.discount}%</Text>
+                            </View>
+                            <View style={styles.offerLabelBadge}>
+                              <Ionicons name="pricetag" size={14} color="#FFFFFF" />
+                              <Text style={styles.offerLabelBadgeText}>შეთავაზება</Text>
+                            </View>
+                            {offersCount > 1 && (
+                              <View style={styles.offerCountBadge}>
+                                <Text style={styles.offerCountBadgeText}>+{offersCount - 1}</Text>
+                              </View>
+                            )}
+                            <View style={styles.offerCardContent}>
+                              <Text style={styles.offerCardTitle} numberOfLines={2}>{offer.name}</Text>
+                              <View style={styles.offerCardPriceRow}>
+                                <Text style={styles.offerCardOldPrice}>{offer.oldPrice}</Text>
+                                <Text style={styles.offerCardNewPrice}>{offer.newPrice}</Text>
+                              </View>
+                            </View>
+                          </LinearGradient>
+                        </ImageBackground>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* All Services */}
+            {filteredServices.length > 0 && (
           <View style={styles.modernSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.modernSectionTitle}>დითეილინგ სერვისები</Text>
@@ -418,16 +598,28 @@ export default function DetailingScreen() {
               ))}
             </View>
           </View>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="sparkles-outline" size={64} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>სერვისები არ მოიძებნა</Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery ? 'სცადეთ სხვა ძიების ტერმინი' : 'დითეილინგ სერვისები ჯერ არ არის დამატებული'}
-            </Text>
-          </View>
+            )}
+          </>
         )}
       </ScrollView>
+
+      {/* Detail Modal */}
+      <DetailModal
+        visible={showDetailModal}
+        item={selectedDetailItem}
+        onClose={() => setShowDetailModal(false)}
+        onContact={() => {}}
+      />
+
+      {/* Special Offer Modal */}
+      <SpecialOfferModal
+        visible={showSpecialOfferModal}
+        offer={selectedOffer}
+        onClose={() => {
+          setShowSpecialOfferModal(false);
+          setSelectedOffer(null);
+        }}
+      />
     </View>
   );
 }
@@ -543,17 +735,207 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  section: {
+    marginTop: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Outfit',
+  },
+  
+  // VIP Stores
+  vipList: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  vipCard: {
+    width: width * 0.75,
+    height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  vipCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vipCardImageStyle: {
+    borderRadius: 20,
+  },
+  vipCardGradient: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  vipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(245, 158, 11, 0.95)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  vipBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'Outfit',
+    letterSpacing: 0.5,
+  },
+  vipCardContent: {
+    gap: 10,
+  },
+  vipCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Outfit',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  vipCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vipCardLocation: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Outfit',
+  },
+  
+  // Special Offers
+  offersList: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  offerCard: {
+    width: width * 0.75,
+    height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  offerCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  offerCardImageStyle: {
+    borderRadius: 20,
+  },
+  offerCardGradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  offerDiscountBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  offerDiscountBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerLabelBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(139, 92, 246, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  offerLabelBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCountBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(59, 130, 246, 0.95)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    zIndex: 11,
+    marginTop: 38,
+  },
+  offerCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCardContent: {
+    gap: 8,
+  },
+  offerCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
+  offerCardPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offerCardOldPrice: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    textDecorationLine: 'line-through',
+    fontFamily: 'Inter',
+  },
+  offerCardNewPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Inter',
+  },
 
   // Modern Section Styles
   modernSection: {
     paddingHorizontal: 20,
     paddingTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
   },
   modernSectionTitle: {
     fontSize: 16,
@@ -624,7 +1006,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   modernStoreLikeButton: {
@@ -643,7 +1025,7 @@ const styles = StyleSheet.create({
   modernStoreActionText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   
@@ -659,7 +1041,7 @@ const styles = StyleSheet.create({
   modernStoreTypeText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   
@@ -739,7 +1121,7 @@ const styles = StyleSheet.create({
   modernStoreLocationButtonText: {
     fontSize: 10,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     maxWidth: 80,
   },
@@ -759,7 +1141,7 @@ const styles = StyleSheet.create({
   modernStoreContactButtonText: {
     fontSize: 11,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   loadingContainer: {

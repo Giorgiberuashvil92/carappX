@@ -77,7 +77,7 @@ export interface ApiResponse<T> {
 class AddItemApiService {
   private async makeRequest<T>(
     endpoint: string,
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
     data?: any,
     userId?: string
   ): Promise<ApiResponse<T>> {
@@ -203,8 +203,60 @@ class AddItemApiService {
     return this.makeRequest(endpoint, 'GET');
   }
 
+  async getDetailingStores(filters?: {
+    ownerId?: string;
+    location?: string;
+    includeAll?: boolean;
+  }): Promise<ApiResponse<any[]>> {
+    const queryParams = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    
+    const endpoint = `/detailing${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.makeRequest(endpoint, 'GET');
+  }
+
+  async getInteriorStores(filters?: {
+    ownerId?: string;
+    location?: string;
+    includeAll?: boolean;
+  }): Promise<ApiResponse<any[]>> {
+    const queryParams = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    
+    const endpoint = `/interior${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.makeRequest(endpoint, 'GET');
+  }
+
+  async getInteriorLocations(): Promise<ApiResponse<string[]>> {
+    return this.makeRequest('/interior/locations', 'GET');
+  }
+
   async getStoreLocations(): Promise<ApiResponse<string[]>> {
     return this.makeRequest('/stores/locations', 'GET');
+  }
+
+  async getDetailingLocations(): Promise<ApiResponse<string[]>> {
+    return this.makeRequest('/detailing/locations', 'GET');
+  }
+
+  async getStoreById(storeId: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/stores/${storeId}`, 'GET');
+  }
+
+  async updateStore(storeId: string, data: Partial<StoreData>): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/stores/${storeId}`, 'PATCH', data);
   }
 
   async getPartsLocations(): Promise<ApiResponse<string[]>> {

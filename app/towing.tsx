@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   titleUnderline: {
     width: 40,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   chipsContainer: {
     paddingHorizontal: 20,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
   },
   chipTextActive: {
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   openBadge: {
     backgroundColor: '#10B981',
@@ -522,13 +522,13 @@ const styles = StyleSheet.create({
   openBadgeText: {
     fontSize: 11,
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   serviceDescription: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 12,
     lineHeight: 20,
   },
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   serviceFooter: {
     flexDirection: 'row',
@@ -563,18 +563,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   reviewsText: {
     fontSize: 14,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   priceText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#EF4444',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   callButton: {
     flexDirection: 'row',
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   loadingContainer: {
     flex: 1,
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   emptyContainer: {
     flex: 1,
@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 16,
   },
 });

@@ -39,6 +39,22 @@ const MAIN_CATEGORIES = [
     route: '/stores',
   },
   {
+    id: 'oils',
+    title: 'ზეთები',
+    subtitle: 'ძრავის ზეთები და საპოხი მასალები',
+    icon: 'water-outline',
+    color: '#0EA5E9',
+    route: '/oils',
+  },
+  {
+    id: 'services',
+    title: 'ავტოსერვისები',
+    subtitle: 'სერვისები და მოვლა',
+    icon: 'settings-outline',
+    color: '#F59E0B',
+    route: '/services',
+  },
+  {
     id: 'mechanics',
     title: 'ხელოსნები',
     subtitle: 'მექანიკოსები და სპეციალისტები',
@@ -46,6 +62,24 @@ const MAIN_CATEGORIES = [
     color: '#10B981',
     route: '/mechanics',
   },
+  {
+    id: 'accessories',
+    title: 'აქსესუარები',
+    subtitle: 'ავტომობილის აქსესუარები და დამატებები',
+    icon: 'grid-outline',
+    color: '#F97316',
+    route: '/accessories',
+  },
+  
+  {
+    id: 'interior',
+    title: 'ავტომობილის ინტერიერი',
+    subtitle: 'სალონის აქსესუარები და დეკორაცია',
+    icon: 'car-sport-outline',
+    color: '#A855F7',
+    route: '/interior',
+  },
+  
   {
     id: 'detailing',
     title: 'დითეილინგი',
@@ -62,14 +96,7 @@ const MAIN_CATEGORIES = [
     color: '#EF4444',
     route: '/towing',
   },
-  {
-    id: 'services',
-    title: 'ავტოსერვისები',
-    subtitle: 'სერვისები და მოვლა',
-    icon: 'settings-outline',
-    color: '#F59E0B',
-    route: '/services',
-  },
+  
 ];
 
 const FeaturedSkeleton = () => {
@@ -205,13 +232,13 @@ export default function MarketplaceScreen() {
         activeOpacity={0.7}
       >
         <View style={[styles.categoryIconContainer, { backgroundColor: `${category.color}15` }]}>
-          <Ionicons name={category.icon as any} size={24} color={category.color} />
+          <Ionicons name={category.icon as any} size={20} color={category.color} />
         </View>
         <View style={styles.categoryContent}>
           <Text style={styles.categoryTitle}>{category.title}</Text>
           <Text style={styles.categorySubtitle}>{category.subtitle}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
       </TouchableOpacity>
     );
   };
@@ -456,25 +483,25 @@ const styles = StyleSheet.create({
 
   // Categories Section
   categoriesSection: {
-    paddingTop: 24,
+    paddingTop: 20,
     paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 16,
+    marginBottom: 14,
     letterSpacing: -0.5,
   },
   categoriesList: {
-    gap: 12,
+    gap: 10,
   },
   categoryCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -484,27 +511,27 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   categoryIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   categoryContent: {
     flex: 1,
   },
   categoryTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.3,
   },
   categorySubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
-    lineHeight: 18,
+    lineHeight: 16,
   },
 
   // Featured Section

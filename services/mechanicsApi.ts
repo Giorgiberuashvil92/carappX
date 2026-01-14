@@ -14,6 +14,10 @@ export interface MechanicDTO {
   isAvailable?: boolean;
   services?: string[];
   description?: string;
+  phone?: string;
+  address?: string;
+  projects?: Array<{ image?: string; title?: string }>;
+  reviewList?: Array<{ user?: string; rating?: number; comment?: string; date?: string }>;
 }
 
 class MechanicsApiService {

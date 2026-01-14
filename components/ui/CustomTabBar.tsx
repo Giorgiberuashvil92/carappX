@@ -170,7 +170,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                     if (hasDismantlers) {
                       router.push('/dismantler-dashboard' as any);
                     } else {
-                      router.push('/partner-dashboard?partnerType=store' as any);
+                      router.push('/partner-dashboard-store' as any);
                     }
                   }}
                 >
@@ -225,7 +225,7 @@ function createStyles(theme: typeof Colors.light) {
     side: { flexDirection: 'row', gap: 24, alignItems: 'center' },
     fabHole: { width: 64 },
     tabItem: { alignItems: 'center', justifyContent: 'center' },
-    tabText: { fontFamily: 'Inter', fontSize: 11, marginTop: 4 },
+    tabText: { fontFamily: 'Outfit', fontSize: 11, marginTop: 4 },
     fab: {
       position: 'absolute',
       bottom: 24,

@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   closeButton: {
     padding: 8,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: 0.3,
   },
   filterTabTextActive: {
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   errorState: {
     flex: 1,
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#EF4444',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Empty State
@@ -383,13 +383,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 14,
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Offers List
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   providerInfo: {
     flex: 1,
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 4,
   },
   ratingSection: {
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   verifiedBadge: {
     flexDirection: 'row',
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: '#10B981',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   priceSection: {
     alignItems: 'flex-end',
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#F59E0B',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Meta Section
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   visitButton: {
     backgroundColor: 'rgba(75, 85, 99, 0.6)',
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Footer
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

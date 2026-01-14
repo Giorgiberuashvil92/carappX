@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marte",
     "slug": "marte",
-    "version": "1.0.10",
+    "version": "1.0.12",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "carappx",
@@ -50,7 +50,11 @@
           }
         ],
         "FacebookAppID": "752572961109699",
-        "FacebookDisplayName": "Marte"
+        "FacebookDisplayName": "Marte",
+        "LSApplicationQueriesSchemes": [
+          "tel",
+          "telprompt"
+        ]
       }
     },
     "android": {

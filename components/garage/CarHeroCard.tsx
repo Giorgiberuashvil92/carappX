@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   plate: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 16,
     color: '#111827',
     letterSpacing: 1.2,
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: 6,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     fontSize: 14,
     color: '#111827',
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   metaText: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '500',
     fontSize: 12,
     color: '#111827',

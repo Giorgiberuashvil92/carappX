@@ -476,14 +476,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   headerRight: {
@@ -533,7 +533,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: -0.5,
   },
   heroSubtitle: {
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
     marginBottom: 16,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   heroDescription: {
     fontSize: 14,
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   heroFeatures: {
     flexDirection: 'row',
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Tabs
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   tabContentContainer: {
     paddingHorizontal: 20,
@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 20,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Services Section
@@ -674,14 +674,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantDescription: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.9)',
     lineHeight: 16,
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantFeatures: {
     marginBottom: 12,
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 2,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantMeta: {
     flexDirection: 'row',
@@ -701,12 +701,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   assistantTime: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Orders Stats
@@ -728,12 +728,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   statLabel: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textAlign: 'center',
   },
 
@@ -770,13 +770,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   levelDescription: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   levelMeta: {
     flexDirection: 'row',
@@ -787,12 +787,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   levelTime: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Problem Categories
@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 8,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   problemList: {
     gap: 4,
@@ -831,7 +831,7 @@ const styles = StyleSheet.create({
   problemItem: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 
   // Action Section
@@ -859,7 +859,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   secondaryButton: {
     borderRadius: 16,
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#6366F1',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Retry Button
@@ -899,6 +899,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#6366F1',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });

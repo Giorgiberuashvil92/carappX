@@ -617,13 +617,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: 0.3,
   },
   sectionSubtitle: {
     fontSize: 12,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginTop: 2,
   },
   urgentBadge: {
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#EF4444',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   
   // Filter Tabs - Carwash style
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   filterTabTextActive: {
     color: '#FFFFFF',
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   filterTabBadgeTextActive: {
     color: '#FFFFFF',
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
   },
   ratingPillText: { 
     color: '#111827', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 12,
     fontWeight: '600'
   },
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
   },
   timePillText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 13,
     fontWeight: '700',
     textShadowColor: 'rgba(0,0,0,0.3)',
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   bottomArea: {
     position: 'absolute',
@@ -780,7 +780,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 10,
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   },
   metaText: { 
     color: '#FFFFFF', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 12,
     fontWeight: '500'
   },
@@ -852,7 +852,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -872,7 +872,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   // New vertical list styles
   verticalScroll: {
@@ -955,7 +955,7 @@ const styles = StyleSheet.create({
   featureTopPillText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   featureOffersBtn: {
     flexDirection: 'row',
@@ -972,7 +972,7 @@ const styles = StyleSheet.create({
   featureOffersText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '600',
   },
   featureOffersBadge: {
@@ -991,7 +991,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   lightStreakA: {
     position: 'absolute',
@@ -1024,7 +1024,7 @@ const styles = StyleSheet.create({
   },
   featureLocation: {
     color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     marginBottom: 12,
   },
@@ -1038,13 +1038,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '800',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   featureBigTime: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   featureUserRow: {
     flexDirection: 'row',
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   featurePrimaryBtn: {
     marginTop: 8,
@@ -1100,7 +1100,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   pastItem: {
     backgroundColor: '#FFFFFF',
@@ -1132,12 +1132,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   pastSubtitle: {
     fontSize: 11,
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   pastPricePill: {
     minWidth: 54,
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
   },
   pastPriceText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '800',
     fontSize: 11,
   },
@@ -1164,7 +1164,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
@@ -1183,7 +1183,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#6B7280',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   cardContainer: {
     flexDirection: 'row',
@@ -1243,7 +1243,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   categoryPillGlass: {
     flexDirection: 'row',
@@ -1258,7 +1258,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textTransform: 'uppercase',
   },
   timePillGlass: {
@@ -1274,7 +1274,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   ghostBtn: {
     width: 36,
@@ -1314,7 +1314,7 @@ const styles = StyleSheet.create({
   },
   metaTextOnDark: {
     color: 'rgba(255,255,255,0.9)',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1366,7 +1366,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   primaryIconBtn: {
     width: 36,
@@ -1406,7 +1406,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   cardMetaRow: {
     flexDirection: 'row',
@@ -1426,7 +1426,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     textTransform: 'uppercase',
   },
   timePillLight: {
@@ -1442,7 +1442,7 @@ const styles = StyleSheet.create({
   timePillLightText: {
     fontSize: 11,
     fontWeight: '700',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   secondaryBtn: {
     flexDirection: 'row',
@@ -1460,7 +1460,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#111827',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   badgeSmall: {
     position: 'absolute',
@@ -1478,7 +1478,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   cardFooterRow: {
     marginTop: 8,
@@ -1499,7 +1499,7 @@ const styles = StyleSheet.create({
   },
   metaTextDark: {
     color: '#374151',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -1513,7 +1513,7 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1560,7 +1560,7 @@ const styles = StyleSheet.create({
   },
   categoryChipText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1573,7 +1573,7 @@ const styles = StyleSheet.create({
   },
   garageTitle: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 18,
     fontWeight: '800',
     textShadowColor: 'rgba(0,0,0,0.3)',
@@ -1582,7 +1582,7 @@ const styles = StyleSheet.create({
   },
   garageSubtitle: {
     color: '#9CA3AF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     marginTop: 2,
   },
@@ -1603,7 +1603,7 @@ const styles = StyleSheet.create({
   },
   garagePillText: {
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1635,7 +1635,7 @@ const styles = StyleSheet.create({
   },
   garageEditText: {
     color: '#E5E7EB',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1651,7 +1651,7 @@ const styles = StyleSheet.create({
   },
   garageOffersText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1671,6 +1671,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });

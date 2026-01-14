@@ -55,7 +55,7 @@ export default function TabOneScreen() {
   const router = useRouter();
   // უბრალოდ light mode გამოვიყენოთ error-ის თავიდან ასაცილებლად
   const colors = Colors['light'];
-  const { user, shouldOpenPremiumModal, clearPremiumModalFlag } = useUser();
+  const { user, shouldOpenPremiumModal, clearPremiumModalFlag, logout } = useUser();
   const { subscription, hasActiveSubscription, isPremiumUser } = useSubscription();
   const displayFirstName = user?.name ? user.name.split(' ')[0] : '';
   const insets = useSafeAreaInsets();
@@ -248,16 +248,49 @@ export default function TabOneScreen() {
     refreshStories();
   }, [refreshStories]);
 
+  // Validate user on mount and when user changes
+  useEffect(() => {
+    const validateUser = async () => {
+      if (!user?.id) {
+        return; // No user, nothing to validate
+      }
+
+      // Check if user role is 'customer' - should logout
+      if (user.role === 'customer') {
+        console.warn('⚠️ [HOME] User has customer role, logging out...');
+        await logout();
+        router.replace('/login');
+        return;
+      }
+
+      // Verify user exists in backend
+      try {
+        const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-user/${user.id}`);
+        const verifyData = await verifyResponse.json();
+
+        if (!verifyData.exists || !verifyData.valid) {
+          console.warn('⚠️ [HOME] User not found in backend or invalid, logging out...');
+          console.warn('⚠️ [HOME] Reason:', verifyData.reason || 'user_not_found');
+          await logout();
+          router.replace('/login');
+        }
+      } catch (verifyError) {
+        console.error('❌ [HOME] Error verifying user:', verifyError);
+        // If verification fails, log warning but don't logout (might be network issue)
+        console.warn('⚠️ [HOME] Could not verify user, but continuing');
+      }
+    };
+
+    validateUser();
+  }, [user?.id, user?.role, logout, router]);
+
   // Handle Premium Info Modal opening from push notifications
   React.useEffect(() => {
     if (shouldOpenPremiumModal) {
-      // თუ პრემიუმზე ან ძირითადზე არ არის - გახსნას SubscriptionModal (რომ გადავიდეს პრემიუმზე)
-      // თუ პრემიუმზე ან ძირითადზე არის - PremiumInfoModal გაიხსნება automatically via visible prop
       if (subscription?.plan !== 'premium' && subscription?.plan !== 'basic') {
         setShowSubscriptionModal(true);
-        clearPremiumModalFlag(); // Clear flag after showing subscription modal
+        clearPremiumModalFlag(); 
       } else {
-        // თუ პრემიუმზე ან ძირითადზე არის, PremiumInfoModal გაიხსნება automatically
         setShowPremiumInfoModal(true);
       }
     }
@@ -392,21 +425,30 @@ export default function TabOneScreen() {
     }
     setSendingFeedback(true);
     try {
-      await fetch(`${API_BASE_URL}/feedback`, {
+      const response = await fetch(`${API_BASE_URL}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
           userId: user?.id,
-          name: user?.name,
+          userName: user?.name,
           phone: user?.phone,
           source: 'home_fab',
         }),
-      }).catch(() => {});
-      Alert.alert('გაგზავნილია', 'მადლობა ფიდბექისთვის!');
-      setFeedbackText('');
-      setShowFeedbackModal(false);
+      });
+      
+      const result = await response.json();
+      console.log('📝 [FEEDBACK] Response:', result);
+      
+      if (result.success) {
+        Alert.alert('გაგზავნილია', 'მადლობა ფიდბექისთვის!');
+        setFeedbackText('');
+        setShowFeedbackModal(false);
+      } else {
+        Alert.alert('შეცდომა', result.error || 'ვერ გავაგზავნეთ, სცადე ხელახლა.');
+      }
     } catch (error) {
+      console.error('❌ [FEEDBACK] Error:', error);
       Alert.alert('შეცდომა', 'ვერ გავაგზავნეთ, სცადე ხელახლა.');
     } finally {
       setSendingFeedback(false);
@@ -555,7 +597,7 @@ export default function TabOneScreen() {
     },
     userName: { 
       fontSize: 18, 
-      fontFamily: 'Inter', 
+      fontFamily: 'Outfit', 
       fontWeight: '600',
       color: colors.text,
       marginBottom: 2,
@@ -563,7 +605,7 @@ export default function TabOneScreen() {
     smallLocation: { 
       fontSize: 13, 
       color: colors.secondary, 
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       opacity: 0.8,
     },
     roundIcon: {
@@ -618,14 +660,14 @@ export default function TabOneScreen() {
       fontWeight: '600' as const,
       color: '#1E293B',
       marginLeft: 8,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     recommendationText: {
       fontSize: 14,
       color: '#64748B',
       lineHeight: 20,
       marginBottom: 16,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     recommendationButton: {
       backgroundColor: '#6366F1',
@@ -641,7 +683,7 @@ export default function TabOneScreen() {
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '500' as const,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     headerTop: {
       flexDirection: 'row' as const,
@@ -697,7 +739,7 @@ export default function TabOneScreen() {
       fontWeight: '600' as const,
       color: colors.text,
       letterSpacing: -0.5,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     themeButton: {
       width: 44,
@@ -834,14 +876,14 @@ export default function TabOneScreen() {
       fontSize: 13,
       fontWeight: '600' as const,
       color: '#0B1220',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       letterSpacing: -0.1,
       lineHeight: 18,
     },
     quickActionSubtitle: {
       fontSize: 12,
       color: '#6B7280',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       marginTop: 2,
       lineHeight: 16,
     },
@@ -861,7 +903,7 @@ export default function TabOneScreen() {
     quickActionBadgeText: {
       color: '#FFFFFF',
       fontSize: 11,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: 'Outfit_700Bold',
       letterSpacing: 0.3,
       textTransform: 'uppercase',
     },
@@ -878,7 +920,7 @@ export default function TabOneScreen() {
     quickActionPillText: {
       color: '#0B1220',
       fontSize: 12,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '600' as const,
       letterSpacing: 0.2,
     },
@@ -912,7 +954,7 @@ export default function TabOneScreen() {
     sectionTitle: {
       fontSize: 18,
       color: '#1F2937',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       marginBottom: 18,
       fontWeight: '500' as const,
       letterSpacing: -0.5,
@@ -940,7 +982,7 @@ export default function TabOneScreen() {
     },
     categoryName: {
       fontSize: 13,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '500' as const,
       textAlign: 'center' as const,
       lineHeight: 18,
@@ -985,7 +1027,7 @@ export default function TabOneScreen() {
       textShadowColor: 'rgba(0, 0, 0, 0.3)',
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 4,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     serviceDetails: {
       flexDirection: 'row' as const,
@@ -1024,7 +1066,7 @@ export default function TabOneScreen() {
       textShadowColor: 'rgba(0, 0, 0, 0.2)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     popularContainer: {
       paddingHorizontal: 20,
@@ -1060,8 +1102,8 @@ export default function TabOneScreen() {
       shadowRadius: 16,
       elevation: 8,
     },
-    mapBannerTitle: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 14 },
-    mapBannerSubtitle: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 11, marginTop: 4 },
+    mapBannerTitle: { color: '#FFFFFF', fontFamily: 'Outfit', fontSize: 14 },
+    mapBannerSubtitle: { color: '#E5E7EB', fontFamily: 'Outfit', fontSize: 11, marginTop: 4 },
     sectionHeader: {
       flexDirection: 'row' as const,
       justifyContent: 'space-between' as const,
@@ -1070,7 +1112,7 @@ export default function TabOneScreen() {
     },
     sectionAction: {
       fontSize: 13,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     popularContent: {
       paddingRight: H_MARGIN,
@@ -1110,7 +1152,7 @@ export default function TabOneScreen() {
     },
     categoryText: {
       fontSize: 11,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#FFFFFF',
     },
     ratingBadge: {
@@ -1124,7 +1166,7 @@ export default function TabOneScreen() {
     },
     popularName: {
       fontSize: 18,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#FFFFFF',
       textShadowColor: 'rgba(0, 0, 0, 0.3)',
       textShadowOffset: { width: 0, height: 2 },
@@ -1153,7 +1195,7 @@ export default function TabOneScreen() {
     },
     priceText: {
       fontSize: 12,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#FFFFFF',
     },
     chatsContainer: {
@@ -1177,12 +1219,12 @@ export default function TabOneScreen() {
     chatRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 12 },
     chatLeft: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, flex: 1 },
     chatAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: 'rgba(229,231,235,0.25)' },
-    chatInitials: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12 },
-    chatTitle: { color: '#F3F4F6', fontFamily: 'Inter', fontSize: 14, fontWeight: '700' as const },
-    chatMeta: { color: '#D1D5DB', fontFamily: 'Inter', fontSize: 11, opacity: 0.8 },
-    chatSnippet: { color: '#E5E7EB', fontFamily: 'Inter', fontSize: 12, marginTop: 4, opacity: 0.9 },
+    chatInitials: { color: '#E5E7EB', fontFamily: 'Outfit', fontSize: 12 },
+    chatTitle: { color: '#F3F4F6', fontFamily: 'Outfit', fontSize: 14, fontWeight: '700' as const },
+    chatMeta: { color: '#D1D5DB', fontFamily: 'Outfit', fontSize: 11, opacity: 0.8 },
+    chatSnippet: { color: '#E5E7EB', fontFamily: 'Outfit', fontSize: 12, marginTop: 4, opacity: 0.9 },
     unreadBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: '#EF4444', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    unreadText: { color: '#FFFFFF', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' as const },
+    unreadText: { color: '#FFFFFF', fontFamily: 'Outfit', fontSize: 11, fontWeight: '700' as const },
     bannerContainer: {
       paddingHorizontal: 20,
       marginTop: 20,
@@ -1229,7 +1271,7 @@ export default function TabOneScreen() {
     },
     bannerBadgeText: {
       fontSize: 12,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '600',
       color: '#FFFFFF',
     },
@@ -1241,7 +1283,7 @@ export default function TabOneScreen() {
     },
     discountText: {
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '700',
       color: '#FFFFFF',
     },
@@ -1252,7 +1294,7 @@ export default function TabOneScreen() {
     },
     bannerTitle: {
       fontSize: 24,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '700',
       color: '#FFFFFF',
       marginBottom: 6,
@@ -1262,7 +1304,7 @@ export default function TabOneScreen() {
     },
     bannerSubtitle: {
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: 'rgba(255, 255, 255, 0.9)',
       lineHeight: 20,
     },
@@ -1282,7 +1324,7 @@ export default function TabOneScreen() {
     },
     featureText: {
       fontSize: 12,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '500',
       color: 'rgba(255, 255, 255, 0.9)',
     },
@@ -1302,7 +1344,7 @@ export default function TabOneScreen() {
     },
     bannerButtonText: {
       fontSize: 14,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '600',
       color: '#FFFFFF',
     },
@@ -1350,13 +1392,13 @@ export default function TabOneScreen() {
       fontSize: 14,
       fontWeight: '600',
       color: '#111827',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     
     postTime: {
       fontSize: 12,
       color: '#6B7280',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     
     moreButton: {
@@ -1373,7 +1415,7 @@ export default function TabOneScreen() {
       fontSize: 14,
       color: '#374151',
       lineHeight: 20,
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     
     postImage: {
@@ -1398,7 +1440,7 @@ export default function TabOneScreen() {
       fontSize: 24,
       fontWeight: '800',
       color: '#FFFFFF',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
     },
     
     interactionsBar: {
@@ -1426,7 +1468,7 @@ export default function TabOneScreen() {
     interactionText: {
       fontSize: 13,
       color: '#6B7280',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       fontWeight: '500',
     },
     
@@ -1501,7 +1543,7 @@ export default function TabOneScreen() {
       color: colors.text,
       fontSize: 13,
       fontWeight: '800',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       letterSpacing: 0.2,
     },
     subscriptionCTASubtitle: {
@@ -1523,7 +1565,7 @@ export default function TabOneScreen() {
     subscriptionText: {
       fontSize: 12,
       fontWeight: '700',
-      fontFamily: 'Inter',
+      fontFamily: 'Outfit',
       color: '#FFFFFF',
       textShadowColor: 'rgba(0, 0, 0, 0.3)',
       textShadowOffset: { width: 0, height: 1 },
@@ -1561,7 +1603,12 @@ export default function TabOneScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.avatarSmall}>
-              {user?.name ? (
+              {user?.avatar ? (
+                <Image 
+                  source={{ uri: user.avatar }} 
+                  style={{ width: 52, height: 52, borderRadius: 26 }}
+                />
+              ) : user?.name ? (
                 <Text style={{ fontSize: 18, fontWeight: '600', color: '#FFFFFF' }}>
                   {user.name.charAt(0).toUpperCase()}
                 </Text>
@@ -1646,7 +1693,7 @@ export default function TabOneScreen() {
               onPress={() => router.push('/map')}
               activeOpacity={0.7}
             >
-              <Ionicons name="map-outline" size={18} color={'#111827'} />
+              <Ionicons name="navigate-circle" size={18} color={'#111827'} />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -1798,7 +1845,7 @@ export default function TabOneScreen() {
                       fontSize: 18,
                       fontWeight: '800',
                       color: '#111827',
-                      fontFamily: 'Inter',
+                      fontFamily: 'Outfit',
                       letterSpacing: -0.5,
                     }}>{carfaxCard.title}</Text>
                     <View style={{
@@ -1811,7 +1858,7 @@ export default function TabOneScreen() {
                         fontSize: 10,
                         fontWeight: '700',
                         color: '#FFFFFF',
-                        fontFamily: 'Inter',
+                        fontFamily: 'Outfit',
                         letterSpacing: 0.5,
                       }}>{carfaxCard.tag}</Text>
                     </View>
@@ -1819,7 +1866,7 @@ export default function TabOneScreen() {
                   <Text style={{
                     fontSize: 13,
                     color: '#6B7280',
-                    fontFamily: 'Inter',
+                    fontFamily: 'Outfit',
                     lineHeight: 18,
                     fontWeight: '500',
                   }}>{carfaxCard.subtitle}</Text>
@@ -1842,7 +1889,7 @@ export default function TabOneScreen() {
                     fontSize: 11,
                     fontWeight: '700',
                     color: '#111827',
-                    fontFamily: 'Inter',
+                    fontFamily: 'Outfit',
                     letterSpacing: 0.3,
                   }}>{carfaxCard.pill}</Text>
                 </View>
@@ -1952,7 +1999,7 @@ export default function TabOneScreen() {
         <View style={styles.sectionHeader}>
           <View style={{ display: 'flex',  alignItems: 'center', justifyContent: 'center', }}>
             <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: '#111827', fontFamily: 'Inter' }}>მანქანების გაქირავება</Text>
+              <Text style={{ fontSize: 18, fontWeight: '500', color: '#111827', fontFamily: 'Outfit' }}>მანქანების გაქირავება</Text>
             </View>
           </View>
           <TouchableOpacity onPress={() => router.push('/car-rental-list' as any)}>
@@ -1970,7 +2017,7 @@ export default function TabOneScreen() {
         >
           {rentalCarsLoading ? (
             <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>მანქანების ჩატვირთვა...</Text>
+              <Text style={{ color: colors.secondary, fontFamily: 'Outfit' }}>მანქანების ჩატვირთვა...</Text>
             </View>
           ) : (
             rentalCars.map((car) => (
@@ -2020,7 +2067,7 @@ export default function TabOneScreen() {
         >
           {loading ? (
             <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: colors.secondary, fontFamily: 'Inter' }}>სერვისების ჩატვირთვა...</Text>
+              <Text style={{ color: colors.secondary, fontFamily: 'Outfit' }}>სერვისების ჩატვირთვა...</Text>
             </View>
           ) : (
             popularServices.map((service) => (
@@ -2326,7 +2373,7 @@ const feedbackStyles = StyleSheet.create({
   },
   fabText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -2355,12 +2402,12 @@ const feedbackStyles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontWeight: '700',
   },
   modalSubtitle: {
     fontSize: 13,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     marginBottom: 12,
   },
   closeButton: {
@@ -2372,7 +2419,7 @@ const feedbackStyles = StyleSheet.create({
     padding: 12,
     minHeight: 120,
     textAlignVertical: 'top',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 14,
     marginBottom: 12,
   },
@@ -2388,7 +2435,7 @@ const feedbackStyles = StyleSheet.create({
     borderWidth: 1,
   },
   secondaryText: {
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -2400,7 +2447,7 @@ const feedbackStyles = StyleSheet.create({
   },
   primaryText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 14,
     fontWeight: '700',
   },

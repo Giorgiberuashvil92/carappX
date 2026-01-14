@@ -22,6 +22,7 @@ import { communityApi, CommunityPost, CreatePostData } from '../../services/comm
 import { communityRealtime } from '../../services/communityRealtime';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { photoService } from '../../services/photoService';
+import ImageViewing from 'react-native-image-viewing';
 
 // Helper function to format time
 const formatTime = (dateString: string): string => {
@@ -56,6 +57,8 @@ export default function CommunityScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = useState(0);
   const scrollViewRef = React.useRef<ScrollView>(null);
 
   // Load posts on component mount
@@ -349,12 +352,22 @@ export default function CommunityScreen() {
       <Text style={styles.postText}>{post.postText}</Text>
       
       {post.postImage && (
-        <View style={styles.postImageContainer}>
+        <TouchableOpacity 
+          style={styles.postImageContainer}
+          onPress={() => {
+            // ვიპოვოთ ამ პოსტის ინდექსი ყველა ფოტოების სიაში
+            const postsWithImages = posts.filter(p => p.postImage);
+            const imageIndex = postsWithImages.findIndex(p => p.id === post.id);
+            setImageViewerIndex(imageIndex >= 0 ? imageIndex : 0);
+            setImageViewerVisible(true);
+          }}
+          activeOpacity={0.9}
+        >
           <Image 
             source={{ uri: post.postImage }} 
             style={styles.postImage} 
           />
-        </View>
+        </TouchableOpacity>
       )}
       
       <View style={styles.postActions}>
@@ -517,6 +530,18 @@ export default function CommunityScreen() {
         {/* Bottom Spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Image Viewer Modal */}
+      <ImageViewing
+        images={posts
+          .filter(post => post.postImage)
+          .map(post => ({ uri: post.postImage! }))}
+        imageIndex={imageViewerIndex}
+        visible={imageViewerVisible}
+        onRequestClose={() => setImageViewerVisible(false)}
+        swipeToCloseEnabled={true}
+        doubleTapToZoomEnabled={true}
+      />
     </SafeAreaView>
   );
 }
@@ -645,7 +670,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     letterSpacing: 0.1,
   },
   postsContainer: {

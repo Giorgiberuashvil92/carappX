@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     width: 64,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
 });
 

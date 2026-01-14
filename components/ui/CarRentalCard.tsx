@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   ratingPillText: { 
     color: '#111827', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 12 
   },
   availabilityBadge: {
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   availabilityText: {
     color: '#fff',
     fontSize: 11,
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
   },
   bottomArea: {
     position: 'absolute',
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 18,
     marginBottom: 8,
     textShadowColor: 'rgba(0,0,0,0.35)',
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   },
   yearText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 10,
   },
   metaRow: { 
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   specText: { 
     color: '#FFFFFF', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 10 
   },
   priceWrap: { 
@@ -299,12 +299,12 @@ const styles = StyleSheet.create({
   },
   priceText: { 
     color: '#FFFFFF', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 15 
   },
   priceSuffix: { 
     color: '#E5E7EB', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 9, 
     marginBottom: 2 
   },
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
   },
   locationText: { 
     color: '#FFFFFF', 
-    fontFamily: 'Inter', 
+    fontFamily: 'Outfit', 
     fontSize: 10 
   },
   callButton: {
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   },
   callButtonText: {
     color: '#FFFFFF',
-    fontFamily: 'Inter',
+    fontFamily: 'Outfit',
     fontSize: 11,
     fontWeight: '600',
   },
