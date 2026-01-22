@@ -378,6 +378,11 @@ export default function LoyaltyScreen() {
         loyaltyApi.getAchievements(user.id),
         loyaltyApi.getMissions(user.id),
       ]);
+      console.log('📊 Loyalty Screen - Leaderboard State:', {
+        leaderboard: lb,
+        leaderboardLength: lb?.length || 0,
+        currentUserRank: lb?.find((u: any) => u.isCurrentUser)?.rank,
+      });
       setSummary(s);
       setTransactions(tx);
       setRewards(rw);

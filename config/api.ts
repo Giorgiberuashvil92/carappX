@@ -7,7 +7,6 @@ const getLanIpFromHost = (): string | undefined => {
     (Constants as any)?.manifest2?.extra?.expoClient?.hostUri ||
     (Constants as any)?.manifest?.hostUri ||
     '';
-  // ფორმატი: "192.168.1.23:8081" → გვინდა მხოლოდ IP
   if (hostUri && typeof hostUri === 'string') {
     const ip = hostUri.split(':')[0];
     return ip && ip !== 'localhost' ? ip : undefined;
@@ -26,10 +25,10 @@ const getApiUrl = () => {
     console.log('🌐 LAN IP:', ip);
     if (ip) {
       console.log('🌐 Using LAN IP:', ip);
-      return `http://${ip}:3000`;
+      return `https://marte-backend-production.up.railway.app`;
     }
     console.log('🌐 Using localhost fallback');
-    return 'http://localhost:3000';
+    return 'https://marte-backend-production.up.railway.app';
   }
 
   return 'https://marte-backend-production.up.railway.app';

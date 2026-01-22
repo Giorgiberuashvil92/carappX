@@ -83,7 +83,15 @@ export const loyaltyApi = {
     return getJson<LoyaltyReward>(`${API_BASE_URL}/loyalty/rewards?userId=${encodeURIComponent(userId)}` as any) as unknown as LoyaltyReward[];
   },
   async getLeaderboard(userId: string): Promise<LoyaltyLeaderboardUser[]> {
-    return getJson<LoyaltyLeaderboardUser[]>(`${API_BASE_URL}/loyalty/leaderboard?userId=${encodeURIComponent(userId)}`);
+    const url = `${API_BASE_URL}/loyalty/leaderboard?userId=${encodeURIComponent(userId)}`;
+    console.log('🔍 Loyalty Leaderboard Request:', url);
+    const result = await getJson<LoyaltyLeaderboardUser[]>(url);
+    console.log('✅ Loyalty Leaderboard Response:', {
+      total: result?.length || 0,
+      data: result,
+      top3: result?.slice(0, 3).map(u => ({ id: u.id, name: u.name, points: u.points, rank: u.rank })),
+    });
+    return result;
   },
   async getFriends(userId: string): Promise<LoyaltyFriend[]> {
     return getJson<LoyaltyFriend[]>(`${API_BASE_URL}/loyalty/friends?userId=${encodeURIComponent(userId)}`);

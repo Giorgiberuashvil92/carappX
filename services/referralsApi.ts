@@ -90,20 +90,39 @@ class ReferralsApi {
     total: number;
     hasMore: boolean;
   }> {
-    const response = await fetch(
-      `${this.baseUrl}/leaderboard?limit=${limit}&offset=${offset}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+    const url = `${this.baseUrl}/leaderboard?limit=${limit}&offset=${offset}`;
+    console.log('🔍 Referral Leaderboard Request:', {
+      url,
+      userId,
+      limit,
+      offset,
+    });
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': userId,
       },
-    );
+    });
     if (!response.ok) {
+      console.error('❌ Referral Leaderboard Error:', response.status, response.statusText);
       throw new Error('Failed to fetch referral leaderboard');
     }
-    return response.json();
+    const result = await response.json();
+    console.log('✅ Referral Leaderboard Response:', {
+      total: result?.total || 0,
+      hasMore: result?.hasMore,
+      leaderboardLength: result?.leaderboard?.length || 0,
+      top3: result?.leaderboard?.slice(0, 3).map((u: any) => ({ 
+        userId: u.userId, 
+        name: u.name, 
+        points: u.points, 
+        rank: u.rank,
+        referrals: u.referrals,
+      })),
+      fullData: result,
+    });
+    return result;
   }
 }
 
