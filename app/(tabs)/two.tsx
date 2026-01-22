@@ -49,20 +49,20 @@ const PROFILE_MENU_ITEMS = [
     icon: 'person-outline',
     color: '#3B82F6',
   },
-  {
-    id: 'loyalty',
-    title: 'ლოიალობის პროგრამა',
-    subtitle: 'ქულები, ჯილდოები და ფასდაკლებები',
-    icon: 'star-outline',
-    color: '#F59E0B',
-  },
-  {
-    id: 'referral',
-    title: 'რეფერალური კოდი',
-    subtitle: 'მოიწვიე მეგობრები და მიიღე ქულები',
-    icon: 'gift-outline',
-    color: '#8B5CF6',
-  },
+  // {
+  //   id: 'loyalty',
+  //   title: 'ლოიალობის პროგრამა',
+  //   subtitle: 'ქულები, ჯილდოები და ფასდაკლებები',
+  //   icon: 'star-outline',
+  //   color: '#F59E0B',
+  // },
+  // {
+  //   id: 'referral',
+  //   title: 'რეფერალური კოდი',
+  //   subtitle: 'მოიწვიე მეგობრები და მიიღე ქულები',
+  //   icon: 'gift-outline',
+  //   color: '#8B5CF6',
+  // },
   {
     id: '2',
     title: 'ჩემი მანქანები',
@@ -70,13 +70,13 @@ const PROFILE_MENU_ITEMS = [
     icon: 'car-outline',
     color: '#10B981',
   },
-  {
-    id: 'analytics',
-    title: 'ანალიტიკა',
-    subtitle: 'მომხმარებლის ქცევა და სტატისტიკა',
-    icon: 'analytics-outline',
-    color: '#667eea',
-  },
+  // {
+  //   id: 'analytics',
+  //   title: 'ანალიტიკა',
+  //   subtitle: 'მომხმარებლის ქცევა და სტატისტიკა',
+  //   icon: 'analytics-outline',
+  //   color: '#667eea',
+  // },
 ];
 
 export default function ProfileScreen() {
