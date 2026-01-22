@@ -19,9 +19,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { requestsApi, type Request, type Offer } from '@/services/requestsApi';
 import { useUser } from '@/contexts/UserContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { socketService, type ChatMessage as SocketChatMessage } from '@/services/socketService';
 import { messagesApi, type ChatMessage as ApiChatMessage } from '@/services/messagesApi';
 import { financingApi } from '@/services/financingApi';
+import SubscriptionModal from '@/components/ui/SubscriptionModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -44,6 +46,7 @@ export default function PartnerChatScreen() {
     partnerType: PartnerType; 
   }>();
   const { user } = useUser();
+  const { isPremiumUser } = useSubscription();
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -58,6 +61,7 @@ export default function PartnerChatScreen() {
   const partnerId = user?.id || ''; // Use real user ID
   const [showFinanceBanner, setShowFinanceBanner] = useState(true);
   const [showFinanceModal, setShowFinanceModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [finAmount, setFinAmount] = useState('');
   const [finDown, setFinDown] = useState('');
   const [finTerm, setFinTerm] = useState('12');
@@ -207,6 +211,10 @@ export default function PartnerChatScreen() {
   };
 
   const submitFinancing = async () => {
+    if (!isPremiumUser) {
+      setShowSubscriptionModal(true);
+      return;
+    }
     if (!requestId || !request?.userId) return;
     const amount = parseFloat(finAmount) || 0;
     const down = parseFloat(finDown) || 0;
@@ -447,6 +455,14 @@ export default function PartnerChatScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+        }}
+      />
     </>
   );
 }

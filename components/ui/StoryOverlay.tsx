@@ -24,31 +24,7 @@ export default function StoryOverlay({ visible, stories, initialIndex, onClose, 
   const [hadError, setHadError] = useState(false);
 
   // Debug: log current item when it changes
-  useEffect(() => {
-    console.log('🔍 StoryOverlay Debug:', {
-      visible,
-      storyIndex,
-      itemIndex,
-      currentStory: currentStory ? {
-        id: currentStory.id,
-        author: currentStory.author?.name,
-        itemsCount: currentStory.items?.length,
-        items: currentStory.items?.map((it: any) => ({
-          id: it.id,
-          type: it.type,
-          uri: it.uri,
-          hasUri: !!it.uri,
-        })),
-      } : null,
-      currentItem: currentItem ? {
-        id: currentItem.id,
-        type: currentItem.type,
-        uri: currentItem.uri,
-        hasUri: !!currentItem.uri,
-        caption: currentItem.caption,
-      } : null,
-    });
-  }, [visible, storyIndex, itemIndex, currentItem?.id, currentStory?.id]);
+
   // Always open at 80% height
   const minHeight = height * 0.8;
   const maxHeight = height * 0.8;
@@ -297,7 +273,6 @@ export default function StoryOverlay({ visible, stories, initialIndex, onClose, 
                     resizeMode="contain"
                     onLoad={() => {
                       setHadError(false);
-                      console.log('✅ Story image loaded successfully:', currentItem.uri);
                     }}
                     onError={(error) => { 
                       setHadError(true); 

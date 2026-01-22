@@ -48,33 +48,28 @@ export const checkVersionUpdate = async (): Promise<VersionCheckResponse | null>
  * შეადარებს ორ ვერსიას და დააბრუნებს true-ს თუ currentVersion ნაკლებია minVersion-ზე
  */
 export const compareVersions = (currentVersion: string, minVersion: string): boolean => {
-  // ვერსიები ფორმატში: "1.0.12"
   const currentParts = currentVersion.split('.').map(Number);
   const minParts = minVersion.split('.').map(Number);
 
-  // შევადაროთ თითოეული ნაწილი
   for (let i = 0; i < Math.max(currentParts.length, minParts.length); i++) {
     const currentPart = currentParts[i] || 0;
     const minPart = minParts[i] || 0;
 
     if (currentPart < minPart) {
-      return true; // საჭიროა update
+      return true; 
     } else if (currentPart > minPart) {
-      return false; // არ არის საჭირო update
+      return false; 
     }
   }
 
   return false; // ვერსიები ტოლია
 };
 
-/**
- * შეამოწმებს არის თუ არა საჭირო force update
- */
+
 export const shouldForceUpdate = async (): Promise<boolean> => {
   const versionInfo = await checkVersionUpdate();
   
   if (!versionInfo) {
-    // თუ შეცდომა მოხდა, არ ვაბლოკებთ
     return false;
   }
 

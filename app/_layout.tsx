@@ -303,6 +303,7 @@ function RootLayoutNav() {
               <Stack.Screen name="bookings/[carwashId]" options={{headerShown: false}} />
               <Stack.Screen name="settings/[carwashId]" options={{headerShown: false}} />
               <Stack.Screen name="analytics/[carwashId]" options={{headerShown: false}} />
+              <Stack.Screen name="analytics-dashboard" options={{headerShown: false}} />
               <Stack.Screen name="partner-dashboard-old" options={{headerShown: false}} />
               <Stack.Screen name="partner-dashboard-simple" options={{headerShown: false}} />
               <Stack.Screen name="partner-stack" options={{headerShown: false}} />

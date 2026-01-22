@@ -106,12 +106,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           platform: Platform.OS,
           deviceInfo,
         };
-        console.log('📱 [USERCONTEXT] Request body:', {
-          userId: requestBody.userId,
-          tokenPreview: requestBody.token.substring(0, 50) + '...',
-          platform: requestBody.platform,
-          deviceInfo: requestBody.deviceInfo,
-        });
+       
         
         const response = await fetch(`${API_BASE_URL}/notifications/register-device`, {
           method: 'POST',
@@ -119,16 +114,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify(requestBody),
         });
         
-        console.log('📱 [USERCONTEXT] Response status:', response.status);
-        console.log('📱 [USERCONTEXT] Response ok:', response.ok);
+
         
         const result = await response.json();
-        console.log('📱 [USERCONTEXT] Response body:', result);
         
         if (response.ok && result.success) {
-          console.log('✅ [USERCONTEXT] Device token registered successfully in backend');
-          console.log('✅ [USERCONTEXT] Registered userId:', userId);
-          console.log('✅ [USERCONTEXT] Response:', result);
+         
         } else {
           console.warn('⚠️ [USERCONTEXT] Device token registration returned:', result);
           console.warn('⚠️ [USERCONTEXT] Request was not successful');
@@ -200,7 +191,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (type === 'new_offer') {
-        router.push('/offers');
+        const reqId = data.requestId as string | undefined;
+        if (reqId) {
+          router.push(`/offers/${reqId}`);
+        } else {
+          router.push('/offers');
+        }
         return;
       }
       if (type?.startsWith('ai_')) {
@@ -248,7 +244,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
             // Deduplication: შევამოწმოთ messageId
             const messageId = remoteMessage.messageId;
             if (messageId && processedMessageIds.has(messageId)) {
-              console.log('🔔 [NOTIFICATIONS] Duplicate notification ignored:', messageId);
               return;
             }
             
@@ -284,7 +279,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
               },
             });
           } catch (e) {
-            console.log('[NOTIFEE] displayNotification error', e);
           }
         });
 
@@ -310,7 +304,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
         });
       } catch (e) {
-        console.log('[NOTIFEE] setup error', e);
       }
     })();
 
@@ -325,13 +318,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Auto-register device token and track login when user is loaded
   useEffect(() => {
     if (user?.id) {
-      console.log('🔄 [USERCONTEXT] useEffect triggered, user.id:', user.id);
-      console.log('🔄 [USERCONTEXT] User object:', {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        role: user.role,
-      });
+
       
       // Check if user role is 'customer' - should logout
       if (user.role === 'customer') {
@@ -372,14 +359,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
       
       verifyUser();
     } else {
-      console.log('⚠️ [USERCONTEXT] useEffect triggered but user.id is missing');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const loadUserFromStorage = async () => {
     try {
-      console.log('🔍 [USERCONTEXT] Loading user from storage...');
       const userData = await AsyncStorage.getItem('user');
       if (userData) {
         const parsedUser = JSON.parse(userData);
@@ -387,10 +372,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (!parsedUser.ownedCarwashes) {
           parsedUser.ownedCarwashes = [];
         }
-        console.log('✅ [USERCONTEXT] User loaded from storage:', parsedUser);
-        console.log('🔍 [USERCONTEXT] User role:', parsedUser.role);
-        console.log('🔍 [USERCONTEXT] User ownedCarwashes:', parsedUser.ownedCarwashes);
-        console.log('🔍 [USERCONTEXT] User ownedCarwashes length:', parsedUser.ownedCarwashes.length);
+       
         try {
           const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-user/${parsedUser.id}`);
           const verifyData = await verifyResponse.json();
@@ -413,7 +395,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
       } else {
         // No user found, wait for login
-        console.log('❌ [USERCONTEXT] No user found in storage, waiting for login...');
         setUser(null);
       }
     } catch (error) {
@@ -446,18 +427,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         ownedCarwashes: userData.ownedCarwashes || [],
       };
       
-      console.log('🔍 [LOGIN] Creating user with ID:', frontendUser.id);
-      console.log('🔍 [LOGIN] User details:', {
-        id: frontendUser.id,
-        name: frontendUser.name,
-        email: frontendUser.email,
-        phone: frontendUser.phone,
-        role: frontendUser.role,
-        ownedCarwashes: frontendUser.ownedCarwashes
-      });
-      console.log('🔍 [LOGIN] User role:', frontendUser.role);
-      console.log('🔍 [LOGIN] User ownedCarwashes:', frontendUser.ownedCarwashes);
-      console.log('🔍 [LOGIN] User ownedCarwashes length:', frontendUser.ownedCarwashes?.length);
+
 
       setUser(frontendUser);
       await saveUserToStorage(frontendUser);
@@ -479,7 +449,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         user_id: frontendUser.id,
       });
       
-      console.log('Login: User saved to storage and state updated');
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -503,25 +472,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         ownedCarwashes: userData.ownedCarwashes || [],
       };
       
-      console.log('🔍 [REGISTER] Creating user with ID:', frontendUser.id);
-      console.log('🔍 [REGISTER] User details:', {
-        id: frontendUser.id,
-        name: frontendUser.name,
-        email: frontendUser.email,
-        phone: frontendUser.phone,
-        role: frontendUser.role,
-        ownedCarwashes: frontendUser.ownedCarwashes
-      });
-      console.log('🔍 [REGISTER] User role:', frontendUser.role);
-      console.log('🔍 [REGISTER] User ownedCarwashes:', frontendUser.ownedCarwashes);
-      console.log('🔍 [REGISTER] User ownedCarwashes length:', frontendUser.ownedCarwashes?.length);
 
       setUser(frontendUser);
       await saveUserToStorage(frontendUser);
       
       await registerDeviceToken(frontendUser.id);
       
-      console.log('Register: User saved to storage and state updated');
     } catch (error) {
       console.error('Register error:', error);
       throw error;
@@ -536,7 +492,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       // ასევე წავშალოთ საბსქრიფშენი, რადგან ის ეკუთვნის ამ იუზერს
       await AsyncStorage.removeItem('user_subscription');
       setUser(null);
-      console.log('User logged out and storage cleared');
       // Navigate to login page
       router.replace('/login');
     } catch (error) {
@@ -548,7 +503,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       await AsyncStorage.clear();
       setUser(null);
-      console.log('All storage cleared');
     } catch (error) {
       console.error('Clear storage error:', error);
     }
@@ -571,9 +525,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     
     try {
-      console.log('🔄 [UPDATE_ROLE] Updating user role to:', role);
       
-      // Update role in backend
       const response = await fetch(`${API_BASE_URL}/auth/update-role`, {
         method: 'PUT',
         headers: {
@@ -589,14 +541,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const result = await response.json();
-      console.log('✅ [UPDATE_ROLE] Backend response:', result);
       
       // Update local state
       const updatedUser = { ...user, role };
       setUser(updatedUser);
       await saveUserToStorage(updatedUser);
-      console.log('✅ [UPDATE_ROLE] User role updated locally to:', role);
     } catch (error) {
       console.error('❌ [UPDATE_ROLE] Error updating user role:', error);
       throw error;
@@ -607,11 +556,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     
     try {
-      console.log('🔍 [ADD_CARWASH] Adding carwash to owned list:', carwashId);
-      console.log('🔍 [ADD_CARWASH] Current ownedCarwashes:', user.ownedCarwashes);
-      console.log('🔍 [ADD_CARWASH] User ID being sent:', user.id);
-      console.log('🔍 [ADD_CARWASH] Full user object:', user);
-      
+
       // Update ownedCarwashes in backend
       const response = await fetch(`${API_BASE_URL}/auth/update-owned-carwashes`, {
         method: 'PUT',
@@ -625,28 +570,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }),
       });
       
-      console.log('🔍 [ADD_CARWASH] Response status:', response.status);
-      console.log('🔍 [ADD_CARWASH] Response ok:', response.ok);
+
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.log('❌ [ADD_CARWASH] Error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const result = await response.json();
-      console.log('✅ [ADD_CARWASH] Backend response:', result);
       
       // Update local state
       const currentOwnedCarwashes = user.ownedCarwashes || [];
       const updatedOwnedCarwashes = [...currentOwnedCarwashes, carwashId];
-      console.log('🔍 [ADD_CARWASH] Updated ownedCarwashes:', updatedOwnedCarwashes);
       const updatedUser = { ...user, ownedCarwashes: updatedOwnedCarwashes };
       setUser(updatedUser);
       await saveUserToStorage(updatedUser);
-      console.log('✅ [ADD_CARWASH] Added carwash to owned list:', carwashId);
-      console.log('✅ [ADD_CARWASH] User role after update:', updatedUser.role);
-      console.log('✅ [ADD_CARWASH] User ownedCarwashes after update:', updatedUser.ownedCarwashes);
+
     } catch (error) {
       console.error('❌ [ADD_CARWASH] Add to owned carwashes error:', error);
       throw error;
@@ -662,7 +601,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const updatedUser = { ...user, ownedCarwashes: updatedOwnedCarwashes };
       setUser(updatedUser);
       await saveUserToStorage(updatedUser);
-      console.log('Removed carwash from owned list:', carwashId);
     } catch (error) {
       console.error('Remove from owned carwashes error:', error);
       throw error;

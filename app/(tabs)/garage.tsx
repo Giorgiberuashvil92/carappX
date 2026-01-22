@@ -25,7 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AddReminderModal from '../../components/garage/AddReminderModal';
 import { uploadCarImage } from '../../utils/cloudinaryUpload';
-import carData from '../../data/carData.json';
+import { carBrandsApi } from '../../services/carBrandsApi';
 
 const { width, height } = Dimensions.get('window');
 
@@ -91,50 +91,7 @@ interface Achievement {
   category: 'mileage' | 'service' | 'eco' | 'social';
 }
 
-const CAR_ACHIEVEMENTS: Achievement[] = [
-  {
-    id: '1',
-    title: 'პირველი 10K',
-    description: '10,000 კმ გავლილი',
-    icon: 'road',
-    isUnlocked: true,
-    pointsReward: 100,
-    category: 'mileage',
-  },
-  {
-    id: '2',
-    title: 'ეკო მძღოლი',
-    description: '5 ეკო მგზავრობა',
-    icon: 'leaf',
-    isUnlocked: false,
-    pointsReward: 150,
-    progress: 3,
-    maxProgress: 5,
-    category: 'eco',
-  },
-  {
-    id: '3',
-    title: 'სერვის მასტერი',
-    description: '10 დროული სერვისი',
-    icon: 'wrench',
-    isUnlocked: false,
-    pointsReward: 200,
-    progress: 7,
-    maxProgress: 10,
-    category: 'service',
-  },
-];
-
-// მანქანების მონაცემები dropdown-ებისთვის
-// Extract brands and models from carData.json (same as parts.tsx)
-const CAR_BRANDS = Object.keys(carData.brands);
-const CAR_MODELS: { [key: string]: string[] } = {};
-Object.keys(carData.brands).forEach((brand) => {
-  const brandData = (carData.brands as any)[brand];
-  if (brandData && brandData.models) {
-    CAR_MODELS[brand] = brandData.models;
-  }
-});
+// მანქანების მონაცემები dropdown-ებისთვის - ივსება API-დან
 
 const CAR_SUBMODELS: { [key: string]: { [key: string]: string[] } } = {
   'BMW': {
@@ -257,6 +214,27 @@ export default function GarageScreen() {
   const [showSubmodelDropdown, setShowSubmodelDropdown] = useState(false);
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [CAR_BRANDS, setCAR_BRANDS] = useState<string[]>([]);
+  const [CAR_MODELS, setCAR_MODELS] = useState<{ [key: string]: string[] }>({});
+
+  useEffect(() => {
+    const loadCarBrands = async () => {
+      try {
+        const brandsList = await carBrandsApi.getBrandsList();
+        const brands = brandsList.map(b => b.name);
+        const modelsMap: { [key: string]: string[] } = {};
+        brandsList.forEach(brand => {
+          modelsMap[brand.name] = brand.models || [];
+        });
+        setCAR_BRANDS(brands);
+        setCAR_MODELS(modelsMap);
+      } catch (err) {
+        console.error('Error loading car brands:', err);
+      }
+    };
+    loadCarBrands();
+  }, []);
+
   const [newCarData, setNewCarData] = useState<Partial<UICar & { submodel: string }>>({
     fuelType: 'ბენზინი',
     color: '#3B82F6',
@@ -2462,7 +2440,7 @@ const styles = StyleSheet.create({
                   {showBrandDropdown && (
                     <View style={styles.dropdownList}>
                       <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
-                        {CAR_BRANDS.map((brand) => (
+                        {CAR_BRANDS.map((brand: string) => (
                           <TouchableOpacity
                             key={brand}
                             style={styles.dropdownItem}

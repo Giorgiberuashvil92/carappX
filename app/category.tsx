@@ -7,6 +7,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BlurView } from 'expo-blur';
 import API_BASE_URL from '../config/api';
 import { categoriesApi, Category } from '../services/categoriesApi';
+import { useUser } from '../contexts/UserContext';
+import { engagementApi } from '../services/engagementApi';
 
 const { width, height } = Dimensions.get('window');
 
@@ -85,6 +87,7 @@ export default function CategoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { user } = useUser();
   
   const categoryType = (params.type as string) || 'carwash';
   const categoryId = params.categoryId as string | undefined;
@@ -225,6 +228,25 @@ export default function CategoryScreen() {
   };
 
   const handleServicePress = (service: any) => {
+    const serviceId = service.id;
+    const serviceType = service.type || categoryType;
+    
+    // Track engagement based on service type
+    if (user?.id && serviceId) {
+      if (serviceType === 'store') {
+        console.log('👁️ [CATEGORY] Tracking view for store:', serviceId, 'user:', user.id);
+        engagementApi.trackStoreView(serviceId, user.id).catch((err) => {
+          console.error('❌ [CATEGORY] Error tracking store view:', err);
+        });
+      } else if (serviceType === 'dismantler') {
+        console.log('👁️ [CATEGORY] Tracking view for dismantler:', serviceId, 'user:', user.id);
+        engagementApi.trackDismantlerView(serviceId, user.id).catch((err) => {
+          console.error('❌ [CATEGORY] Error tracking dismantler view:', err);
+        });
+      }
+      // Add more types as needed (mechanic, etc.)
+    }
+    
     router.push({
       pathname: '/details',
       params: {

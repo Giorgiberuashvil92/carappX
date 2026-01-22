@@ -381,3 +381,4 @@ curl -X PUT http://localhost:4000/auth/update-owned-stores \
 **შენიშვნა**: ეს ფუნქციონალი carwash-ების მსგავსად მუშაობს (`update-owned-carwashes`), ასე რომ შეგიძლიათ გამოიყენოთ როგორც მაგალითი.
 
 
+

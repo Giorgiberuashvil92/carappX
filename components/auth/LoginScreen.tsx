@@ -29,7 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Constants
 const OTP_LENGTH = 4;
-const TEST_PHONE = '557422634';
+const TEST_PHONE = '557422635';
 const TEST_PASSWORD = '1234';
 const MIN_PHONE_LENGTH = 9;
 
@@ -74,6 +74,8 @@ export default function LoginScreen() {
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [manualOtpCode, setManualOtpCode] = useState<string | null>(null);
   const [testPassword, setTestPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [showReferralInput, setShowReferralInput] = useState(false);
 
   // Refs
   const inputRef0 = useRef<TextInput>(null);
@@ -221,7 +223,11 @@ export default function LoginScreen() {
       const res = await fetch(`${API_BASE_URL}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otpId: verificationId, code: otpString }),
+        body: JSON.stringify({ 
+          otpId: verificationId, 
+          code: otpString,
+          referralCode: referralCode.trim() || undefined,
+        }),
       });
 
       const data: AuthVerifyResponse = await res.json();
@@ -239,9 +245,25 @@ export default function LoginScreen() {
 
       const isRegisterIntent = data.intent === 'register' || pendingIntent === 'register';
 
+      // Apply referral code if provided (for both new and existing users)
+      if (referralCode.trim() && data.user?.id) {
+        try {
+          const { referralsApi } = await import('../../services/referralsApi');
+          await referralsApi.applyReferralCode(data.user.id, referralCode.trim());
+          success('რეფერალური კოდი', 'რეფერალური კოდი წარმატებით გამოყენებულია!');
+        } catch (err: any) {
+          console.error('Error applying referral code:', err);
+          // Don't fail login/registration if referral code fails
+          if (err.message && !err.message.includes('already applied')) {
+            error('რეფერალური კოდი', err.message || 'რეფერალური კოდის გამოყენება ვერ მოხერხდა');
+          }
+        }
+      }
+
       if (isRegisterIntent) {
         resetOtpState();
         setPendingIntent(null);
+        setReferralCode('');
         success('კოდი დადასტურებულია', 'დასრულეთ რეგისტრაცია');
         router.push({
           pathname: '/register',
@@ -456,6 +478,112 @@ export default function LoginScreen() {
       fontSize: 14,
       fontFamily: 'Outfit_600SemiBold',
       textDecorationLine: 'underline',
+    },
+    referralToggle: {
+      backgroundColor: '#EDE9FE',
+      borderRadius: 16,
+      padding: 16,
+      marginTop: 16,
+      marginBottom: 8,
+      borderWidth: 2,
+      borderColor: '#8B5CF6',
+      shadowColor: '#8B5CF6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    referralToggleActive: {
+      backgroundColor: '#F3F4F6',
+      borderColor: '#8B5CF6',
+      borderWidth: 2,
+    },
+    referralToggleContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    referralIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#8B5CF6',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    referralToggleTextContainer: {
+      flex: 1,
+    },
+    referralToggleText: {
+      fontSize: 15,
+      color: '#8B5CF6',
+      fontFamily: 'Outfit_600SemiBold',
+      marginBottom: 2,
+    },
+    referralToggleTextActive: {
+      color: '#8B5CF6',
+    },
+    referralToggleSubtext: {
+      fontSize: 12,
+      color: '#7C3AED',
+      fontFamily: 'Outfit_500Medium',
+    },
+    referralInputContainer: {
+      marginTop: 12,
+      marginBottom: 16,
+    },
+    referralInputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: '#8B5CF6',
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      shadowColor: '#8B5CF6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    referralInputIcon: {
+      marginRight: 12,
+    },
+    referralInput: {
+      flex: 1,
+      fontSize: 18,
+      fontFamily: 'Outfit_600SemiBold',
+      color: '#111827',
+      textAlign: 'center',
+      letterSpacing: 3,
+      paddingVertical: 14,
+    },
+    referralClearButton: {
+      padding: 4,
+      marginLeft: 8,
+    },
+    referralCodePreview: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      backgroundColor: '#EDE9FE',
+      borderRadius: 12,
+      gap: 8,
+    },
+    referralCodePreviewLabel: {
+      fontSize: 14,
+      color: '#6B7280',
+      fontFamily: 'Outfit_500Medium',
+    },
+    referralCodePreviewValue: {
+      fontSize: 16,
+      color: '#8B5CF6',
+      fontFamily: 'Outfit_700Bold',
+      letterSpacing: 2,
     },
     testCredentialsInfo: {
       backgroundColor: '#F3F4F6',
@@ -772,7 +900,7 @@ export default function LoginScreen() {
                   </View>
                   
                   {/* Password field for test account (557422634) */}
-                  {phone.replace(/[^0-9]/g, '') === '557422634' && (
+                  {phone.replace(/[^0-9]/g, '') === '557422635' && (
                     <View style={styles.inputContainer}>
                       <Text style={styles.label}>Password</Text>
                       <TextInput
@@ -830,6 +958,78 @@ export default function LoginScreen() {
                     />
                   ))}
                 </View>
+
+                {/* Referral Code Input (optional, only for new users) */}
+                <TouchableOpacity
+                  style={[
+                    styles.referralToggle,
+                    showReferralInput && styles.referralToggleActive,
+                  ]}
+                  onPress={() => setShowReferralInput(!showReferralInput)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.referralToggleContent}>
+                    <View style={styles.referralIconContainer}>
+                      <Ionicons 
+                        name="gift" 
+                        size={20} 
+                        color="#FFFFFF" 
+                      />
+                    </View>
+                    <View style={styles.referralToggleTextContainer}>
+                      <Text style={[
+                        styles.referralToggleText,
+                        showReferralInput && styles.referralToggleTextActive,
+                      ]}>
+                        გაქვს რეფერალური კოდი?
+                      </Text>
+                      <Text style={styles.referralToggleSubtext}>
+                        მიიღე ქულები რეგისტრაციისთვის
+                      </Text>
+                    </View>
+                    <Ionicons 
+                      name={showReferralInput ? 'chevron-up' : 'chevron-down'} 
+                      size={20} 
+                      color="#8B5CF6" 
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {showReferralInput && (
+                  <View style={styles.referralInputContainer}>
+                    <View style={styles.referralInputWrapper}>
+                      <Ionicons 
+                        name="ticket" 
+                        size={20} 
+                        color="#8B5CF6" 
+                        style={styles.referralInputIcon}
+                      />
+                      <TextInput
+                        style={styles.referralInput}
+                        placeholder="შეიყვანე რეფერალური კოდი"
+                        placeholderTextColor={colors.placeholder}
+                        value={referralCode}
+                        onChangeText={(text) => setReferralCode(text.toUpperCase().trim())}
+                        autoCapitalize="characters"
+                        maxLength={10}
+                      />
+                      {referralCode && (
+                        <TouchableOpacity
+                          onPress={() => setReferralCode('')}
+                          style={styles.referralClearButton}
+                        >
+                          <Ionicons name="close-circle" size={22} color="#9CA3AF" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    {referralCode && (
+                      <View style={styles.referralCodePreview}>
+                        <Text style={styles.referralCodePreviewLabel}>კოდი:</Text>
+                        <Text style={styles.referralCodePreviewValue}>{referralCode}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
 
                 <TouchableOpacity
                   style={[styles.loginButton, loading && styles.loginButtonDisabled]}

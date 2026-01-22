@@ -34,6 +34,7 @@ import { addItemApi } from '../../services/addItemApi';
 import { specialOffersApi, SpecialOffer } from '../../services/specialOffersApi';
 import SpecialOfferModal, { SpecialOfferModalData } from '../../components/ui/SpecialOfferModal';
 import DetailModal, { DetailItem } from '../../components/ui/DetailModal';
+import AddModal from '../../components/ui/AddModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -86,6 +87,8 @@ export default function ServicesScreen() {
   const [myServices, setMyServices] = useState<any[]>([]);
   const [allServices, setAllServices] = useState<any[]>([]);
   const [showCarPicker, setShowCarPicker] = useState(false);
+  const [userServices, setUserServices] = useState<any[]>([]);
+  const [hasUserServices, setHasUserServices] = useState(false);
   
   // Load my services when user changes
   useEffect(() => {
@@ -108,6 +111,44 @@ export default function ServicesScreen() {
 
     loadMyServices();
   }, [user?.role, user?.ownedCarwashes]);
+
+  // Load user's services (for management)
+  const loadUserServices = useCallback(async () => {
+    if (!user?.id) {
+      setHasUserServices(false);
+      return;
+    }
+    
+    try {
+      // Normalize ownerId - remove 'usr_' prefix if present, or try both formats
+      const normalizedOwnerId = user.id.startsWith('usr_') ? user.id.replace('usr_', '') : user.id;
+      
+      // Try both formats: with and without 'usr_' prefix
+      const response1 = await addItemApi.getServices({ ownerId: user.id });
+      const response2 = await addItemApi.getServices({ ownerId: normalizedOwnerId });
+      
+      // Combine results from both queries
+      const allServices = [
+        ...(response1.success && response1.data ? response1.data : []),
+        ...(response2.success && response2.data ? response2.data : []),
+      ];
+      
+      // Remove duplicates based on id
+      const uniqueServices = allServices.filter((service, index, self) =>
+        index === self.findIndex((s) => s.id === service.id)
+      );
+      
+      setUserServices(uniqueServices);
+      setHasUserServices(uniqueServices.length > 0);
+    } catch (error) {
+      console.error('Error loading user services:', error);
+      setHasUserServices(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadUserServices();
+  }, [loadUserServices]);
   
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -754,9 +795,52 @@ export default function ServicesScreen() {
               </View>
 
               {/* Search Section */}
-
+              {hasUserServices && (
+            <View style={styles.manageSection}>
+              <TouchableOpacity 
+                style={styles.manageButton}
+                onPress={() => router.push('/service-management' as any)}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#3B82F6', '#2563EB']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.manageButtonGradient}
+                >
+                  <View style={styles.manageButtonContent}>
+                    <View style={styles.manageButtonLeft}>
+                      <View style={styles.manageButtonIconContainer}>
+                        <Ionicons name="settings" size={20} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.manageButtonTextContainer}>
+                        <Text style={styles.manageButtonText}>
+                          განცხადებების მართვა
+                        </Text>
+                        <Text style={styles.manageButtonSubtext}>
+                          {userServices.length} განცხადება
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.manageButtonRight}>
+                      <View style={styles.manageButtonBadge}>
+                        <Text style={styles.manageButtonBadgeText}>
+                          {userServices.length}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
             </SafeAreaView>
           </LinearGradient>
+
+          {/* განცხადებების მართვა - მხოლოდ თუ აქვს სერვისები - ტაბების თავზე */}
+
+
           {/* Popular Services / Advertisement Cards */}
          
 
@@ -999,11 +1083,92 @@ export default function ServicesScreen() {
 
           {activeFloatingTab === 'bookings' ? (
             userBookings.length > 0 ? (
-              <View style={styles.modernSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.modernSectionTitle}>ჩემი ჯავშნები</Text>
-                </View>
-                <View style={styles.bookingsScroll}>
+              <>
+                {/* Bookings Banner */}
+                {bannerData.length > 0 && (
+                  <View style={styles.bannerContainer}>
+                    <Animated.View style={[styles.bannerWrapper, { height: bannerHeight }]}>
+                      <ScrollView
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        onMomentumScrollEnd={(event) => {
+                          const slideIndex = Math.round(
+                            event.nativeEvent.contentOffset.x / width
+                          );
+                          setCurrentSlide(slideIndex);
+                        }}
+                        ref={flatListRef}
+                      >
+                        {bannerData.map((banner, index) => (
+                          <TouchableOpacity
+                            key={banner.id}
+                            style={styles.bannerSlide}
+                            activeOpacity={0.9}
+                          >
+                            <ImageBackground
+                              source={banner.background}
+                              style={styles.bannerImage}
+                              resizeMode="cover"
+                            >
+                              <LinearGradient
+                                colors={banner.gradient}
+                                style={styles.bannerGradient}
+                              >
+                                <View style={styles.bannerContent}>
+                                  <Text style={styles.bannerTitle}>{banner.title}</Text>
+                                  {banner.bookings && banner.bookings.length > 0 && (
+                                    <View style={styles.bannerBookings}>
+                                      {banner.bookings.map((booking, idx) => (
+                                        <View key={idx} style={styles.bannerBookingItem}>
+                                          <Text style={styles.bannerBookingText}>
+                                            {booking.locationName}
+                                          </Text>
+                                          <Text style={styles.bannerBookingTime}>
+                                            {new Date(booking.bookingDate).toLocaleDateString('ka-GE')} • {booking.bookingTime}
+                                          </Text>
+                                        </View>
+                                      ))}
+                                    </View>
+                                  )}
+                                </View>
+                                <TouchableOpacity
+                                  style={styles.bannerToggle}
+                                  onPress={toggleBanner}
+                                >
+                                  <Ionicons
+                                    name={bannerExpanded ? "chevron-up" : "chevron-down"}
+                                    size={20}
+                                    color="#FFFFFF"
+                                  />
+                                </TouchableOpacity>
+                              </LinearGradient>
+                            </ImageBackground>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                      {bannerData.length > 1 && (
+                        <View style={styles.bannerIndicators}>
+                          {bannerData.map((_, index) => (
+                            <View
+                              key={index}
+                              style={[
+                                styles.bannerIndicator,
+                                currentSlide === index && styles.bannerIndicatorActive,
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      )}
+                    </Animated.View>
+                  </View>
+                )}
+
+                <View style={styles.modernSection}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.modernSectionTitle}>ჩემი ჯავშნები</Text>
+                  </View>
+                  <View style={styles.bookingsScroll}>
                   {userBookings.map((booking, index) => (
                     <View key={booking.id || index} style={styles.modernBookingCard}>
                     <View style={styles.bookingCardTop}> 
@@ -1055,6 +1220,7 @@ export default function ServicesScreen() {
                 ))}
               </View>
             </View>
+              </>
             ) : (
               <View style={styles.modernEmptyState}>
                 <View style={styles.emptyIconContainer}>
@@ -1220,6 +1386,17 @@ export default function ServicesScreen() {
             setSelectedOffer(null);
           }}
         />
+
+        {/* Add Modal */}
+        <AddModal
+          visible={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSave={(type, data) => {
+            console.log('Service successfully added:', { type, data });
+            loadUserServices(); // Reload user services to show management button
+          }}
+          defaultType="service"
+        />
       </View>
     </>
   );
@@ -1227,6 +1404,82 @@ export default function ServicesScreen() {
 
 // Styles - using similar structure to parts.tsx with light theme
 const styles = StyleSheet.create({
+  // განცხადებების მართვა სექცია
+  manageSection: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  manageButton: {
+    borderRadius: 18,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  manageButtonGradient: {
+    borderRadius: 18,
+  },
+  manageButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  manageButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  manageButtonIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageButtonTextContainer: {
+    flex: 1,
+  },
+  manageButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+    letterSpacing: -0.3,
+  },
+  manageButtonSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  manageButtonRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  manageButtonBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  manageButtonBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  
   // Main Container
   innovativeContainer: {
     flex: 1,

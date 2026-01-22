@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
+import { engagementApi } from '../../services/engagementApi';
 import API_BASE_URL from '@/config/api';
 
 const { width } = Dimensions.get('window');
@@ -62,14 +63,14 @@ const MAIN_CATEGORIES = [
     color: '#10B981',
     route: '/mechanics',
   },
-  {
-    id: 'accessories',
-    title: 'აქსესუარები',
-    subtitle: 'ავტომობილის აქსესუარები და დამატებები',
-    icon: 'grid-outline',
-    color: '#F97316',
-    route: '/accessories',
-  },
+  // {
+  //   id: 'accessories',
+  //   title: 'აქსესუარები',
+  //   subtitle: 'ავტომობილის აქსესუარები და დამატებები',
+  //   icon: 'grid-outline',
+  //   color: '#F97316',
+  //   route: '/accessories',
+  // },
   
   {
     id: 'interior',
@@ -287,6 +288,14 @@ export default function MarketplaceScreen() {
           }
         });
       } else if (item.type === 'dismantler') {
+        // Track view
+        const dismantlerId = item.id;
+        if (user?.id && dismantlerId) {
+          console.log('👁️ [MARKETPLACE] Tracking view for dismantler:', dismantlerId, 'user:', user.id);
+          engagementApi.trackDismantlerView(dismantlerId, user.id).catch((err) => {
+            console.error('❌ [MARKETPLACE] Error tracking dismantler view:', err);
+          });
+        }
         // Navigate to details page with dismantler data
         router.push({
           pathname: '/details',

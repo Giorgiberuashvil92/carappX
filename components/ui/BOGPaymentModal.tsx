@@ -80,11 +80,19 @@ export default function BOGPaymentModal({
   const handleShouldStartLoadWithRequest = (request: any) => {
     console.log('🔍 BOG Should Start Load:', request.url);
     
-    // ვამოწმებთ არის თუ არა success/fail URL
-    if (request.url.includes('order-return-redirect')) {
+    const url = request.url || '';
+    
+    // ვამოწმებთ არის თუ არა order-return-redirect URL
+    if (url.includes('order-return-redirect')) {
       console.log('🎯 BOG გადახდა დასრულდა!');
       
-      if (request.url.includes('booking-success') || request.url.includes('payment/success')) {
+      // Extract redirectURL from query params
+      const urlParams = new URLSearchParams(url.split('?')[1] || '');
+      const redirectURL = urlParams.get('redirectURL') || '';
+      
+      console.log('🔗 Redirect URL:', redirectURL);
+      
+      if (redirectURL.includes('payment/success') || redirectURL.includes('booking-success') || url.includes('payment/success')) {
         console.log('✅ BOG გადახდა წარმატებულია!');
         onClose(); 
         setShowSuccessModal(true);
@@ -93,7 +101,7 @@ export default function BOGPaymentModal({
           onSuccess?.();
         }, 2000);
         return false;
-      } else if (request.url.includes('payment/fail')) {
+      } else if (redirectURL.includes('payment/fail') || url.includes('payment/fail')) {
         console.log('❌ BOG გადახდა წარუმატებელია!');
         onClose(); 
         setShowFailModal(true);
@@ -105,25 +113,25 @@ export default function BOGPaymentModal({
       }
     }
     
-    // ვამოწმებთ BOG-ის success/fail URL-ებს
-    if (request.url.includes('success') || request.url.includes('completed')) {
+    // ვამოწმებთ BOG-ის success/fail URL-ებს პირდაპირ
+    if (url.includes('/payment/success') || url.includes('success') || url.includes('completed')) {
       console.log('✅ BOG Success URL detected!');
+      onClose();
       setShowSuccessModal(true);
       setTimeout(() => {
         setShowSuccessModal(false);
         onSuccess?.();
-        onClose();
       }, 2000);
       return false;
     }
     
-    if (request.url.includes('fail') || request.url.includes('error') || request.url.includes('cancel')) {
+    if (url.includes('/payment/fail') || url.includes('fail') || url.includes('error') || url.includes('cancel')) {
       console.log('❌ BOG Fail URL detected!');
+      onClose();
       setShowFailModal(true);
       setTimeout(() => {
         setShowFailModal(false);
         onError?.('გადახდა წარუმატებელია');
-        onClose();
       }, 2000);
       return false;
     }

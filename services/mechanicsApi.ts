@@ -18,6 +18,7 @@ export interface MechanicDTO {
   address?: string;
   projects?: Array<{ image?: string; title?: string }>;
   reviewList?: Array<{ user?: string; rating?: number; comment?: string; date?: string }>;
+  isFeatured?: boolean;
 }
 
 class MechanicsApiService {
@@ -38,7 +39,6 @@ class MechanicsApiService {
         headers: { 'Content-Type': 'application/json' },
       });
       
-      console.log('🔧 [MECHANICS_API] Response status:', response.status);
       
       if (!response.ok) {
         console.error('🔧 [MECHANICS_API] Error response:', response.status, response.statusText);
@@ -46,10 +46,8 @@ class MechanicsApiService {
       }
       
       const data = await response.json();
-      console.log('🔧 [MECHANICS_API] Raw response data:', data);
       
       const result = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-      console.log('🔧 [MECHANICS_API] Processed result:', result);
       
       return result;
     } catch (error) {

@@ -5,10 +5,13 @@ import DetailView, { DetailViewProps } from '@/components/DetailView';
 import API_BASE_URL from '@/config/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { analyticsService } from '@/services/analytics';
+import { useUser } from '@/contexts/UserContext';
+import { engagementApi } from '@/services/engagementApi';
 
 export default function DetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useUser();
 
   const serviceType = (params.type as string) || 'carwash';
   const title = (params.title as string) || 'სერვისი';
@@ -29,6 +32,14 @@ export default function DetailsScreen() {
         // თუ id არ არის, გამოვიყენოთ params პირდაპირ
         setLoading(false);
         return;
+      }
+      
+      // Track dismantler view
+      if (serviceType === 'dismantler' && user?.id && id) {
+        console.log('👁️ [DETAILS] Tracking view for dismantler:', id, 'user:', user.id);
+        engagementApi.trackDismantlerView(id, user.id).catch((err) => {
+          console.error('❌ [DETAILS] Error tracking dismantler view:', err);
+        });
       }
       
       // სცადოთ API-დან ჩატვირთვა მხოლოდ carwash-ისთვის
@@ -52,7 +63,7 @@ export default function DetailsScreen() {
       }
     };
     load();
-  }, [params.id, requestId, serviceType]);
+  }, [params.id, requestId, serviceType, user?.id]);
 
   const mapped: DetailViewProps | null = useMemo(() => {
     const d = detail || {};
@@ -167,6 +178,14 @@ export default function DetailsScreen() {
         onCall: () => { 
           if (phone) {
             analyticsService.logCallInitiated(phone, serviceType);
+            // Track dismantler call
+            if (serviceType === 'dismantler' && user?.id && (d?.id || requestId)) {
+              const dismantlerId = d?.id || requestId;
+              console.log('📞 [DETAILS] Tracking call for dismantler:', dismantlerId, 'user:', user.id);
+              engagementApi.trackDismantlerCall(dismantlerId, user.id).catch((err) => {
+                console.error('❌ [DETAILS] Error tracking dismantler call:', err);
+              });
+            }
             Linking.openURL(`tel:${phone}`);
           }
         },

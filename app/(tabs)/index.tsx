@@ -40,7 +40,9 @@ import RacingBanner from '../../components/ui/RacingBanner';
 import CarRentalCard from '../../components/ui/CarRentalCard';
 import DetailView, { DetailViewProps } from '../../components/DetailView';
 import { useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { getResponsiveDimensions, getResponsiveCardWidth } from '../../utils/responsive';
+import { analyticsService } from '../../services/analytics';
 
 const { screenWidth, contentWidth, horizontalMargin, isTablet } = getResponsiveDimensions();
 const H_MARGIN = 20;
@@ -92,37 +94,9 @@ export default function TabOneScreen() {
       const json = await res.json().catch(() => ({}));
       const data = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
       // Log raw items array separately to see full content
-      console.log('🔍 Full raw story object:', JSON.stringify(data[0], null, 2));
-      if (data[0]?.items) {
-        console.log('📦 Raw items array type:', typeof data[0].items);
-        console.log('📦 Raw items array:', JSON.stringify(data[0].items, null, 2));
-        console.log('📦 Raw items array length:', data[0].items?.length);
-        console.log('📦 First item in raw array:', data[0].items?.[0]);
-        console.log('📦 Items keys:', Object.keys(data[0].items || {}));
-      } else {
-        console.log('⚠️ No items field in story');
-      }
+     
       
-      console.log('📚 Stories fetched from backend:', {
-        rawData: data,
-        storiesCount: data.length,
-        firstStory: data[0] ? {
-          id: data[0].id || data[0]._id,
-          itemsCount: data[0].items?.length,
-          itemsRaw: data[0].items, // Full raw items array
-          items: data[0].items?.map((it: any) => ({
-            id: it.id,
-            _id: it._id,
-            type: it.type,
-            uri: it.uri,
-            url: it.url,
-            image: it.image,
-            imageUrl: it.imageUrl,
-            hasUri: !!it.uri,
-            fullItem: it, // Full item object for debugging
-          })),
-        } : null,
-      });
+
       const mapped = data.map((s: any) => ({
         id: String(s.id || s._id),
         author: { id: String(s.authorId || 'svc'), name: s.authorName || 'Story', avatar: s.authorAvatar },
@@ -167,6 +141,26 @@ export default function TabOneScreen() {
 
   const quickActionsList = [
     {
+      key: 'fuel',
+      title: 'საწვავი',
+      subtitle: 'ფასების შედარება და რეკომენდაციები',
+      icon: 'flame',
+      colors: ['#F59E0B', '#D97706'],
+      pill: 'საწვავი',
+      tag: 'ახალი',
+      route: '/fuel-stations' as any,
+    },
+    {
+      key: 'parts',
+      title: 'ნაწილები',
+      subtitle: 'ავტონაწილების მოძიება და შეძენა',
+      icon: 'construct',
+      colors: ['#10B981', '#059669'],
+      pill: 'დაშლილები',
+      tag: 'ძიება',
+      route: '/parts' as any,
+    },
+    {
       key: 'wash',
       title: 'ავტო სამრეცხაო',
       subtitle: 'ბუქინგი უახლოეს სამრეცხაოში',
@@ -176,16 +170,7 @@ export default function TabOneScreen() {
       tag: 'ახალი',
       route: '/(tabs)/carwash' as any,
     },
-    {
-      key: 'fuel',
-      title: 'საწვავის ფასები',
-      subtitle: 'ფასების შედარება და რეკომენდაციები',
-      icon: 'flame',
-      colors: ['#F59E0B', '#D97706'],
-      pill: 'რეალ-ტაიმ',
-      tag: 'ახალი',
-      route: '/fuel-stations' as any,
-    },
+
     {
       key: 'mechanic',
       title: 'ხელოსანი',
@@ -196,16 +181,7 @@ export default function TabOneScreen() {
       tag: 'სერვისი',
       route: '/mechanics' as any,
     },
-    {
-      key: 'parts',
-      title: 'ნაწილები',
-      subtitle: 'ავტონაწილების მოძიება და შეძენა',
-      icon: 'construct',
-      colors: ['#10B981', '#059669'],
-      pill: 'მარკეტპლეისი',
-      tag: 'ძიება',
-      route: '/parts' as any,
-    },
+
     {
       key: 'rental',
       title: 'მანქანის გაქირავება',
@@ -216,16 +192,7 @@ export default function TabOneScreen() {
       tag: 'ახალი',
       route: '/car-rental-list' as any,
     },
-    {
-      key: 'loyalty',
-      title: 'ლოიალობის პროგრამა',
-      subtitle: 'გულების დაგროვება და ფასდაკლებები',
-      icon: 'star',
-      colors: ['#EC4899', '#DB2777'],
-      pill: 'ქულები',
-      tag: 'ბონუსი',
-      route: '/loyalty' as any,
-    },
+   
   ];
 
   // CarFAX კარდი ცალკე, ქვემოთ
@@ -372,7 +339,6 @@ export default function TabOneScreen() {
         description: service.description, // აღწერა
       }));
       
-      console.log('🎉 Fetched services from new API:', formattedServices);
       setPopularServices(formattedServices);
     } catch (error) {
       console.error('❌ Error fetching services:', error);
@@ -407,7 +373,6 @@ export default function TabOneScreen() {
       }
       
       const data = await response.json();
-      console.log('🚗 Fetched rental cars:', data);
       setRentalCars(data);
     } catch (error) {
       console.error('❌ Error fetching rental cars:', error);
@@ -438,7 +403,6 @@ export default function TabOneScreen() {
       });
       
       const result = await response.json();
-      console.log('📝 [FEEDBACK] Response:', result);
       
       if (result.success) {
         Alert.alert('გაგზავნილია', 'მადლობა ფიდბექისთვის!');
@@ -486,6 +450,13 @@ export default function TabOneScreen() {
     // BOG OAuth status check
     bogApi.getOAuthStatus().then(setBogOAuthStatus).catch(() => setBogOAuthStatus(null));
   }, []);
+
+  // Track screen view when home page is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      analyticsService.logScreenViewWithBackend('მთავარი', 'HomeScreen', user?.id);
+    }, [user?.id])
+  );
 
   // Test payment handler (1 ლარი)
   const handleTestPayment = async () => {
@@ -1571,6 +1542,48 @@ export default function TabOneScreen() {
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
     },
+    referralBanner: {
+      marginHorizontal: 2,
+      marginTop: 16,
+      marginBottom: 16,
+      borderRadius: 16,
+      overflow: 'hidden',
+      shadowColor: '#8B5CF6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    referralBannerGradient: {
+      paddingHorizontal: 20,
+      paddingVertical: 18,
+    },
+    referralBannerContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    referralBannerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    referralBannerTextContainer: {
+      flex: 1,
+    },
+    referralBannerTitle: {
+      fontSize: 16,
+      fontFamily: 'NotoSans_700Bold',
+      color: '#FFFFFF',
+      marginBottom: 4,
+      fontWeight: '700',
+    },
+    referralBannerSubtitle: {
+      fontSize: 13,
+      fontFamily: 'NotoSans_400Regular',
+      color: '#EDE9FE',
+    },
   });
 
   return (
@@ -1599,7 +1612,10 @@ export default function TabOneScreen() {
         <View style={styles.profileRow}>
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center' }}
-            onPress={() => router.push('/two')}
+            onPress={() => {
+              analyticsService.logButtonClick('პროფილი', 'მთავარი', undefined, user?.id);
+              router.push('/two');
+            }}
             activeOpacity={0.7}
           >
             <View style={styles.avatarSmall}>
@@ -1625,7 +1641,6 @@ export default function TabOneScreen() {
                   onPress={() => {
                     // ჯერ შევამოწმოთ subscription-ის plan-ი და მერე გავხსნათ შესაბამისი modal
                     const currentPlan = subscription?.plan;
-                    console.log(subscription?.plan)
                     if (currentPlan === 'premium' ) {
                       setShowPremiumInfoModal(true);
                     } else if (currentPlan === 'basic' ) {
@@ -1690,15 +1705,10 @@ export default function TabOneScreen() {
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity 
               style={styles.roundIcon}
-              onPress={() => router.push('/map')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="navigate-circle" size={18} color={'#111827'} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.roundIcon}
-              onPress={() => setNotificationsModalVisible(true)}
+              onPress={() => {
+                analyticsService.logButtonClick('შეტყობინებები', 'მთავარი', undefined, user?.id);
+                setNotificationsModalVisible(true);
+              }}
               activeOpacity={0.7}
             >
               <Ionicons name="notifications-outline" size={18} color={'#111827'} />
@@ -1711,6 +1721,33 @@ export default function TabOneScreen() {
           </View>
         </View>
 
+        {/* Referral Banner */}
+        {user?.id && (
+          <TouchableOpacity
+            onPress={() => router.push('/referral')}
+            activeOpacity={0.8}
+            style={styles.referralBanner}
+          >
+            <LinearGradient
+              colors={['#8B5CF6', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.referralBannerGradient}
+            >
+              <View style={styles.referralBannerContent}>
+                <View style={styles.referralBannerLeft}>
+                  <Ionicons name="gift" size={24} color="#FFFFFF" />
+                  <View style={styles.referralBannerTextContainer}>
+                    <Text style={styles.referralBannerTitle}>ლიდერბორდი</Text>
+                    <Text style={styles.referralBannerSubtitle}>მოიგე 200 ლიტრი ბენზინი</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
         {/* ინოვაციური Stories სექცია */}
         <View style={{ 
           
@@ -1720,6 +1757,7 @@ export default function TabOneScreen() {
           <StoriesRow 
             stories={stories} 
             onOpen={(idx) => { 
+              analyticsService.logButtonClick('Stories ნახვა', 'მთავარი', { storyIndex: idx }, user?.id);
               setOpenStoryIndex(idx); 
               setOverlayVisible(true); 
             }} 
@@ -1730,17 +1768,22 @@ export default function TabOneScreen() {
         <View style={{ paddingHorizontal: 2, marginBottom: 16, marginTop: 16 }}>
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => router.push('/financing-info')}
+            onPress={() => {
+              analyticsService.logButtonClick('განვადება Credo Bank', 'მთავარი', undefined, user?.id);
+              if (!isPremiumUser) {
+                setShowSubscriptionModal(true);
+              } else {
+                router.push('/financing-info');
+              }
+            }}
             style={{ borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 }}
           >
             <LinearGradient colors={["#1E293B", "#0F172A"]} style={{ paddingHorizontal: 16, paddingVertical: 24, minHeight: 160, justifyContent: 'center' }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
-                  <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(59,130,246,0.15)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.35)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginBottom: 8 }}>
-                    <Text style={{ color: '#93C5FD', fontWeight: '700', fontSize: 11 }}>Credo Bank • 0%</Text>
-                  </View>
+                  
                   <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.2, marginBottom: 8 }}>0%-იანი განვადება ყველაფერზე</Text>
-                  <Text style={{ color: '#CBD5E1', fontSize: 13 }}>შეავსე მოკლე ფორმა და ჩვენი ოპერატორი დაგიკავშირდება</Text>
+                  <Text style={{ color: '#CBD5E1', fontSize: 13 }}>გჭირდება ფული ნაწილისთვის ? შეავსე ფორმა და იყიდე ნებისმიერი ნივთი</Text>
                 </View>
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', padding: 12, borderRadius: 12 }}>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -1769,8 +1812,10 @@ export default function TabOneScreen() {
           onPress={() => {
             // შევამოწმოთ subscription - მხოლოდ premium იუზერებს აქვთ წვდომა
             if (!subscription || subscription.plan !== 'premium' || !isPremiumUser) {
+              analyticsService.logButtonClick('CarFAX (Premium)', 'მთავარი', { requiresPremium: true }, user?.id);
               setShowSubscriptionModal(true);
             } else {
+              analyticsService.logButtonClick('CarFAX', 'მთავარი', undefined, user?.id);
               router.push('/carfax' as any);
             }
           }}
@@ -2002,7 +2047,10 @@ export default function TabOneScreen() {
               <Text style={{ fontSize: 18, fontWeight: '500', color: '#111827', fontFamily: 'Outfit' }}>მანქანების გაქირავება</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={() => router.push('/car-rental-list' as any)}>
+          <TouchableOpacity onPress={() => {
+            analyticsService.logButtonClick('ყველა მანქანის ქირავნობა', 'მთავარი', undefined, user?.id);
+            router.push('/car-rental-list' as any);
+          }}>
             <Text style={styles.sectionAction}>ყველა</Text>
           </TouchableOpacity>
         </View>
@@ -2040,6 +2088,7 @@ export default function TabOneScreen() {
                 available={car.available}
                 features={car.features}
                 onPress={() => {
+                  analyticsService.logButtonClick('მანქანის ქირავნობა', 'მთავარი', { carId: car.id || car._id }, user?.id);
                   router.push(`/car-rental/${car.id || car._id}` as any);
                 }}
               />
@@ -2052,7 +2101,10 @@ export default function TabOneScreen() {
       <View style={styles.popularContainer}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>პოპულარული სერვისები</Text>
-          <TouchableOpacity onPress={() => router.push('/all-services')}>
+          <TouchableOpacity onPress={() => {
+            analyticsService.logButtonClick('ყველა სერვისი', 'მთავარი', undefined, user?.id);
+            router.push('/all-services');
+          }}>
             <Text style={styles.sectionAction}>ყველა</Text>
           </TouchableOpacity>
         </View>
@@ -2291,7 +2343,7 @@ export default function TabOneScreen() {
         onPress={() => setShowFeedbackModal(true)}
       >
         <Ionicons name="chatbubble-ellipses" size={22} color="#FFFFFF" />
-        <Text style={feedbackStyles.fabText}>ფიდბექი</Text>
+        <Text style={feedbackStyles.fabText}>მოგვწერე</Text>
       </TouchableOpacity>
 
       {/* Feedback Modal */}

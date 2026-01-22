@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { uploadCarImage } from '../../utils/cloudinaryUpload';
+import { carBrandsApi } from '../../services/carBrandsApi';
 
 const { height } = Dimensions.get('window');
 
@@ -26,31 +27,7 @@ type AddCarModalProps = {
   onAddCar: (car: { make: string; model: string; year: number; plateNumber: string; imageUri?: string }) => Promise<void> | void;
 };
 
-const CAR_BRANDS = [
-  'BMW', 'Mercedes-Benz', 'Audi', 'Toyota', 'Honda', 'Nissan', 'Hyundai', 'Kia',
-  'Volkswagen', 'Ford', 'Chevrolet', 'Mazda', 'Subaru', 'Lexus', 'Infiniti', 'Acura',
-  'Porsche', 'Jaguar', 'LandRover', 'Volvo', 'Saab', 'Opel', 'Peugeot', 'Renault',
-  'Fiat', 'Alfa Romeo', 'Lancia', 'Skoda', 'Seat', 'Dacia', 'Lada', 'UAZ'
-];
-
-const CAR_MODELS: { [key: string]: string[] } = {
-  BMW: ['X1', 'X3', 'X5', 'X7', '1 Series', '2 Series', '3 Series', '4 Series', '5 Series', '6 Series', '7 Series', '8 Series', 'Z4', 'i3', 'i8'],
-  'Mercedes-Benz': ['A-Class', 'B-Class', 'C-Class', 'E-Class', 'S-Class', 'GLA', 'GLB', 'GLC', 'GLE', 'GLS', 'G-Class', 'CLA', 'CLS', 'AMG GT', 'EQC'],
-  Audi: ['A1', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'Q2', 'Q3', 'Q5', 'Q7', 'Q8', 'TT', 'R8', 'e-tron'],
-  Toyota: ['Yaris', 'Corolla', 'Camry', 'Prius', 'RAV4', 'Highlander', '4Runner', 'Sequoia', 'Tacoma', 'Tundra', 'Sienna', 'Avalon', 'C-HR', 'Venza'],
-  Honda: ['Civic', 'Accord', 'Insight', 'CR-V', 'Pilot', 'Passport', 'Ridgeline', 'HR-V', 'Fit', 'Odyssey', 'NSX', 'CR-Z'],
-  Nissan: ['Versa', 'Sentra', 'Altima', 'Maxima', 'Kicks', 'Rogue', 'Murano', 'Pathfinder', 'Armada', 'Frontier', 'Titan', '370Z', 'GT-R', 'Leaf'],
-  Hyundai: ['Accent', 'Elantra', 'Sonata', 'Veloster', 'Tucson', 'Santa Fe', 'Palisade', 'Kona', 'Nexo', 'Genesis', 'Ioniq'],
-  Kia: ['Rio', 'Forte', 'Optima', 'Stinger', 'Soul', 'Sportage', 'Sorento', 'Telluride', 'Niro', 'Cadenza', 'K900'],
-  Volkswagen: ['Jetta', 'Passat', 'Arteon', 'Golf', 'GTI', 'Beetle', 'Tiguan', 'Atlas', 'ID.4', 'Touareg'],
-  Ford: ['Fiesta', 'Focus', 'Fusion', 'Mustang', 'EcoSport', 'Escape', 'Edge', 'Explorer', 'Expedition', 'F-150', 'Ranger', 'Bronco'],
-  Chevrolet: ['Spark', 'Sonic', 'Cruze', 'Malibu', 'Impala', 'Camaro', 'Corvette', 'Trax', 'Equinox', 'Blazer', 'Traverse', 'Tahoe', 'Suburban', 'Silverado'],
-  Mazda: ['Mazda2', 'Mazda3', 'Mazda6', 'MX-5 Miata', 'CX-3', 'CX-30', 'CX-5', 'CX-9'],
-  Subaru: ['Impreza', 'Legacy', 'WRX', 'BRZ', 'Crosstrek', 'Forester', 'Outback', 'Ascent'],
-  Lexus: ['IS', 'ES', 'GS', 'LS', 'UX', 'NX', 'RX', 'GX', 'LX', 'LC', 'RC'],
-  Porsche: ['718', '911', 'Panamera', 'Macan', 'Cayenne', 'Taycan'],
-  LandRover: ['Defender', 'Discovery', 'Range Rover', 'Range Rover Sport', 'Range Rover Velar'],
-};
+// Car brands and models loaded from API
 
 const CAR_YEARS = Array.from({ length: 25 }, (_, i) => (2024 - i).toString());
 
@@ -61,6 +38,29 @@ export default function AddCarModal({ visible, onClose, onAddCar }: AddCarModalP
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [showSubmodelDropdown] = useState(false);
+
+  // Car brands and models from API
+  const [CAR_BRANDS, setCAR_BRANDS] = useState<string[]>([]);
+  const [CAR_MODELS, setCAR_MODELS] = useState<{ [key: string]: string[] }>({});
+
+  // Load car brands from API
+  useEffect(() => {
+    const loadCarBrands = async () => {
+      try {
+        const brandsList = await carBrandsApi.getBrandsList();
+        const brands = brandsList.map(b => b.name);
+        const modelsMap: { [key: string]: string[] } = {};
+        brandsList.forEach(brand => {
+          modelsMap[brand.name] = brand.models || [];
+        });
+        setCAR_BRANDS(brands);
+        setCAR_MODELS(modelsMap);
+      } catch (err) {
+        console.error('Error loading car brands:', err);
+      }
+    };
+    loadCarBrands();
+  }, []);
 
   const [newCarData, setNewCarData] = useState<{
     brand?: string;

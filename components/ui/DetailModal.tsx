@@ -76,6 +76,7 @@ export default function DetailModal({
   onFavorite,
   isFavorite = false,
 }: DetailModalProps) {
+  console.log(item)
   const router = useRouter();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showFullDescription, setShowFullDescription] = useState(false);

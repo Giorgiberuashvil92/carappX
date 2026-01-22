@@ -97,7 +97,13 @@ const CommunitySection: React.FC<CommunitySectionProps> = ({
           <Ionicons name="people" size={20} color="#111827" />
           <Text style={styles.sectionTitle}>ჯგუფი</Text>
         </View>
-       
+        <TouchableOpacity 
+          style={styles.viewAllButton}
+          onPress={() => router.push('/(tabs)/community')}
+        >
+          <Text style={styles.viewAllText}>ყველას ნახვა</Text>
+          <Ionicons name="chevron-forward" size={16} color="#111827" />
+        </TouchableOpacity>
       </View>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityContent}>
@@ -213,6 +219,20 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   sectionAction: {
+    fontSize: 13,
+    color: '#111827',
+    fontFamily: 'NotoSans_600SemiBold',
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  viewAllText: {
     fontSize: 13,
     color: '#111827',
     fontFamily: 'NotoSans_600SemiBold',

@@ -56,7 +56,13 @@ const PROFILE_MENU_ITEMS = [
     icon: 'star-outline',
     color: '#F59E0B',
   },
-  
+  {
+    id: 'referral',
+    title: 'რეფერალური კოდი',
+    subtitle: 'მოიწვიე მეგობრები და მიიღე ქულები',
+    icon: 'gift-outline',
+    color: '#8B5CF6',
+  },
   {
     id: '2',
     title: 'ჩემი მანქანები',
@@ -64,8 +70,13 @@ const PROFILE_MENU_ITEMS = [
     icon: 'car-outline',
     color: '#10B981',
   },
-
-  
+  {
+    id: 'analytics',
+    title: 'ანალიტიკა',
+    subtitle: 'მომხმარებლის ქცევა და სტატისტიკა',
+    icon: 'analytics-outline',
+    color: '#667eea',
+  },
 ];
 
 export default function ProfileScreen() {
@@ -433,8 +444,12 @@ export default function ProfileScreen() {
     }
     if (item.id === 'loyalty') {
       router.push('/loyalty');
+    } else if (item.id === 'referral') {
+      router.push('/referral');
     } else if (item.id === 'partner') {
       router.push('/partner');
+    } else if (item.id === 'analytics') {
+      router.push('/analytics-dashboard');
     } else if (item.id === '8') {
       handleContactOptions();
     } else if (item.id === '9') {

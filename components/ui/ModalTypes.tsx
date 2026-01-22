@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { carBrandsApi } from '../../services/carBrandsApi';
 
 // Car Data Types
 type CarData = {
@@ -38,87 +39,7 @@ const CAR_MAKES = [
   'Bentley', 'Rolls-Royce', 'Aston Martin', 'McLaren', 'Bugatti', 'Koenigsegg', 'Pagani', 'სხვა'
 ];
 
-const CAR_MODELS: { [key: string]: string[] } = {
-  'BMW': [
-    // 3 Series
-    '316', '318', '320', '323', '325', '328', '330', '335', '340', 'M3',
-    // 5 Series  
-    '520', '525', '528', '530', '535', '540', '545', '550', 'M5',
-    // 7 Series
-    '730', '740', '745', '750', '760', 'M7',
-    // X Series
-    'X1', 'X3', 'X4', 'X5', 'X6', 'X7',
-    // Z Series
-    'Z3', 'Z4', 'Z8',
-    // i Series
-    'i3', 'i8', 'iX',
-    // Other
-    'M2', 'M4', 'M6', 'M8', 'Alpina'
-  ],
-  'Mercedes-Benz': [
-    // A-Class
-    'A160', 'A180', 'A200', 'A220', 'A250', 'A35', 'A45',
-    // C-Class
-    'C180', 'C200', 'C220', 'C250', 'C300', 'C350', 'C400', 'C450', 'C63',
-    // E-Class
-    'E200', 'E220', 'E250', 'E300', 'E350', 'E400', 'E450', 'E500', 'E63',
-    // S-Class
-    'S350', 'S400', 'S450', 'S500', 'S550', 'S600', 'S63', 'S65', 'Maybach',
-    // GLA/GLC/GLE/GLS
-    'GLA', 'GLC', 'GLE', 'GLS', 'GLB', 'GLC Coupe', 'GLE Coupe',
-    // CLA/CLS
-    'CLA', 'CLS', 'CLA Shooting Brake', 'CLS Shooting Brake',
-    // AMG
-    'AMG GT', 'AMG GT 4-Door', 'AMG SL',
-    // Commercial
-    'Sprinter', 'Vito', 'V-Class'
-  ],
-  'Audi': [
-    // A Series
-    'A1', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8',
-    // Q Series
-    'Q2', 'Q3', 'Q4', 'Q5', 'Q7', 'Q8', 'Q8 e-tron',
-    // TT Series
-    'TT', 'TT RS', 'TTS',
-    // R Series
-    'R8',
-    // RS Series
-    'RS3', 'RS4', 'RS5', 'RS6', 'RS7',
-    // e-tron
-    'e-tron', 'e-tron GT'
-  ],
-  'Toyota': [
-    'Camry', 'Corolla', 'RAV4', 'Highlander', 'Prius', 'Avalon', 
-    '4Runner', 'Tacoma', 'Tundra', 'Sienna', 'Land Cruiser',
-    'Yaris', 'C-HR', 'Venza', 'Sequoia', 'GR Supra', 'GR86'
-  ],
-  'Honda': [
-    'Civic', 'Accord', 'CR-V', 'Pilot', 'HR-V', 'Passport', 
-    'Odyssey', 'Ridgeline', 'Insight', 'Fit', 'CR-Z', 'S2000'
-  ],
-  'Ford': [
-    'F-150', 'Explorer', 'Escape', 'Edge', 'Expedition', 'Mustang', 
-    'Focus', 'Fiesta', 'Transit', 'Ranger', 'Bronco', 'Bronco Sport',
-    'EcoSport', 'Flex', 'Fusion', 'Taurus'
-  ],
-  'Volkswagen': [
-    'Golf', 'Jetta', 'Passat', 'Tiguan', 'Atlas', 'Beetle', 
-    'Arteon', 'ID.4', 'Touareg', 'Polo', 'T-Cross', 'Touran'
-  ],
-  'Nissan': [
-    'Altima', 'Sentra', 'Rogue', 'Murano', 'Pathfinder', 'Armada', 
-    'Versa', 'Maxima', '370Z', 'GT-R', 'Leaf', 'Kicks', 'Frontier', 'Titan'
-  ],
-  'Hyundai': [
-    'Elantra', 'Sonata', 'Tucson', 'Santa Fe', 'Palisade', 'Accent', 
-    'Veloster', 'Genesis', 'Kona', 'Venue', 'Nexo', 'IONIQ'
-  ],
-  'Kia': [
-    'Forte', 'Optima', 'Sportage', 'Sorento', 'Telluride', 'Soul', 
-    'Stinger', 'Niro', 'Seltos', 'Sorento Hybrid', 'EV6'
-  ],
-  'სხვა': []
-};
+// CAR_MODELS loaded from API
 
 const FUEL_OPTIONS = [
   { id: 'ბენზინი', icon: '🔥', color: '#FF6B6B' },
@@ -152,6 +73,29 @@ export const AddCarModalContent: React.FC<{
   const [showMakeDropdown, setShowMakeDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [filteredModels, setFilteredModels] = useState<string[]>([]);
+  const [CAR_MODELS, setCAR_MODELS] = useState<{ [key: string]: string[] }>({});
+  const [CAR_MAKES, setCAR_MAKES] = useState<string[]>([]);
+
+  // Load car brands and models from API
+  useEffect(() => {
+    const loadCarBrands = async () => {
+      try {
+        const brandsList = await carBrandsApi.getBrandsList();
+        const brands = brandsList.map(b => b.name);
+        const modelsMap: { [key: string]: string[] } = {};
+        brandsList.forEach(brand => {
+          modelsMap[brand.name] = brand.models || [];
+        });
+        setCAR_MAKES(brands);
+        setCAR_MODELS(modelsMap);
+      } catch (err) {
+        console.error('Error loading car brands:', err);
+        // Fallback to static data if API fails
+        setCAR_MAKES(CAR_MAKES);
+      }
+    };
+    loadCarBrands();
+  }, []);
 
   const handleChange = (key: keyof CarData, value: string) => {
     setCar(prev => {
@@ -292,7 +236,7 @@ export const AddCarModalContent: React.FC<{
                   showsVerticalScrollIndicator={false}
                   nestedScrollEnabled={true}
                 >
-                  {CAR_MAKES.map((item) => (
+                  {CAR_MAKES.length > 0 ? CAR_MAKES.map((item) => (
                     <TouchableOpacity
                       key={item}
                       style={styles.dropdownItem}
@@ -300,7 +244,11 @@ export const AddCarModalContent: React.FC<{
                     >
                       <Text style={styles.dropdownItemText}>{item}</Text>
                     </TouchableOpacity>
-                  ))}
+                  )) : (
+                    <View style={styles.dropdownItem}>
+                      <Text style={styles.dropdownItemText}>იტვირთება...</Text>
+                    </View>
+                  )}
                 </ScrollView>
               </View>
             )}

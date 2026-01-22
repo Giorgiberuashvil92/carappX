@@ -46,7 +46,14 @@ const subscriptionPlans: SubscriptionPlan[] = [
     price: 0,
     currency: '₾',
     period: 'უფასო',
-    features: ['ყველა ძირითადი ფუნქცია'],
+    features: [
+      'განცხადებების ნახვა',
+      'მანქანის დამატება',
+      'ნაწილების მოძიება',
+      'ავტოსერვისებით სარგებლობა',
+      'მანქანის ქირაობა',
+      'ჯგუფით სარგებლობა',
+    ],
     icon: 'star-outline',
     color: '#3B82F6',
   },
@@ -56,7 +63,15 @@ const subscriptionPlans: SubscriptionPlan[] = [
     price: 2.99,
     currency: '₾',
     period: 'თვეში',
-    features: ['ყველა ფუნქცია + CarFAX'],
+    features: [
+      'ყველა ძირითადი ფუნქცია',
+      '5 ოფიციალური CarFAX რეპორტი',
+      'კრედო ბანკის 0% განვადება',
+      'ფასდაკლებები პარტნიორებთან',
+      'ჯარიმების კონტროლი',
+      'შეხსენებები სერვისზე',
+      'AI დამხმარე',
+    ],
     icon: 'diamond-outline',
     color: '#F59E0B',
   },
@@ -296,9 +311,26 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
                     {/* Plan Info */}
                     <View style={styles.planInfo}>
                       <Text style={styles.planName}>{plan.name}</Text>
-                      {plan.features.map((feature, index) => (
-                        <Text key={index} style={styles.planSubtext}>{feature}</Text>
-                      ))}
+                      <View style={styles.featuresList}>
+                        {plan.features.map((feature, index) => (
+                          <View key={index} style={styles.featureItem}>
+                            {plan.id !== 'basic' && (
+                              <Ionicons 
+                                name="checkmark-circle" 
+                                size={14} 
+                                color={isSelected ? '#6366F1' : '#10B981'} 
+                                style={styles.featureIcon}
+                              />
+                            )}
+                            {plan.id === 'basic' && (
+                              <View style={styles.basicBullet} />
+                            )}
+                            <Text style={[styles.planSubtext, isSelected && styles.planSubtextSelected]}>
+                              {feature}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
 
                     {/* Price */}
@@ -510,14 +542,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#0B1220',
-    marginBottom: 4,
+    marginBottom: 8,
     fontFamily: 'System',
+  },
+  featuresList: {
+    gap: 6,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  featureIcon: {
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  basicBullet: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#6B7280',
+    marginTop: 6,
+    marginRight: 2,
+    flexShrink: 0,
   },
   planSubtext: {
     fontSize: 12,
     color: '#6B7280',
-    marginTop: 2,
+    lineHeight: 18,
+    flex: 1,
     fontFamily: 'System',
+  },
+  planSubtextSelected: {
+    color: '#374151',
+    fontWeight: '500',
   },
   priceContainer: {
     alignItems: 'flex-end',

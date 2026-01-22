@@ -161,6 +161,70 @@ class AnalyticsService {
       item_id: itemId,
     });
   }
+
+  // Button click events
+  logButtonClick(buttonName: string, screen: string, additionalParams?: Record<string, any>, userId?: string) {
+    this.logEvent('button_click', {
+      button_name: buttonName,
+      screen: screen,
+      ...additionalParams,
+    });
+    
+    // Also track in backend
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('button_click', buttonName, userId, screen, additionalParams).catch(() => {
+          // Silently fail
+        });
+      }).catch(() => {
+        // Silently fail
+      });
+    }
+  }
+
+  // Home page specific events
+  logHomePageAction(action: string, target?: string) {
+    this.logEvent('home_page_action', {
+      action: action,
+      target: target,
+      screen: 'home',
+    });
+  }
+
+  // Screen view with backend tracking
+  logScreenViewWithBackend(screenName: string, screenClass?: string, userId?: string) {
+    this.logScreenView(screenName, screenClass);
+    
+    // Also track in backend
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('screen_view', screenName, userId, screenName).catch(() => {
+          // Silently fail
+        });
+      }).catch(() => {
+        // Silently fail
+      });
+    }
+  }
+
+  // Navigation with backend tracking
+  logNavigationWithBackend(from: string, to: string, userId?: string) {
+    this.logNavigation(from, to);
+    
+    // Also track in backend
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('navigation', `${from} -> ${to}`, userId, from, {
+          from_screen: from,
+          to_screen: to,
+        }).catch(() => {
+          // Silently fail
+        });
+      }).catch(() => {
+        // Silently fail
+      });
+    }
+  }
 }
 
 export const analyticsService = new AnalyticsService();

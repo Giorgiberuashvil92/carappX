@@ -20,6 +20,8 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import BOGPaymentModal from '../components/ui/BOGPaymentModal';
 import { bogApi } from '../services/bogApi';
 import { carwashApi } from '../services/carwashApi';
+import { addItemApi, DismantlerData, StoreData } from '../services/addItemApi';
+import photoService from '../services/photoService';
 import { API_BASE_URL } from '../config/api';
 
 const { width, height } = Dimensions.get('window');
@@ -413,6 +415,11 @@ export default function PaymentCardScreen() {
         externalOrderId = `subscription_${paymentData.planId}_${Date.now()}_${user.id}`;
       }
       
+      // Production URL-ები redirect-ისთვის (mobile app-ში localhost არ მუშაობს)
+      const PRODUCTION_BASE_URL = 'https://marte-backend-production.up.railway.app';
+      const successUrl = paymentData.successUrl || `${PRODUCTION_BASE_URL}/payment/success`;
+      const failUrl = `${PRODUCTION_BASE_URL}/payment/fail`;
+      
       const orderData = {
         callback_url: `${API_BASE_URL}/bog/callback`,
         external_order_id: externalOrderId,
@@ -420,8 +427,8 @@ export default function PaymentCardScreen() {
         currency: paymentData.currency === '₾' ? 'GEL' : paymentData.currency,
         product_id: paymentData.context,
         description: paymentData.description,
-        success_url: paymentData.successUrl || `${API_BASE_URL}/payment/success`,
-        fail_url: `${API_BASE_URL}/payment/fail`,
+        success_url: successUrl,
+        fail_url: failUrl,
         save_card: paymentData.isSubscription, // Subscription-ისთვის ბარათის დამახსოვრება
       };
 
@@ -723,7 +730,409 @@ export default function PaymentCardScreen() {
             setShowSuccessModal(true);
             await savePaymentInfo();
 
+            if (paymentData.context === 'dismantler' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const formData = metadata.formData || {};
+                
+                let uploadedPhotos: string[] = [];
+                if (formData.photos && formData.photos.length > 0) {
+                  uploadedPhotos = await photoService.processPhotosForSaving(formData.photos, 'carappx');
+                }
+                
+                let dismantlerNormalizedPhone = formData.phone;
+                if (dismantlerNormalizedPhone && !dismantlerNormalizedPhone.startsWith('+995') && !dismantlerNormalizedPhone.startsWith('995')) {
+                  dismantlerNormalizedPhone = '+995' + dismantlerNormalizedPhone;
+                }
+                
+                const dismantlerData: DismantlerData = {
+                  brand: formData.brand,
+                  model: formData.model,
+                  yearFrom: parseInt(formData.yearFrom),
+                  yearTo: parseInt(formData.yearTo),
+                  photos: uploadedPhotos,
+                  description: formData.description,
+                  location: formData.location,
+                  phone: dismantlerNormalizedPhone,
+                  name: formData.name,
+                  latitude: formData.latitude,
+                  longitude: formData.longitude,
+                  address: formData.address,
+                  isFeatured: metadata.tier === 'vip',
+                };
+                
+                await addItemApi.createDismantler(dismantlerData, metadata.userId || user?.id);
+                console.log('✅ დაშლილების განცხადება წარმატებით შეიქმნა გადახდის შემდეგ');
+              } catch (error) {
+                console.error('❌ დაშლილების განცხადების შენახვისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების შენახვისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // განცხადების განახლება (renewal)
+            if (paymentData.context === 'dismantler-renewal' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const dismantlerId = metadata.dismantlerId;
+                
+                if (dismantlerId) {
+                  await addItemApi.renewDismantler(dismantlerId, metadata.userId || user?.id);
+                  console.log('✅ დაშლილების განცხადება წარმატებით განახლდა');
+                }
+              } catch (error) {
+                console.error('❌ დაშლილების განცხადების განახლებისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების განახლებისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // VIP-ზე გადაყვანა (upgrade)
+            if (paymentData.context === 'dismantler-upgrade' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const dismantlerId = metadata.dismantlerId;
+                
+                if (dismantlerId) {
+                  await addItemApi.updateDismantler(
+                    dismantlerId,
+                    { isFeatured: true },
+                    metadata.userId || user?.id
+                  );
+                  await addItemApi.renewDismantler(dismantlerId, metadata.userId || user?.id);
+                  console.log('✅ დაშლილების განცხადება წარმატებით გადაიყვანა VIP-ზე');
+                }
+              } catch (error) {
+                console.error('❌ დაშლილების განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // მაღაზიის შექმნა (initial creation)
+            if (paymentData.context === 'store' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const formData = metadata.formData || {};
+                
+                let uploadedPhotos: string[] = [];
+                if (formData.photos && formData.photos.length > 0) {
+                  uploadedPhotos = await photoService.processPhotosForSaving(formData.photos, 'carappx');
+                } else if (formData.images && formData.images.length > 0) {
+                  uploadedPhotos = await photoService.processPhotosForSaving(formData.images, 'carappx');
+                }
+                
+                let storeNormalizedPhone = formData.phone;
+                if (storeNormalizedPhone && !storeNormalizedPhone.startsWith('+995') && !storeNormalizedPhone.startsWith('995')) {
+                  storeNormalizedPhone = '+995' + storeNormalizedPhone;
+                }
+                
+                const storeData: StoreData = {
+                  title: formData.title,
+                  description: formData.description,
+                  type: formData.type,
+                  images: uploadedPhotos,
+                  location: formData.location,
+                  address: formData.address,
+                  phone: storeNormalizedPhone,
+                  name: formData.name,
+                  ownerId: metadata.userId || user?.id || 'demo-user',
+                  workingHours: formData.workingHours,
+                  latitude: formData.latitude,
+                  longitude: formData.longitude,
+                  isFeatured: metadata.tier === 'vip',
+                };
+                
+                await addItemApi.createStore(storeData, metadata.userId || user?.id || undefined);
+                console.log('✅ მაღაზიის განცხადება წარმატებით შეიქმნა გადახდის შემდეგ');
+              } catch (error) {
+                console.error('❌ მაღაზიის განცხადების შენახვისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების შენახვისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // მაღაზიის განახლება (renewal)
+            if (paymentData.context === 'store-renewal' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const storeId = metadata.storeId;
+                
+                if (storeId) {
+                  await addItemApi.renewStore(storeId, metadata.userId || user?.id);
+                  console.log('✅ მაღაზიის განცხადება წარმატებით განახლდა');
+                }
+              } catch (error) {
+                console.error('❌ მაღაზიის განცხადების განახლებისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების განახლებისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // VIP-ზე გადაყვანა (store upgrade)
+            if (paymentData.context === 'store-upgrade' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const storeId = metadata.storeId;
+                
+                if (storeId) {
+                  await addItemApi.updateStore(
+                    storeId,
+                    { isFeatured: true },
+                    metadata.userId || user?.id
+                  );
+                  await addItemApi.renewStore(storeId, metadata.userId || user?.id);
+                  console.log('✅ მაღაზიის განცხადება წარმატებით გადაიყვანა VIP-ზე');
+                }
+              } catch (error) {
+                console.error('❌ მაღაზიის განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // ავტოსერვისის შექმნა (initial creation)
+            if (paymentData.context === 'service' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const formData = metadata.formData;
+                
+                if (!formData) {
+                  throw new Error('Form data is missing');
+                }
+
+                // Upload images
+                let uploadedImages: string[] = [];
+                if (formData.images && formData.images.length > 0) {
+                  uploadedImages = await photoService.processPhotosForSaving(formData.images, 'carappx');
+                }
+
+                // Normalize phone number
+                let normalizedPhone = formData.phone;
+                if (normalizedPhone && !normalizedPhone.startsWith('+995') && !normalizedPhone.startsWith('995')) {
+                  normalizedPhone = '+995' + normalizedPhone;
+                }
+
+                // Normalize ownerId - remove 'usr_' prefix if present
+                const rawOwnerId = metadata.userId || user?.id || '';
+                const normalizedOwnerId = rawOwnerId.startsWith('usr_') ? rawOwnerId.replace('usr_', '') : rawOwnerId;
+
+                // Create service
+                const serviceData = {
+                  name: formData.name,
+                  description: formData.description,
+                  category: formData.category || 'ავტოსერვისი',
+                  location: formData.location,
+                  address: formData.address,
+                  phone: normalizedPhone,
+                  images: uploadedImages,
+                  services: formData.services ? formData.services.split(',').map((s: string) => s.trim()) : [],
+                  workingHours: formData.workingHours,
+                  latitude: formData.latitude,
+                  longitude: formData.longitude,
+                  ownerId: normalizedOwnerId,
+                  status: 'pending',
+                };
+
+                await addItemApi.createService(serviceData, metadata.userId || user?.id);
+                console.log('✅ ავტოსერვისის განცხადება წარმატებით შეიქმნა');
+              } catch (error) {
+                console.error('❌ ავტოსერვისის განცხადების შექმნისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების შექმნისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // ავტოსერვისის განახლება (renewal)
+            if (paymentData.context === 'service-renewal' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const serviceId = metadata.serviceId;
+                
+                if (serviceId) {
+                  await addItemApi.renewService(serviceId, metadata.userId || user?.id);
+                  console.log('✅ ავტოსერვისის განცხადება წარმატებით განახლდა');
+                }
+              } catch (error) {
+                console.error('❌ ავტოსერვისის განცხადების განახლებისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების განახლებისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // VIP-ზე გადაყვანა (service upgrade)
+            if (paymentData.context === 'service-upgrade' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const serviceId = metadata.serviceId;
+                
+                if (serviceId) {
+                  await addItemApi.updateService(
+                    serviceId,
+                    { isFeatured: true },
+                    metadata.userId || user?.id
+                  );
+                  await addItemApi.renewService(serviceId, metadata.userId || user?.id);
+                  console.log('✅ ავტოსერვისის განცხადება წარმატებით გადაიყვანა VIP-ზე');
+                }
+              } catch (error) {
+                console.error('❌ ავტოსერვისის განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // ხელოსნის განცხადების შექმნა
+            if (paymentData.context === 'mechanic' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const formData = metadata.formData;
+                
+                if (!formData) {
+                  throw new Error('Form data is missing');
+                }
+
+                // Normalize phone number
+                let normalizedPhone = formData.phone;
+                if (normalizedPhone && !normalizedPhone.startsWith('+995') && !normalizedPhone.startsWith('995')) {
+                  normalizedPhone = '+995' + normalizedPhone;
+                }
+
+                // Normalize ownerId - remove 'usr_' prefix if present
+                const rawOwnerId = metadata.userId || user?.id || '';
+                const normalizedOwnerId = rawOwnerId.startsWith('usr_') ? rawOwnerId.replace('usr_', '') : rawOwnerId;
+
+                // Split name into firstName and lastName for backend compatibility
+                const nameParts = formData.name.split(' ');
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || 'მექანიკოსი';
+
+                // Create mechanic
+                const mechanicData = {
+                  firstName: firstName,
+                  lastName: lastName,
+                  name: formData.name,
+                  specialty: formData.specialty,
+                  location: formData.location,
+                  phone: normalizedPhone,
+                  address: formData.address,
+                  experience: formData.experience,
+                  services: formData.services ? formData.services.split(',').map((s: string) => s.trim()) : [],
+                  avatar: formData.images && formData.images.length > 0 ? formData.images[0] : '',
+                  description: formData.description,
+                  isAvailable: true,
+                  latitude: formData.latitude,
+                  longitude: formData.longitude,
+                  ownerId: normalizedOwnerId,
+                  status: 'pending',
+                };
+
+                // Upload avatar if exists
+                if (formData.images && formData.images.length > 0) {
+                  const uploadedImages = await photoService.processPhotosForSaving(formData.images, 'carappx');
+                  if (uploadedImages.length > 0) {
+                    mechanicData.avatar = uploadedImages[0];
+                  }
+                }
+
+                const response = await fetch(`${API_BASE_URL}/mechanics`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': metadata.userId || user?.id || '',
+                  },
+                  body: JSON.stringify(mechanicData),
+                });
+
+                if (!response.ok) {
+                  throw new Error('Failed to create mechanic');
+                }
+
+                console.log('✅ ხელოსნის განცხადება წარმატებით შეიქმნა');
+              } catch (error) {
+                console.error('❌ ხელოსნის განცხადების შექმნისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების შექმნისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // ხელოსნის განახლება (renewal)
+            if (paymentData.context === 'mechanic-renewal' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const mechanicId = metadata.mechanicId;
+                
+                if (mechanicId) {
+                  await addItemApi.renewMechanic(mechanicId, metadata.userId || user?.id);
+                  console.log('✅ ხელოსნის განცხადება წარმატებით განახლდა');
+                }
+              } catch (error) {
+                console.error('❌ ხელოსნის განცხადების განახლებისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების განახლებისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
+            // VIP-ზე გადაყვანა (mechanic upgrade)
+            if (paymentData.context === 'mechanic-upgrade' && paymentData.metadata) {
+              try {
+                const metadata = paymentData.metadata;
+                const mechanicId = metadata.mechanicId;
+                
+                if (mechanicId) {
+                  await addItemApi.updateMechanic(
+                    mechanicId,
+                    { isFeatured: true },
+                    metadata.userId || user?.id
+                  );
+                  await addItemApi.renewMechanic(mechanicId, metadata.userId || user?.id);
+                  console.log('✅ ხელოსნის განცხადება წარმატებით გადაიყვანა VIP-ზე');
+                }
+              } catch (error) {
+                console.error('❌ ხელოსნის განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა:', error);
+                Alert.alert('შეცდომა', 'განცხადების VIP-ზე გადაყვანისას მოხდა შეცდომა. გთხოვთ დაუკავშირდეთ მხარდაჭერას.');
+              }
+            }
+
             if (paymentData.context === 'carwash' && paymentData.metadata) {
+              // Carwash-ისთვის modal-ი რჩება ღილაკის დაჭერამდე
+            } else if (paymentData.context === 'dismantler-renewal' || paymentData.context === 'dismantler-upgrade') {
+              // განახლების ან VIP-ზე გადაყვანის შემდეგ დაბრუნება მართვის გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/dismantler-management' as any);
+              }, 3000);
+            } else if (paymentData.context === 'store') {
+              // მაღაზიის შექმნის შემდეგ დაბრუნება stores გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/stores' as any);
+              }, 3000);
+            } else if (paymentData.context === 'store-renewal' || paymentData.context === 'store-upgrade') {
+              // მაღაზიის განახლების ან VIP-ზე გადაყვანის შემდეგ დაბრუნება მართვის გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/store-management' as any);
+              }, 3000);
+            } else if (paymentData.context === 'service-renewal' || paymentData.context === 'service-upgrade') {
+              // ავტოსერვისის განახლების ან VIP-ზე გადაყვანის შემდეგ დაბრუნება მართვის გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/service-management' as any);
+              }, 3000);
+            } else if (paymentData.context === 'mechanic-renewal' || paymentData.context === 'mechanic-upgrade') {
+              // ხელოსნის განახლების ან VIP-ზე გადაყვანის შემდეგ დაბრუნება მართვის გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/mechanic-management' as any);
+              }, 3000);
+            } else if (paymentData.context === 'service') {
+              // ავტოსერვისის შექმნის შემდეგ დაბრუნება services გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/(tabs)/services' as any);
+              }, 3000);
+            } else if (paymentData.context === 'mechanic') {
+              // ხელოსნის შექმნის შემდეგ დაბრუნება mechanics გვერდზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/mechanics' as any);
+              }, 3000);
+            } else if (paymentData.context === 'dismantler') {
+              // დაშლილებისთვის 3 წამის შემდეგ გადავიდეთ /parts-ზე
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                router.replace('/parts' as any);
+              }, 3000);
             } else {
               setTimeout(() => {
                 setShowSuccessModal(false);
@@ -737,8 +1146,24 @@ export default function PaymentCardScreen() {
           }}
           onError={(error) => {
             console.error('❌ BOG გადახდის შეცდომა:', error);
-            setShowBOGPaymentModal(false);
-            Alert.alert('შეცდომა', 'გადახდა ვერ განხორციელდა');
+            // Modal-ი უკვე დაიხურა BOGPaymentModal-ში
+            // setTimeout-ით დავამატოთ, რომ Alert-ი გამოჩნდეს modal-ის დახურვის შემდეგ
+            setTimeout(() => {
+              Alert.alert('შეცდომა', 'გადახდა ვერ განხორციელდა. გთხოვთ სცადოთ ხელახლა.', [
+                {
+                  text: 'კარგი',
+                  onPress: () => {
+                    // დაბრუნება წინა გვერდზე
+                    if (paymentData.context === 'dismantler') {
+                      // დაშლილების განცხადების შემთხვევაში დავბრუნდეთ AddModal-ზე
+                      router.back();
+                    } else {
+                      router.back();
+                    }
+                  }
+                }
+              ]);
+            }, 500);
           }}
         />
 
@@ -798,6 +1223,86 @@ export default function PaymentCardScreen() {
                   }}
                 >
                   <Text style={styles.successButtonText}>დადასტურება</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'dismantler-renewal' || paymentData.context === 'dismantler-upgrade' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/dismantler-management' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'store' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/stores' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'store-renewal' || paymentData.context === 'store-upgrade' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/store-management' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'service-renewal' || paymentData.context === 'service-upgrade' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/service-management' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'service' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/(tabs)/services' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'mechanic-renewal' || paymentData.context === 'mechanic-upgrade' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/mechanic-management' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'mechanic' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/mechanics' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
+                </TouchableOpacity>
+              ) : paymentData.context === 'dismantler' ? (
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/parts' as any);
+                  }}
+                >
+                  <Text style={styles.successButtonText}>კარგი</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity

@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, StatusBar, TextInput, ActivityIndicator, Dimensions, Modal, Switch, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, StatusBar, TextInput, ActivityIndicator, Dimensions, Modal, Switch, KeyboardAvoidingView, Platform, ScrollView, ImageBackground, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { mechanicsApi, MechanicDTO } from '@/services/mechanicsApi';
 import photoService from '@/services/photoService';
+import { useUser } from '../contexts/UserContext';
+import { addItemApi } from '../services/addItemApi';
+import { LinearGradient } from 'expo-linear-gradient';
+import AddModal, { AddModalType } from '../components/ui/AddModal';
 
 const { width } = Dimensions.get('window');
 const GAP = 16;
@@ -32,6 +36,7 @@ const SPECIALTIES: string[] = [
 
 export default function MechanicsScreen() {
   const router = useRouter();
+  const { user } = useUser();
   const [mechanics, setMechanics] = useState<MechanicDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,25 +45,17 @@ export default function MechanicsScreen() {
   const [debounced, setDebounced] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('recommended');
   const [specialty, setSpecialty] = useState<string>('');
+  const [userMechanics, setUserMechanics] = useState<any[]>([]);
+  const [hasUserMechanics, setHasUserMechanics] = useState(false);
+  const [vipMechanics, setVipMechanics] = useState<MechanicDTO[]>([]);
+  const [regularMechanics, setRegularMechanics] = useState<MechanicDTO[]>([]);
 
   // Add mechanic modal state
-  const [showAdd, setShowAdd] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [showSpecDropdown, setShowSpecDropdown] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   // Filter modal state
   const [showFilter, setShowFilter] = useState(false);
   const [filterSpec, setFilterSpec] = useState<string>('');
   const [filterLocation, setFilterLocation] = useState<string>('');
-  const [form, setForm] = useState({
-    name: '',
-    specialty: '',
-    location: '',
-    phone: '',
-    address: '',
-    avatar: '',
-    servicesCsv: '',
-    isAvailable: true,
-  });
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 350);
@@ -73,6 +70,13 @@ export default function MechanicsScreen() {
       if (debounced.trim()) params.q = debounced.trim();
       if (specialty) params.specialty = specialty;
       const data = await mechanicsApi.getMechanics(params);
+      
+      // Separate VIP and regular mechanics
+      const vip = data.filter((m: MechanicDTO) => m.isFeatured);
+      const regular = data.filter((m: MechanicDTO) => !m.isFeatured);
+      
+      setVipMechanics(vip);
+      setRegularMechanics(regular);
       setMechanics(data);
     } catch (e) {
       console.error(e);
@@ -87,8 +91,46 @@ export default function MechanicsScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Load user's mechanics (for management)
+  const loadUserMechanics = useCallback(async () => {
+    if (!user?.id) {
+      setHasUserMechanics(false);
+      return;
+    }
+    
+    try {
+      // Normalize ownerId - remove 'usr_' prefix if present, or try both formats
+      const normalizedOwnerId = user.id.startsWith('usr_') ? user.id.replace('usr_', '') : user.id;
+      
+      // Try both formats: with and without 'usr_' prefix
+      const response1 = await addItemApi.getMechanics({ ownerId: user.id });
+      const response2 = await addItemApi.getMechanics({ ownerId: normalizedOwnerId });
+      
+      // Combine results from both queries
+      const allMechanics = [
+        ...(response1.success && response1.data ? response1.data : []),
+        ...(response2.success && response2.data ? response2.data : []),
+      ];
+      
+      // Remove duplicates based on id
+      const uniqueMechanics = allMechanics.filter((mechanic, index, self) =>
+        index === self.findIndex((m) => (m.id || m._id) === (mechanic.id || mechanic._id))
+      );
+      
+      setUserMechanics(uniqueMechanics);
+      setHasUserMechanics(uniqueMechanics.length > 0);
+    } catch (error) {
+      console.error('Error loading user mechanics:', error);
+      setHasUserMechanics(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadUserMechanics();
+  }, [loadUserMechanics]);
+
   const sorted = useMemo(() => {
-    const list = [...mechanics];
+    const list = [...regularMechanics];
     if (sortBy === 'rating') {
       list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
     } else if (sortBy === 'price') {
@@ -97,58 +139,161 @@ export default function MechanicsScreen() {
       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
     return list;
-  }, [mechanics, sortBy]);
+  }, [regularMechanics, sortBy]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
   };
 
+  const renderVIPMechanic = ({ item }: { item: MechanicDTO }) => {
+    const img = item.avatar || 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=600&auto=format&fit=crop';
+    return (
+      <TouchableOpacity
+        style={styles.vipMechanicCard}
+        onPress={() => router.push(`/mechanic/${item.id}`)}
+        activeOpacity={0.7}
+      >
+        <ImageBackground
+          source={{ uri: img }}
+          style={styles.vipMechanicCardImage}
+          imageStyle={styles.vipMechanicCardImageStyle}
+        >
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.vipMechanicCardGradient}
+          >
+            <View style={styles.vipMechanicBadge}>
+              <Ionicons name="star" size={12} color="#F59E0B" />
+              <Text style={styles.vipMechanicBadgeText}>VIP</Text>
+            </View>
+            <View style={styles.vipMechanicCardContent}>
+              <Text style={styles.vipMechanicCardTitle} numberOfLines={2}>{item.name}</Text>
+              <View style={styles.vipMechanicCardMeta}>
+                <Ionicons name="location" size={14} color="#FFFFFF" />
+                <Text style={styles.vipMechanicCardLocation}>{item.location || 'თბილისი'}</Text>
+              </View>
+              {item.specialty && (
+                <View style={styles.vipMechanicCardMeta}>
+                  <Ionicons name="construct" size={14} color="#FFFFFF" />
+                  <Text style={styles.vipMechanicCardLocation}>{item.specialty}</Text>
+                </View>
+              )}
+            </View>
+          </LinearGradient>
+        </ImageBackground>
+      </TouchableOpacity>
+    );
+  };
+
   const renderCard = ({ item }: { item: MechanicDTO }) => {
     const img = item.avatar || 'https://images.unsplash.com/photo-1581094271901-8022df4466b9?q=80&w=600&auto=format&fit=crop';
-    const topServices = (item.services || []).slice(0, 2);
     return (
-      <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => router.push(`/mechanic/${item.id}`)}>
-        <View style={styles.cardImageWrap}>
-          <Image source={{ uri: img }} style={styles.cardImage} />
-          <View style={styles.badgeRow}>
-            <View style={[styles.badge, item.isAvailable ? styles.badgeGreen : styles.badgeRed]}>
-              <View style={styles.dot} />
-              <Text style={styles.badgeText}>{item.isAvailable ? 'ხელმისაწვდომი' : 'დაკავებული'}</Text>
-            </View>
-            {typeof item.rating === 'number' && (
-              <View style={styles.ratingLight}>
-                <Ionicons name="star" size={12} color="#F59E0B" />
-                <Text style={styles.ratingLightText}>{item.rating.toFixed(1)}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-        <View style={styles.cardBody}>
-          <Text numberOfLines={2} style={styles.name}>{item.name}</Text>
-          <View style={styles.rowBetween}>
-            <Text numberOfLines={1} style={styles.sub}>{item.specialty || 'სპეციალობა'}</Text>
-            {item.priceGEL ? (
-              <View style={styles.pricePill}>
-                <Text style={styles.pricePillText}>₾{item.priceGEL}/სთ</Text>
-              </View>
-            ) : null}
-          </View>
-          {topServices.length > 0 && (
-            <View style={styles.tagsRow}>
-              {topServices.map((s, i) => (
-                <View key={`${s}-${i}`} style={styles.tag}>
-                  <Text numberOfLines={1} style={styles.tagText}>{s}</Text>
+      <TouchableOpacity 
+        style={styles.modernMechanicCard} 
+        activeOpacity={0.9} 
+        onPress={() => router.push(`/mechanic/${item.id}`)}
+      >
+        <ImageBackground 
+          source={{ uri: img }}
+          style={styles.modernMechanicBackgroundImage}
+          resizeMode="cover"
+        >
+          <LinearGradient
+            colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
+            style={styles.modernMechanicGradientOverlay}
+          >
+            <View style={styles.modernMechanicHeader}>
+              <View style={styles.modernMechanicProfileSection}>
+                <View style={styles.modernMechanicAvatarPlaceholder}>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.modernMechanicAvatar} />
+                  ) : (
+                    <View style={styles.modernMechanicAvatarPlaceholderInner}>
+                      <Ionicons name="construct" size={14} color="#FFFFFF" />
+                    </View>
+                  )}
                 </View>
-              ))}
+                <Text style={styles.modernMechanicUsername} numberOfLines={1}>
+                  {item.name}
+                </Text>
+              </View>
+              {item.isFeatured && (
+                <View style={styles.modernMechanicVipBadge}>
+                  <Ionicons name="star" size={10} color="#F59E0B" />
+                  <Text style={styles.modernMechanicVipText}>VIP</Text>
+                </View>
+              )}
             </View>
-          )}
-          <View style={styles.rowCenter}>
-            <Ionicons name="location" size={12} color="#6B7280" />
-            <Text numberOfLines={1} style={styles.meta}>{item.location || 'თბილისი'}</Text>
+
+            <View style={styles.modernMechanicMainCard}>
+              <View style={styles.modernMechanicInfoSection}>
+                <View style={styles.modernMechanicCategoryButton}>
+                  <Text style={styles.modernMechanicCategoryText} numberOfLines={1}>
+                    {item.specialty || 'სპეციალობა'}
+                  </Text>
+                </View>
+                {item.priceGEL && (
+                  <View style={styles.modernMechanicPriceButton}>
+                    <Text style={styles.modernMechanicPriceText}>
+                      {item.priceGEL}₾/სთ
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.modernMechanicSeparator} />
+
+              <View style={styles.modernMechanicTypeSection}>
+                <View style={styles.modernMechanicTypeLeft}>
+                  <View style={styles.modernMechanicLocationRow}>
+                    <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.8)" />
+                    <Text style={styles.modernMechanicLocationText} numberOfLines={1}>
+                      {item.location || 'თბილისი'}
+                    </Text>
+                  </View>
+                </View>
+                {item.phone && (
+                  <TouchableOpacity 
+                    style={styles.modernMechanicCallButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Linking.openURL(`tel:${item.phone}`);
+                    }}
+                  >
+                    <Ionicons name="call-outline" size={12} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.modernMechanicActionsFooter}>
+                <View style={styles.modernMechanicActionsLeft}>
+                  {typeof item.rating === 'number' && (
+                    <View style={styles.modernMechanicRatingButton}>
+                      <Ionicons name="star" size={10} color="#FDE68A" />
+                      <Text style={styles.modernMechanicRatingText}>
+                        {item.rating.toFixed(1)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={[
+                    styles.modernMechanicStatusBadge, 
+                    item.isAvailable ? styles.modernMechanicStatusBadgeOpen : styles.modernMechanicStatusBadgeClosed
+                  ]}>
+                    <View style={[
+                      styles.modernMechanicStatusDot, 
+                      item.isAvailable ? styles.modernMechanicStatusDotOpen : styles.modernMechanicStatusDotClosed
+                    ]} />
+                    <Text style={styles.modernMechanicStatusText}>
+                      {item.isAvailable ? 'ხელმისაწვდომი' : 'დაკავებული'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
             </View>
-          </View>
-        </TouchableOpacity>
+          </LinearGradient>
+        </ImageBackground>
+      </TouchableOpacity>
     );
   };
 
@@ -159,11 +304,38 @@ export default function MechanicsScreen() {
           <Ionicons name="arrow-back" size={20} color="#111827" />
             </TouchableOpacity>
         <Text style={styles.title}>ხელოსნები</Text>
-        <TouchableOpacity style={styles.headerAddBtn} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity style={styles.headerAddBtn} onPress={() => setShowAddModal(true)}>
           <Ionicons name="add" size={16} color="#111827" />
           <Text style={styles.headerAddBtnText}>ხელოსნად დამატება</Text>
             </TouchableOpacity>
           </View>
+      
+      {/* განცხადებების მართვა ღილაკი */}
+      {hasUserMechanics && (
+        <View style={styles.manageSection}>
+          <TouchableOpacity
+            style={styles.manageButton}
+            onPress={() => router.push('/mechanic-management')}
+          >
+            <LinearGradient
+              colors={['#1E40AF', '#3B82F6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.manageButtonGradient}
+            >
+              <View style={styles.manageButtonIconContainer}>
+                <Ionicons name="settings" size={20} color="#FFFFFF" />
+              </View>
+              <View style={styles.manageButtonTextContainer}>
+                <Text style={styles.manageButtonTitle}>განცხადებების მართვა</Text>
+                <Text style={styles.manageButtonSubtitle}>{userMechanics.length} ცალი</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" style={styles.manageButtonArrow} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+      
       <View style={styles.searchWrap}>
               <Ionicons name="search" size={18} color="#9CA3AF" />
               <TextInput
@@ -216,6 +388,24 @@ export default function MechanicsScreen() {
             </TouchableOpacity>
         </View>
       </View>
+      
+      {/* VIP Section */}
+      {vipMechanics.length > 0 && (
+        <View style={styles.vipSection}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="star" size={20} color="#F59E0B" />
+            <Text style={styles.sectionTitle}>VIP ხელოსნები</Text>
+          </View>
+          <FlatList
+            horizontal
+            data={vipMechanics}
+            renderItem={renderVIPMechanic}
+            keyExtractor={(item, index) => item.id || index.toString()}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.vipList}
+          />
+        </View>
+      )}
           </View>
   );
 
@@ -235,9 +425,8 @@ export default function MechanicsScreen() {
           <FlatList
             data={sorted}
             keyExtractor={(it) => it.id}
-            numColumns={2}
-            columnWrapperStyle={{ gap: GAP, paddingHorizontal: GAP }}
-            contentContainerStyle={{ paddingTop: 12, paddingBottom: 32, gap: GAP }}
+            numColumns={1}
+            contentContainerStyle={{ paddingTop: 12, paddingBottom: 32, paddingHorizontal: GAP, gap: 12 }}
             ListHeaderComponent={header}
             renderItem={renderCard}
             ListEmptyComponent={loading ? (
@@ -252,199 +441,22 @@ export default function MechanicsScreen() {
       </SafeAreaView>
 
       {/* Floating Add Button */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => setShowAdd(true)}>
+      <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => setShowAddModal(true)}>
         <Ionicons name="add" size={24} color="#fff" />
       </TouchableOpacity>
 
       {/* Add Mechanic Modal */}
-      <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>ახალი ხელოსანი</Text>
-              <TouchableOpacity onPress={() => setShowAdd(false)}>
-                <Ionicons name="close" size={22} color="#111827" />
-              </TouchableOpacity>
-            </View>
-              <ScrollView contentContainerStyle={styles.formGrid} keyboardShouldPersistTaps="handled">
-              <View style={styles.field}>
-                <Text style={styles.label}>სახელი *</Text>
-                <TextInput
-                  value={form.name}
-                  onChangeText={(t) => setForm({ ...form, name: t })}
-                  placeholder="მაგ: გიორგი პაპაშვილი"
-                  placeholderTextColor="#6B7280"
-                  style={styles.inputDark}
-                />
-              </View>
-              <View style={[styles.field, styles.fieldRelative]}>
-                <Text style={styles.label}>სპეციალობა *</Text>
-                    <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={[styles.inputDark, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-                  onPress={() => setShowSpecDropdown((v) => !v)}
-                >
-                  <Text style={{ color: form.specialty ? '#111827' : '#6B7280' }}>
-                    {form.specialty || 'აირჩიე სპეციალობა'}
-                  </Text>
-                  <Ionicons name={showSpecDropdown ? 'chevron-up' : 'chevron-down'} size={16} color="#9CA3AF" />
-                </TouchableOpacity>
-                {showSpecDropdown && (
-                  <View style={styles.dropdownAbsolute}>
-                    <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
-                      {SPECIALTIES.map((opt) => (
-                        <TouchableOpacity
-                          key={opt}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setForm({ ...form, specialty: opt });
-                            setShowSpecDropdown(false);
-                          }}
-                        >
-                          <Text style={[styles.dropdownText, form.specialty === opt && styles.dropdownTextActive]}>
-                            {opt}
-                        </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                  </View>
-                )}
-              </View>
-              <View style={styles.fieldRow}>
-                <View style={[styles.field, { flex: 1 }]}>
-                  <Text style={styles.label}>ლოკაცია</Text>
-                  <TextInput
-                    value={form.location}
-                    onChangeText={(t) => setForm({ ...form, location: t })}
-                    placeholder="მაგ: თბილისი"
-                    placeholderTextColor="#6B7280"
-                    style={styles.inputDark}
-                  />
-                </View>
-                <View style={[styles.field, { flex: 1 }]}>
-                  <Text style={styles.label}>ტელეფონი</Text>
-                  <TextInput
-                    value={form.phone}
-                    onChangeText={(t) => setForm({ ...form, phone: t })}
-                    placeholder="5XX XX XX XX"
-                    placeholderTextColor="#6B7280"
-                    style={styles.inputDark}
-                    keyboardType="phone-pad"
-                  />
-                </View>
-              </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>მისამართი</Text>
-                <TextInput
-                  value={form.address}
-                  onChangeText={(t) => setForm({ ...form, address: t })}
-                  placeholder="ქუჩა, ნომერი"
-                  placeholderTextColor="#6B7280"
-                  style={styles.inputDark}
-                />
-              </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>Avatar URL</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={styles.avatarPreview}>
-                    {form.avatar ? (
-                      <Image source={{ uri: form.avatar }} style={styles.avatarImage} />
-                    ) : (
-                      <Ionicons name="person" size={18} color="#9CA3AF" />
-                    )}
-                  </View>
-                <TouchableOpacity 
-                    style={styles.btnSecondary}
-                    onPress={async () => {
-                      photoService.showPhotoPickerOptions(async (res) => {
-                        if (!res.success || !res.assets?.length) return;
-                        const uri = res.assets[0].uri;
-                        const up = await photoService.uploadPhoto(uri, 'mechanics');
-                        if (up.success && up.url) {
-                          setForm({ ...form, avatar: up.url });
-                        }
-                      });
-                    }}
-                  >
-                    <Text style={styles.btnSecondaryText}>ფოტოს ატვირთვა</Text>
-                </TouchableOpacity>
-                </View>
-                <TextInput
-                  value={form.avatar}
-                  onChangeText={(t) => setForm({ ...form, avatar: t })}
-                  placeholder="ან ჩასვი URL"
-                  placeholderTextColor="#6B7280"
-                  style={[styles.inputDark, { marginTop: 8 }]}
-                  autoCapitalize="none"
-                />
-              </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>სერვისები (მძიმით)</Text>
-                <TextInput
-                  value={form.servicesCsv}
-                  onChangeText={(t) => setForm({ ...form, servicesCsv: t })}
-                  placeholder="ძრავის შეკეთება, დიაგნოსტიკა"
-                  placeholderTextColor="#6B7280"
-                  style={styles.inputDark}
-                />
-              </View>
-              <View style={[styles.fieldRow, { alignItems: 'center', justifyContent: 'space-between' }]}>
-                <Text style={styles.label}>ხელმისაწვდომია</Text>
-                <Switch
-                  value={form.isAvailable}
-                  onValueChange={(v) => setForm({ ...form, isAvailable: v })}
-                  trackColor={{ false: '#374151', true: '#4ADE80' }}
-                  thumbColor="#111827"
-                />
-              </View>
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setShowAdd(false)}>
-                <Text style={styles.btnSecondaryText}>გაუქმება</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btnPrimary, saving && { opacity: 0.6 }]}
-                disabled={saving}
-                onPress={async () => {
-                  if (!form.name.trim() || !form.specialty.trim()) {
-                    setError('სახელი და სპეციალობა სავალდებულოა');
-                    return;
-                  }
-                  try {
-                    setSaving(true);
-                    const payload = {
-                      name: form.name.trim(),
-                      specialty: form.specialty.trim(),
-                      location: form.location.trim() || undefined,
-                      phone: form.phone.trim() || undefined,
-                      address: form.address.trim() || undefined,
-                      avatar: form.avatar.trim() || undefined,
-                      isAvailable: form.isAvailable,
-                      services: form.servicesCsv
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    };
-                    await mechanicsApi.createMechanic(payload as any);
-                    setShowAdd(false);
-                    setForm({ name: '', specialty: '', location: '', phone: '', address: '', avatar: '', servicesCsv: '', isAvailable: true });
-                    fetchData();
-                  } catch (e) {
-                    console.error(e);
-                    setError('შენახვა ვერ მოხერხდა');
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-              >
-                <Text style={styles.btnPrimaryText}>{saving ? 'ინახება...' : 'დამატება'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+      <AddModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSave={(type, data) => {
+          console.log('Mechanic saved:', type, data);
+          setShowAddModal(false);
+          fetchData();
+          loadUserMechanics();
+        }}
+        defaultType="mechanic"
+      />
 
       {/* Filter Modal */}
       <Modal visible={showFilter} animationType="slide" transparent onRequestClose={() => setShowFilter(false)}>
@@ -528,7 +540,9 @@ const styles = StyleSheet.create({
   card: { width: CARD_WIDTH, backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
   cardImageWrap: { width: '100%', height: 120, position: 'relative' },
   cardImage: { width: '100%', height: '100%' },
-  badgeRow: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  badgeRow: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' },
+  vipBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#F59E0B', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  vipBadgeText: { color: '#F59E0B', fontSize: 11, fontWeight: '700' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeGreen: { backgroundColor: 'rgba(16,185,129,0.9)' },
   badgeRed: { backgroundColor: 'rgba(239,68,68,0.9)' },
@@ -579,4 +593,344 @@ const styles = StyleSheet.create({
   fieldRelative: { position: 'relative' },
   avatarPreview: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
   avatarImage: { width: 40, height: 40, borderRadius: 20 },
+  manageSection: {
+    marginHorizontal: GAP,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  manageButton: {
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  manageButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  manageButtonIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageButtonTextContainer: {
+    flex: 1,
+  },
+  manageButtonTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  manageButtonSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  manageButtonArrow: {
+    marginLeft: 'auto',
+  },
+  // Modern Mechanic Card Styles
+  modernMechanicCard: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modernMechanicBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  modernMechanicGradientOverlay: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+  modernMechanicHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  modernMechanicProfileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  modernMechanicAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  modernMechanicAvatarPlaceholderInner: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernMechanicAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  modernMechanicUsername: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    flex: 1,
+  },
+  modernMechanicVipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+  },
+  modernMechanicVipText: {
+    fontSize: 9,
+    color: '#F59E0B',
+    fontWeight: '700',
+  },
+  modernMechanicMainCard: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modernMechanicInfoSection: {
+    marginBottom: 6,
+    flexDirection: 'row',
+    gap: 5,
+    flexWrap: 'wrap',
+  },
+  modernMechanicCategoryButton: {
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    backgroundColor: 'rgba(17, 24, 39, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignSelf: 'flex-start',
+  },
+  modernMechanicCategoryText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  modernMechanicPriceButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(17, 24, 39, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignSelf: 'flex-start',
+  },
+  modernMechanicPriceText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  modernMechanicSeparator: {
+    height: 0.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: 5,
+  },
+  modernMechanicTypeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  modernMechanicTypeLeft: {
+    flex: 1,
+  },
+  modernMechanicLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  modernMechanicLocationText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '500',
+  },
+  modernMechanicCallButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  modernMechanicActionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  modernMechanicActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  modernMechanicRatingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modernMechanicRatingText: {
+    fontSize: 9,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  modernMechanicStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modernMechanicStatusBadgeOpen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  modernMechanicStatusBadgeClosed: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  modernMechanicStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  modernMechanicStatusDotOpen: {
+    backgroundColor: '#10B981',
+  },
+  modernMechanicStatusDotClosed: {
+    backgroundColor: '#EF4444',
+  },
+  modernMechanicStatusText: {
+    fontSize: 9,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  // VIP Section Styles
+  vipSection: {
+    paddingHorizontal: GAP,
+    paddingTop: 12,
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  vipList: {
+    paddingRight: GAP,
+  },
+  // VIP Mechanic Card Styles
+  vipMechanicCard: {
+    width: width * 0.75,
+    height: 200,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  vipMechanicCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vipMechanicCardImageStyle: {
+    borderRadius: 20,
+  },
+  vipMechanicCardGradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  vipMechanicBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  vipMechanicBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  vipMechanicCardContent: {
+    gap: 8,
+  },
+  vipMechanicCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  vipMechanicCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vipMechanicCardLocation: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
 });

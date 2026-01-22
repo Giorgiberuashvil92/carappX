@@ -15,7 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { subscribeToLocation } from '../../utils/LocationBus';
 import { Ionicons } from '@expo/vector-icons';
-import carData from '../../data/carData.json';
+import { carBrandsApi } from '../../services/carBrandsApi';
 import { addItemApi, DismantlerData, PartData, StoreData } from '../../services/addItemApi';
 import { mechanicsApi } from '../../services/mechanicsApi';
 import PhotoPicker from './PhotoPicker';
@@ -28,7 +28,7 @@ import RealTimeStatusConfig, { RealTimeStatus } from './RealTimeStatusConfig';
 
 const { width } = Dimensions.get('window');
 
-export type AddModalType = 'dismantler' | 'part' | 'store' | 'carwash' | 'mechanic';
+export type AddModalType = 'dismantler' | 'part' | 'store' | 'carwash' | 'mechanic' | 'service';
 
 export interface AddModalProps {
   visible: boolean;
@@ -50,11 +50,36 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
   });
   const [formData, setFormData] = useState<any>({});
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
+  const [dismantlerTier, setDismantlerTier] = useState<'regular' | 'vip'>('regular');
+  const [storeTier, setStoreTier] = useState<'regular' | 'vip'>('regular');
   const router = useRouter();
   const [hideModal, setHideModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const { updateUserRole, addToOwnedCarwashes } = useUser();
+  
+  // Car brands and models state
+  const [carBrands, setCarBrands] = useState<string[]>([]);
+  const [carModelsMap, setCarModelsMap] = useState<{ [key: string]: string[] }>({});
+
+  // Load car brands from API
+  useEffect(() => {
+    const loadCarBrands = async () => {
+      try {
+        const brandsList = await carBrandsApi.getBrandsList();
+        const brands = brandsList.map(b => b.name);
+        const modelsMap: { [key: string]: string[] } = {};
+        brandsList.forEach(brand => {
+          modelsMap[brand.name] = brand.models || [];
+        });
+        setCarBrands(brands);
+        setCarModelsMap(modelsMap);
+      } catch (err) {
+        console.error('Error loading car brands:', err);
+      }
+    };
+    loadCarBrands();
+  }, []);
   
   const resetModal = useCallback(() => {
     setCurrentStep({ 
@@ -62,6 +87,8 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
       selectedType: defaultType
     });
     setFormData({});
+    setDismantlerTier('regular');
+    setStoreTier('regular');
   }, [defaultType]);
   
   useEffect(() => {
@@ -117,6 +144,126 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
     } else {
       setCurrentStep({ step: 'type-selection' });
       setFormData({});
+    }
+  };
+
+  const handlePayment = () => {
+    if (!currentStep.selectedType) return;
+    
+    const config = getFormConfig();
+    const requiredFields = config.fields.filter(field => field.required);
+    const missingFields = requiredFields.filter(field => !formData[field.key]);
+
+    if (missingFields.length > 0) {
+      const fieldLabels = missingFields.map(field => field.label).join(', ');
+      Alert.alert('შეცდომა', `გთხოვთ შეავსოთ ყველა სავალდებულო ველი: ${fieldLabels}`);
+      return;
+    }
+
+    if (currentStep.selectedType === 'dismantler') {
+      if (formData.yearFrom && formData.yearTo && parseInt(formData.yearFrom) > parseInt(formData.yearTo)) {
+        Alert.alert('შეცდომა', 'წლიდან არ შეიძლება იყოს უფრო დიდი ვიდრე წლამდე');
+        return;
+      }
+
+      // დაშლილების განცხადებისთვის გადახდა
+      const dismantlerPrice = dismantlerTier === 'vip' ? 20 : 5; // VIP: 20₾, ჩვეულებრივი: 5₾
+      const orderId = `dismantler_${user?.id || 'guest'}_${Date.now()}`;
+      
+      router.push({
+        pathname: '/payment-card',
+        params: {
+          amount: dismantlerPrice.toString(),
+          description: dismantlerTier === 'vip' ? 'VIP დაშლილების განცხადების დამატება' : 'დაშლილების განცხადების დამატება',
+          context: 'dismantler',
+          orderId: orderId,
+          metadata: JSON.stringify({
+            formData: formData,
+            type: 'dismantler',
+            tier: dismantlerTier,
+            userId: user?.id,
+          }),
+        }
+      });
+      
+      // დავხუროთ მოდალი
+      handleClose();
+      return;
+    }
+
+    if (currentStep.selectedType === 'store') {
+      // მაღაზიის განცხადებისთვის გადახდა
+      const storePrice = storeTier === 'vip' ? 20 : 5; // VIP: 20₾, ჩვეულებრივი: 5₾
+      const orderId = `store_${user?.id || 'guest'}_${Date.now()}`;
+      
+      router.push({
+        pathname: '/payment-card',
+        params: {
+          amount: storePrice.toString(),
+          description: storeTier === 'vip' ? 'VIP მაღაზიის განცხადების დამატება' : 'მაღაზიის განცხადების დამატება',
+          context: 'store',
+          orderId: orderId,
+          metadata: JSON.stringify({
+            formData: formData,
+            type: 'store',
+            tier: storeTier,
+            userId: user?.id,
+          }),
+        }
+      });
+      
+      // დავხუროთ მოდალი
+      handleClose();
+      return;
+    }
+
+    if (currentStep.selectedType === 'service') {
+      // ავტოსერვისის განცხადებისთვის გადახდა (20₾)
+      const servicePrice = 20;
+      const orderId = `service_${user?.id || 'guest'}_${Date.now()}`;
+      
+      router.push({
+        pathname: '/payment-card',
+        params: {
+          amount: servicePrice.toString(),
+          description: 'ავტოსერვისის განცხადების დამატება',
+          context: 'service',
+          orderId: orderId,
+          metadata: JSON.stringify({
+            formData: formData,
+            type: 'service',
+            userId: user?.id,
+          }),
+        }
+      });
+      
+      // დავხუროთ მოდალი
+      handleClose();
+      return;
+    }
+
+    if (currentStep.selectedType === 'mechanic') {
+      const mechanicPrice = 20;
+      const orderId = `mechanic_${user?.id || 'guest'}_${Date.now()}`;
+      
+      router.push({
+        pathname: '/payment-card',
+        params: {
+          amount: mechanicPrice.toString(),
+          description: 'ხელოსნის განცხადების დამატება',
+          context: 'mechanic',
+          orderId: orderId,
+          metadata: JSON.stringify({
+            formData: formData,
+            type: 'mechanic',
+            userId: user?.id,
+          }),
+        }
+      });
+      
+      // დავხუროთ მოდალი
+      handleClose();
+      return;
     }
   };
 
@@ -308,6 +455,32 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
           };
           break;
           
+        case 'service':
+          // Normalize phone number format
+          let serviceNormalizedPhone = formData.phone;
+          if (serviceNormalizedPhone && !serviceNormalizedPhone.startsWith('+995') && !serviceNormalizedPhone.startsWith('995')) {
+            serviceNormalizedPhone = '+995' + serviceNormalizedPhone;
+          }
+          
+          const serviceData = {
+            name: formData.name,
+            description: formData.description,
+            category: formData.category || 'ავტოსერვისი',
+            location: formData.location,
+            address: formData.address,
+            phone: serviceNormalizedPhone,
+            images: uploadedImages,
+            services: formData.services ? formData.services.split(',').map((s: string) => s.trim()) : [],
+            workingHours: formData.workingHours,
+            latitude: formData.latitude,
+            longitude: formData.longitude,
+            ownerId: user?.id || '',
+            status: 'pending',
+          };
+          console.log('Sending service data:', serviceData);
+          response = await addItemApi.createService(serviceData, user?.id);
+          break;
+          
         case 'mechanic':
           // Normalize phone number format
           let mechanicNormalizedPhone = formData.phone;
@@ -475,17 +648,8 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
   );
 
   const getFormConfig = () => {
-    // Extract brands from carData
-    const carBrands = Object.keys(carData.brands);
-    
-    // Extract models based on selected brand
-    const getModelsForBrand = (brand: string) => {
-      if (!brand || !(carData.brands as any)[brand]) return [];
-      return (carData.brands as any)[brand].models || [];
-    };
-    
     const selectedBrand = formData.brand;
-    const carModels = selectedBrand ? getModelsForBrand(selectedBrand) : [];
+    const carModels = selectedBrand ? (carModelsMap[selectedBrand] || []) : [];
     
     switch (currentStep.selectedType) {
       case 'dismantler':
@@ -501,7 +665,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'photos', label: 'ფოტოები', type: 'photo', required: false },
             { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'მანქანის მდგომარეობა, რა ნაწილები გაყიდვაშია...' },
             { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
-            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
+            { key: 'address', label: 'ზუსტი მისამართი', type: 'location', required: true},
             { key: 'phone', label: 'ტელეფონის ნომერი', type: 'phone', required: true, placeholder: '+995 XXX XXX XXX' },
           ]
         };
@@ -580,6 +744,22 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
             { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'ხელოსნის დეტალური აღწერა, სპეციალიზაცია, უპირატესობები...' },
           ]
         };
+      case 'service':
+        return {
+          title: 'ავტოსერვისის დამატება',
+          icon: 'build',
+          fields: [
+            { key: 'name', label: 'სერვისის სახელი', type: 'text', required: true, placeholder: 'მაგ. ავტოსერვისი "პრემიუმ"' },
+            { key: 'category', label: 'კატეგორია', type: 'select', required: true, options: ['ავტოსერვისი', 'სამრეცხაო', 'დიაგნოსტიკა', 'შეკეთება', 'სხვა'] },
+            { key: 'phone', label: 'ტელეფონის ნომერი', type: 'phone', required: true, placeholder: '+995 XXX XXX XXX' },
+            { key: 'location', label: 'ქალაქი', type: 'select', required: true, options: ['თბილისი', 'ბათუმი', 'ქუთაისი', 'რუსთავი', 'გორი', 'ზუგდიდი', 'ფოთი', 'ახალქალაქი', 'ოზურგეთი', 'ტყიბული', 'სხვა'] },
+            { key: 'address', label: 'ზუსტი მისამართი (რუკიდან)', type: 'location', required: true, placeholder: 'დააჭირეთ "რუკა"-ს კოორდინატების დასამატებლად' },
+            { key: 'images', label: 'სურათები', type: 'photo', required: false },
+            { key: 'services', label: 'სერვისების სია', type: 'textarea', required: true, placeholder: 'ძრავის შეკეთება, დიაგნოსტიკა, ელექტრო სისტემა...' },
+            { key: 'workingHours', label: 'სამუშაო საათები', type: 'text', required: false, placeholder: 'მაგ. 09:00 - 18:00' },
+            { key: 'description', label: 'აღწერა', type: 'textarea', required: true, placeholder: 'სერვისის დეტალური აღწერა, სპეციალიზაცია, უპირატესობები...' },
+          ]
+        };
       default:
         return { title: '', icon: 'add', fields: [] };
     }
@@ -613,6 +793,210 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           
           <View style={styles.formContainer}>
+            {/* Dismantler Tier Selection - პირველ რიგში */}
+            {currentStep.selectedType === 'dismantler' && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>
+                  განცხადების დონე
+                  <Text style={styles.required}> *</Text>
+                </Text>
+                <View style={styles.tierContainerHorizontal}>
+                  <TouchableOpacity
+                    style={[
+                      styles.tierOptionHorizontal,
+                      dismantlerTier === 'regular' && styles.tierOptionSelectedHorizontal
+                    ]}
+                    onPress={() => setDismantlerTier('regular')}
+                    activeOpacity={0.8}
+                  >
+                    {dismantlerTier === 'regular' && (
+                      <View style={styles.tierCheckmark}>
+                        <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
+                      </View>
+                    )}
+                    <View style={styles.tierContentHorizontal}>
+                      <Text style={[
+                        styles.tierTitleHorizontal,
+                        dismantlerTier === 'regular' && styles.tierTitleSelectedHorizontal
+                      ]}>
+                        ჩვეულებრივი
+                      </Text>
+                      <View style={styles.tierPriceContainer}>
+                        <Text style={[
+                          styles.tierPriceHorizontal,
+                          dismantlerTier === 'regular' && styles.tierPriceSelectedHorizontal
+                        ]}>
+                          5₾
+                        </Text>
+                        <Text style={[
+                          styles.tierPricePeriod,
+                          dismantlerTier === 'regular' && styles.tierPricePeriodSelected
+                        ]}>
+                          თვეში
+                        </Text>
+                      </View>
+                      <Text style={[
+                        styles.tierDescriptionHorizontal,
+                        dismantlerTier === 'regular' && styles.tierDescriptionSelectedHorizontal
+                      ]}>
+                        სტანდარტული
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.tierOptionHorizontal,
+                      styles.tierOptionVipHorizontal,
+                      dismantlerTier === 'vip' && styles.tierOptionSelectedVipHorizontal
+                    ]}
+                    onPress={() => setDismantlerTier('vip')}
+                    activeOpacity={0.8}
+                  >
+                    {dismantlerTier === 'vip' && (
+                      <View style={styles.tierCheckmark}>
+                        <Ionicons name="checkmark-circle" size={20} color="#F59E0B" />
+                      </View>
+                    )}
+                    <View style={styles.tierContentHorizontal}>
+                      <View style={styles.vipBadgeHorizontal}>
+                        <Ionicons name="star" size={12} color="#FFFFFF" />
+                        <Text style={styles.vipBadgeTextHorizontal}>VIP</Text>
+                      </View>
+                      <Text style={[
+                        styles.tierTitleHorizontal,
+                        dismantlerTier === 'vip' && styles.tierTitleSelectedVipHorizontal
+                      ]}>
+                        VIP
+                      </Text>
+                      <View style={styles.tierPriceContainer}>
+                        <Text style={[
+                          styles.tierPriceHorizontal,
+                          dismantlerTier === 'vip' && styles.tierPriceSelectedVipHorizontal
+                        ]}>
+                          20₾
+                        </Text>
+                        <Text style={[
+                          styles.tierPricePeriod,
+                          dismantlerTier === 'vip' && styles.tierPricePeriodSelectedVip
+                        ]}>
+                          თვეში
+                        </Text>
+                      </View>
+                      <Text style={[
+                        styles.tierDescriptionHorizontal,
+                        dismantlerTier === 'vip' && styles.tierDescriptionSelectedVipHorizontal
+                      ]}>
+                        პრიორიტეტული
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Store Tier Selection - პირველ რიგში */}
+            {currentStep.selectedType === 'store' && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>
+                  განცხადების დონე
+                  <Text style={styles.required}> *</Text>
+                </Text>
+                <View style={styles.tierContainerHorizontal}>
+                  <TouchableOpacity
+                    style={[
+                      styles.tierOptionHorizontal,
+                      storeTier === 'regular' && styles.tierOptionSelectedHorizontal
+                    ]}
+                    onPress={() => setStoreTier('regular')}
+                    activeOpacity={0.8}
+                  >
+                    {storeTier === 'regular' && (
+                      <View style={styles.tierCheckmark}>
+                        <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
+                      </View>
+                    )}
+                    <View style={styles.tierContentHorizontal}>
+                      <Text style={[
+                        styles.tierTitleHorizontal,
+                        storeTier === 'regular' && styles.tierTitleSelectedHorizontal
+                      ]}>
+                        ჩვეულებრივი
+                      </Text>
+                      <View style={styles.tierPriceContainer}>
+                        <Text style={[
+                          styles.tierPriceHorizontal,
+                          storeTier === 'regular' && styles.tierPriceSelectedHorizontal
+                        ]}>
+                          5₾
+                        </Text>
+                        <Text style={[
+                          styles.tierPricePeriod,
+                          storeTier === 'regular' && styles.tierPricePeriodSelected
+                        ]}>
+                          თვეში
+                        </Text>
+                      </View>
+                      <Text style={[
+                        styles.tierDescriptionHorizontal,
+                        storeTier === 'regular' && styles.tierDescriptionSelectedHorizontal
+                      ]}>
+                        სტანდარტული
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.tierOptionHorizontal,
+                      styles.tierOptionVipHorizontal,
+                      storeTier === 'vip' && styles.tierOptionSelectedVipHorizontal
+                    ]}
+                    onPress={() => setStoreTier('vip')}
+                    activeOpacity={0.8}
+                  >
+                    {storeTier === 'vip' && (
+                      <View style={styles.tierCheckmark}>
+                        <Ionicons name="checkmark-circle" size={20} color="#F59E0B" />
+                      </View>
+                    )}
+                    <View style={styles.tierContentHorizontal}>
+                      <View style={styles.vipBadgeHorizontal}>
+                        <Ionicons name="star" size={12} color="#FFFFFF" />
+                        <Text style={styles.vipBadgeTextHorizontal}>VIP</Text>
+                      </View>
+                      <Text style={[
+                        styles.tierTitleHorizontal,
+                        storeTier === 'vip' && styles.tierTitleSelectedVipHorizontal
+                      ]}>
+                        VIP
+                      </Text>
+                      <View style={styles.tierPriceContainer}>
+                        <Text style={[
+                          styles.tierPriceHorizontal,
+                          storeTier === 'vip' && styles.tierPriceSelectedVipHorizontal
+                        ]}>
+                          20₾
+                        </Text>
+                        <Text style={[
+                          styles.tierPricePeriod,
+                          storeTier === 'vip' && styles.tierPricePeriodSelectedVip
+                        ]}>
+                          თვეში
+                        </Text>
+                      </View>
+                      <Text style={[
+                        styles.tierDescriptionHorizontal,
+                        storeTier === 'vip' && styles.tierDescriptionSelectedVipHorizontal
+                      ]}>
+                        პრიორიტეტული
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            
             {config.fields.map((field, index) => (
               <View key={field.key} style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>
@@ -694,13 +1078,7 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
                       onChangeText={(text) => setFormData({ ...formData, [field.key]: text })}
                       placeholder={field.placeholder || `შეიყვანეთ ${field.label.toLowerCase()}`}
                     />
-                    <TouchableOpacity 
-                      style={styles.mapButton}
-                      onPress={() => { setHideModal(true); router.push('/map?picker=1' as any); }}
-                    >
-                      <Ionicons name="location" size={20} color="#3B82F6" />
-                      <Text style={styles.mapButtonText}>რუკა</Text>
-                    </TouchableOpacity>
+
                     {/* Show coordinates if location is picked */}
                     {(formData.latitude && formData.longitude) && (
                       <View style={styles.coordinatesContainer}>
@@ -754,23 +1132,65 @@ const AddModal: React.FC<AddModalProps> = ({ visible, onClose, onSave, defaultTy
         </ScrollView>
 
         <View style={styles.bottomActions}>
-          <TouchableOpacity 
-            style={[styles.saveBtn, saving && styles.saveBtnDisabled]} 
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <ActivityIndicator size={20} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>შენახვა...</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.saveBtnText}>შენახვა</Text>
-                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-              </>
-            )}
-          </TouchableOpacity>
+          {currentStep.selectedType === 'dismantler' ? (
+            <TouchableOpacity 
+              style={styles.paymentBtn} 
+              onPress={handlePayment}
+            >
+              <Ionicons name="card" size={20} color="#FFFFFF" />
+              <Text style={styles.paymentBtnText}>
+                გადახდა ({dismantlerTier === 'vip' ? '20' : '5'}₾/თვეში)
+              </Text>
+            </TouchableOpacity>
+          ) : currentStep.selectedType === 'service' ? (
+            <TouchableOpacity 
+              style={styles.paymentBtn} 
+              onPress={handlePayment}
+            >
+              <Ionicons name="card" size={20} color="#FFFFFF" />
+              <Text style={styles.paymentBtnText}>
+                გადახდა (20₾)
+              </Text>
+            </TouchableOpacity>
+          ) : currentStep.selectedType === 'mechanic' ? (
+            <TouchableOpacity 
+              style={styles.paymentBtn} 
+              onPress={handlePayment}
+            >
+              <Ionicons name="card" size={20} color="#FFFFFF" />
+              <Text style={styles.paymentBtnText}>
+                გადახდა (20₾/თვეში)
+              </Text>
+            </TouchableOpacity>
+          ) : currentStep.selectedType === 'store' ? (
+            <TouchableOpacity 
+              style={styles.paymentBtn} 
+              onPress={handlePayment}
+            >
+              <Ionicons name="card" size={20} color="#FFFFFF" />
+              <Text style={styles.paymentBtnText}>
+                გადახდა ({storeTier === 'vip' ? '20' : '5'}₾/თვეში)
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={[styles.saveBtn, saving && styles.saveBtnDisabled]} 
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <ActivityIndicator size={20} color="#FFFFFF" />
+                  <Text style={styles.saveBtnText}>შენახვა...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.saveBtnText}>შენახვა</Text>
+                  <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Dropdown Modal */}
@@ -1273,6 +1693,149 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: {
     opacity: 0.7,
+  },
+  paymentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: '#111827',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  paymentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // Tier Selection - Horizontal Layout
+  tierContainerHorizontal: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  tierOptionHorizontal: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tierOptionVipHorizontal: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+  },
+  tierOptionSelectedHorizontal: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 3,
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  tierOptionSelectedVipHorizontal: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 3,
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  tierCheckmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  tierContentHorizontal: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  vipBadgeHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+    marginBottom: 8,
+  },
+  vipBadgeTextHorizontal: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  tierTitleHorizontal: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  tierTitleSelectedHorizontal: {
+    color: '#3B82F6',
+  },
+  tierTitleSelectedVipHorizontal: {
+    color: '#F59E0B',
+  },
+  tierPriceContainer: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  tierPriceHorizontal: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  tierPriceSelectedHorizontal: {
+    color: '#3B82F6',
+  },
+  tierPriceSelectedVipHorizontal: {
+    color: '#F59E0B',
+  },
+  tierPricePeriod: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  tierPricePeriodSelected: {
+    color: '#3B82F6',
+  },
+  tierPricePeriodSelectedVip: {
+    color: '#F59E0B',
+  },
+  tierDescriptionHorizontal: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  tierDescriptionSelectedHorizontal: {
+    color: '#3B82F6',
+  },
+  tierDescriptionSelectedVipHorizontal: {
+    color: '#F59E0B',
   },
   
   // Upload Progress Overlay

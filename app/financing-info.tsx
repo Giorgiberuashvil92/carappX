@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+  import { useSubscription } from '@/contexts/SubscriptionContext';
+  import SubscriptionModal from '@/components/ui/SubscriptionModal';
 
 export default function FinancingInfoScreen() {
   const router = useRouter();
+  const { isPremiumUser } = useSubscription();
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   return (
     <View style={styles.container}>
@@ -54,11 +58,30 @@ export default function FinancingInfoScreen() {
         </View>
 
         {/* CTA */}
-        <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push('/financing-request')} activeOpacity={0.9}>
+        <TouchableOpacity 
+          style={styles.ctaBtn} 
+          onPress={() => {
+            if (!isPremiumUser) {
+              setShowSubscriptionModal(true);
+            } else {
+              router.push('/financing-request');
+            }
+          }} 
+          activeOpacity={0.9}
+        >
           <Text style={styles.ctaText}>განაცხადის შევსება</Text>
           <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       </ScrollView>
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          router.push('/financing-request');
+        }}
+      />
     </View>
   );
 }

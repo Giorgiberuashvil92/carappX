@@ -17,6 +17,9 @@ import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { requestsApi, type Request, type Offer } from '@/services/requestsApi';
 import { useUser } from '@/contexts/UserContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { messagesApi, type ChatMessage } from '@/services/messagesApi';
+import { socketService } from '@/services/socketService';
+import { TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -34,6 +37,9 @@ export default function OffersScreen() {
   const [slideAnim] = useState(new Animated.Value(50));
   const [scaleAnim] = useState(new Animated.Value(0.9));
   const [lastViewedTimestamp, setLastViewedTimestamp] = useState<number | null>(null);
+  const [expandedChatOfferId, setExpandedChatOfferId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [newChatMessage, setNewChatMessage] = useState<Record<string, string>>({});
 
 
   useEffect(() => {
@@ -57,6 +63,41 @@ export default function OffersScreen() {
     loadLastViewed();
     fetchData();
     
+    // Setup socket for chat
+    if (user?.id && requestId) {
+      socketService.connect(user.id);
+      socketService.joinChat(requestId, user.id);
+      
+      // Listen for new messages
+      socketService.onMessage((message: ChatMessage) => {
+        setChatMessages(prev => {
+          const offerId = message.partnerId || message.userId;
+          const existing = prev[offerId] || [];
+          return {
+            ...prev,
+            [offerId]: [...existing, message],
+          };
+        });
+      });
+      
+      // Load chat history for each offer
+      const loadChatHistory = async () => {
+        try {
+          const history = await messagesApi.getChatHistory(requestId);
+          const grouped: Record<string, ChatMessage[]> = {};
+          history.forEach((msg: ChatMessage) => {
+            const offerId = msg.partnerId || msg.userId;
+            if (!grouped[offerId]) grouped[offerId] = [];
+            grouped[offerId].push(msg);
+          });
+          setChatMessages(grouped);
+        } catch (error) {
+          console.error('Failed to load chat history:', error);
+        }
+      };
+      loadChatHistory();
+    }
+    
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -75,7 +116,11 @@ export default function OffersScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [requestId]);
+    
+    return () => {
+      socketService.disconnect();
+    };
+  }, [requestId, user?.id]);
 
   // Update last viewed timestamp when component unmounts
   useEffect(() => {
@@ -93,7 +138,14 @@ export default function OffersScreen() {
         requestsApi.getOffers(requestId || '1')
       ]);
       setRequest(requestData);
-      setOffers(offersData);
+      
+      // მხოლოდ request owner-მა ხედავს შეთავაზებებს
+      const isRequestOwner = user?.id && requestData.userId === user.id;
+      if (isRequestOwner) {
+        setOffers(offersData);
+      } else {
+        setOffers([]);
+      }
     } catch (error) {
       console.error('Failed to fetch from API:', error);
       setRequest(null);
@@ -168,8 +220,38 @@ export default function OffersScreen() {
   };
 
   const handleOfferPress = (offer: Offer) => {
-    // Navigate to specific chat using requestId
-    router.push(`/chat/chat-${requestId}` as any);
+    // Toggle chat expansion for this offer
+    if (expandedChatOfferId === offer.id) {
+      setExpandedChatOfferId(null);
+    } else {
+      setExpandedChatOfferId(offer.id);
+    }
+  };
+  
+  const handleSendChatMessage = async (offer: Offer) => {
+    const messageText = newChatMessage[offer.id]?.trim();
+    if (!messageText || !requestId || !user?.id) return;
+    
+    const partnerId = offer.partnerId || offer.userId;
+    const sender: 'user' | 'partner' = request?.userId === user.id ? 'user' : 'partner';
+    
+    try {
+      await messagesApi.createMessage({
+        requestId,
+        userId: request?.userId || user.id,
+        partnerId: partnerId || '',
+        sender,
+        message: messageText,
+      });
+      
+      // Clear input
+      setNewChatMessage(prev => ({ ...prev, [offer.id]: '' }));
+      
+      // Send via socket
+      socketService.sendMessage(requestId, messageText, sender);
+    } catch (error) {
+      console.error('Error sending chat message:', error);
+    }
   };
 
   const formatLastSeen = (timestamp: number) => {
@@ -275,7 +357,17 @@ export default function OffersScreen() {
                   />
                 }
               >
-                {offers.map((offer, index) => {
+                {/* Check if user is request owner */}
+                {user?.id && request && request.userId !== user.id ? (
+                  <View style={styles.restrictedView}>
+                    <Ionicons name="lock-closed" size={48} color="#9CA3AF" />
+                    <Text style={styles.restrictedTitle}>შეთავაზებები მხოლოდ request owner-ს ხედავს</Text>
+                    <Text style={styles.restrictedSubtitle}>
+                      შეთავაზებების სანახავად თქვენ უნდა იყოთ ამ მოთხოვნის მფლობელი
+                    </Text>
+                  </View>
+                ) : (
+                  offers.map((offer, index) => {
                   const service = (offer as any)?.service || request.service || 'parts';
                   const price = (offer as any)?.price ?? (offer as any)?.priceGEL;
                   const currency = (offer as any)?.currency ?? '₾';
@@ -292,6 +384,14 @@ export default function OffersScreen() {
                   // Check if offer is new (created after last viewed timestamp)
                   // TODO: დროებით - ყველა შეთავაზება გამოჩნდება როგორც ახალი
                   const isNewOffer = true; // lastViewedTimestamp !== null && offer.createdAt > lastViewedTimestamp;
+                  
+                  // Check if this offer is from current user
+                  const isMyOffer = user?.id && (
+                    offer.userId === user.id || 
+                    offer.partnerId === user.id ||
+                    String(offer.userId) === String(user.id) ||
+                    String(offer.partnerId) === String(user.id)
+                  );
 
                   return (
                   <Animated.View
@@ -343,14 +443,19 @@ export default function OffersScreen() {
                               <View style={styles.providerDetails}>
                                 <View style={styles.providerHeader}>
                                   <Text style={styles.providerName}>{offer.providerName}</Text>
-                                  <View>
+                                  <View style={styles.badgesContainer}>
                                    {isNewOffer && (
                           <View style={styles.newOfferBadge}>
                             <Ionicons name="sparkles" size={14} color="#3B82F6" />
                             <Text style={styles.newOfferBadgeText}>ახალი</Text>
                           </View>
                         )}
-
+                        {isMyOffer && (
+                          <View style={styles.myOfferBadge}>
+                            <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                            <Text style={styles.myOfferBadgeText}>ჩემგან</Text>
+                          </View>
+                        )}
                                   </View>
                                 </View>
                                 
@@ -416,11 +521,85 @@ export default function OffersScreen() {
                         </View>
                       </LinearGradient>
                     </Pressable>
+                    
+                    {/* Chat Section */}
+                    {expandedChatOfferId === offer.id && (
+                      <View style={styles.chatSection}>
+                        <View style={styles.chatHeader}>
+                          <Text style={styles.chatHeaderText}>მიწერ-მოწერა</Text>
+                          <Pressable onPress={() => setExpandedChatOfferId(null)}>
+                            <Ionicons name="chevron-up" size={20} color="#6B7280" />
+                          </Pressable>
+                        </View>
+                        
+                        <ScrollView 
+                          style={styles.chatMessagesContainer}
+                          contentContainerStyle={styles.chatMessagesContent}
+                        >
+                          {(chatMessages[offer.id] || []).map((msg) => {
+                            const isMyMessage = (request?.userId === user?.id && msg.sender === 'user') ||
+                              (offer.partnerId === user?.id && msg.sender === 'partner');
+                            
+                            return (
+                              <View
+                                key={msg.id}
+                                style={[
+                                  styles.chatMessage,
+                                  isMyMessage ? styles.chatMessageMy : styles.chatMessageOther,
+                                ]}
+                              >
+                                <Text style={[
+                                  styles.chatMessageText,
+                                  isMyMessage ? styles.chatMessageTextMy : styles.chatMessageTextOther,
+                                ]}>
+                                  {msg.message}
+                                </Text>
+                                <Text style={[
+                                  styles.chatMessageTime,
+                                  isMyMessage ? styles.chatMessageTimeMy : styles.chatMessageTimeOther,
+                                ]}>
+                                  {new Date(msg.timestamp).toLocaleTimeString('ka-GE', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                          {(!chatMessages[offer.id] || chatMessages[offer.id].length === 0) && (
+                            <View style={styles.chatEmpty}>
+                              <Text style={styles.chatEmptyText}>ჯერ არ არის შეტყობინებები</Text>
+                            </View>
+                          )}
+                        </ScrollView>
+                        
+                        <KeyboardAvoidingView
+                          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                          style={styles.chatInputContainer}
+                        >
+                          <TextInput
+                            style={styles.chatInput}
+                            placeholder="დაწერე შეტყობინება..."
+                            placeholderTextColor="#9CA3AF"
+                            value={newChatMessage[offer.id] || ''}
+                            onChangeText={(text) => setNewChatMessage(prev => ({ ...prev, [offer.id]: text }))}
+                            multiline
+                          />
+                          <Pressable
+                            style={styles.chatSendButton}
+                            onPress={() => handleSendChatMessage(offer)}
+                          >
+                            <Ionicons name="send" size={20} color="#FFFFFF" />
+                          </Pressable>
+                        </KeyboardAvoidingView>
+                      </View>
+                    )}
                   </Animated.View>
                   );
-                })}
+                })
+                )}
                 
-                {offers.length === 0 && (
+                {offers.length === 0 && user?.id && request && request.userId === user.id && (
                   <Animated.View 
                     style={[
                       styles.emptyState,
@@ -681,6 +860,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  badgesContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
   newOfferBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -696,6 +880,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#3B82F6',
+  },
+  myOfferBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  myOfferBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
   },
   offerContent: {
     gap: 8,
@@ -898,5 +1098,125 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     fontWeight: '500',
+  },
+  restrictedView: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  restrictedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  restrictedSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // Chat Section
+  chatSection: {
+    marginTop: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    maxHeight: 400,
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  chatHeaderText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  chatMessagesContainer: {
+    maxHeight: 250,
+    padding: 12,
+  },
+  chatMessagesContent: {
+    gap: 8,
+  },
+  chatMessage: {
+    padding: 10,
+    borderRadius: 12,
+    maxWidth: '80%',
+  },
+  chatMessageMy: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#6366F1',
+  },
+  chatMessageOther: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  chatMessageText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  chatMessageTextMy: {
+    color: '#FFFFFF',
+  },
+  chatMessageTextOther: {
+    color: '#111827',
+  },
+  chatMessageTime: {
+    fontSize: 10,
+    marginTop: 4,
+  },
+  chatMessageTimeMy: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  chatMessageTimeOther: {
+    color: '#6B7280',
+  },
+  chatEmpty: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  chatEmptyText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+  },
+  chatInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 8,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    maxHeight: 100,
+  },
+  chatSendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#6366F1',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

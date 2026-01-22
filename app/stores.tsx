@@ -43,6 +43,8 @@ export default function StoresScreen() {
   const [vipStores, setVipStores] = useState<any[]>([]);
   const [specialOffers, setSpecialOffers] = useState<any[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [userStores, setUserStores] = useState<any[]>([]);
+  const [hasUserStores, setHasUserStores] = useState(false);
   
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -133,9 +135,32 @@ export default function StoresScreen() {
     }
   }, []);
 
+  // Load user's stores
+  const loadUserStores = useCallback(async () => {
+    if (!user?.id) {
+      setHasUserStores(false);
+      return;
+    }
+    
+    try {
+      const response = await addItemApi.getStores({ ownerId: user.id });
+      if (response.success && response.data) {
+        const userStoresList = response.data || [];
+        setUserStores(userStoresList);
+        setHasUserStores(userStoresList.length > 0);
+      } else {
+        setHasUserStores(false);
+      }
+    } catch (error) {
+      console.error('Error loading user stores:', error);
+      setHasUserStores(false);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     loadStores();
-  }, [loadStores]);
+    loadUserStores();
+  }, [loadStores, loadUserStores]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -323,6 +348,7 @@ export default function StoresScreen() {
   const handleAddItem = (type: AddModalType, data: any) => {
     console.log('Store successfully added:', { type, data });
     loadStores();
+    loadUserStores(); // Reload user stores to show management button
   };
 
   return (
@@ -370,12 +396,56 @@ export default function StoresScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => {
+              onRefresh();
+              loadUserStores();
+            }}
             tintColor="#3B82F6"
             colors={['#3B82F6']}
           />
         }
       >
+        {/* განცხადებების მართვა - მხოლოდ თუ აქვს მაღაზიები */}
+        {hasUserStores && (
+          <View style={styles.manageSection}>
+            <TouchableOpacity 
+              style={styles.manageButton}
+              onPress={() => router.push('/store-management' as any)}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={['#3B82F6', '#2563EB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.manageButtonGradient}
+              >
+                <View style={styles.manageButtonContent}>
+                  <View style={styles.manageButtonLeft}>
+                    <View style={styles.manageButtonIconContainer}>
+                      <Ionicons name="settings" size={20} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.manageButtonTextContainer}>
+                      <Text style={styles.manageButtonText}>
+                        განცხადებების მართვა
+                      </Text>
+                      <Text style={styles.manageButtonSubtext}>
+                        {userStores.length} განცხადება
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.manageButtonRight}>
+                    <View style={styles.manageButtonBadge}>
+                      <Text style={styles.manageButtonBadgeText}>
+                        {userStores.length}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
         
         {/* Loading State */}
         {loading ? (
@@ -671,6 +741,82 @@ export default function StoresScreen() {
 }
 
 const styles = StyleSheet.create({
+  // განცხადებების მართვა სექცია
+  manageSection: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  manageButton: {
+    borderRadius: 18,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  manageButtonGradient: {
+    borderRadius: 18,
+  },
+  manageButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  manageButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  manageButtonIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageButtonTextContainer: {
+    flex: 1,
+  },
+  manageButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+    letterSpacing: -0.3,
+  },
+  manageButtonSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  manageButtonRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  manageButtonBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  manageButtonBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  
   // Main Container
   innovativeContainer: {
     flex: 1,

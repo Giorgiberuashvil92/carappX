@@ -13,6 +13,7 @@ export interface DismantlerData {
   latitude?: number;
   longitude?: number;
   address?: string;
+  isFeatured?: boolean;
 }
 
 export interface PartData {
@@ -66,6 +67,7 @@ export interface StoreData {
   yearEstablished?: number;
   employeeCount?: number;
   license?: string;
+  isFeatured?: boolean;
 }
 
 export interface ApiResponse<T> {
@@ -115,7 +117,6 @@ class AddItemApiService {
       }
 
       const result = await response.json();
-      console.log('Response data:', result);
       return result;
     } catch (error) {
       console.error('API Request Error:', error);
@@ -138,6 +139,7 @@ class AddItemApiService {
     yearTo?: number;
     location?: string;
     status?: string;
+    ownerId?: string;
   }): Promise<ApiResponse<any[]>> {
     const queryParams = new URLSearchParams();
     if (filters) {
@@ -150,6 +152,18 @@ class AddItemApiService {
     
     const endpoint = `/dismantlers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.makeRequest(endpoint, 'GET');
+  }
+
+  async renewDismantler(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/dismantlers/${id}/renew`, 'PATCH', undefined, userId);
+  }
+
+  async updateDismantler(id: string, data: { isFeatured?: boolean }, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/dismantlers/${id}`, 'PATCH', data, userId);
+  }
+
+  async deleteDismantler(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/dismantlers/${id}`, 'DELETE', undefined, userId);
   }
 
   // Parts API
@@ -181,14 +195,15 @@ class AddItemApiService {
   }
 
   // Stores API
-  async createStore(data: StoreData): Promise<ApiResponse<any>> {
-    return this.makeRequest('/stores', 'POST', data);
+  async createStore(data: StoreData, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest('/stores', 'POST', data, userId);
   }
 
   async getStores(filters?: {
     type?: string;
     location?: string;
     status?: string;
+    ownerId?: string;
   }): Promise<ApiResponse<any[]>> {
     const queryParams = new URLSearchParams();
     if (filters) {
@@ -201,6 +216,18 @@ class AddItemApiService {
     
     const endpoint = `/stores${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.makeRequest(endpoint, 'GET');
+  }
+
+  async renewStore(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/stores/${id}/renew`, 'PATCH', undefined, userId);
+  }
+
+  async updateStore(id: string, data: Partial<StoreData> & { isFeatured?: boolean }, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/stores/${id}`, 'PATCH', data, userId);
+  }
+
+  async deleteStore(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/stores/${id}`, 'DELETE', undefined, userId);
   }
 
   async getDetailingStores(filters?: {
@@ -255,10 +282,6 @@ class AddItemApiService {
     return this.makeRequest(`/stores/${storeId}`, 'GET');
   }
 
-  async updateStore(storeId: string, data: Partial<StoreData>): Promise<ApiResponse<any>> {
-    return this.makeRequest(`/stores/${storeId}`, 'PATCH', data);
-  }
-
   async getPartsLocations(): Promise<ApiResponse<string[]>> {
     return this.makeRequest('/parts/locations', 'GET');
   }
@@ -274,6 +297,75 @@ class AddItemApiService {
 
   async searchStores(keyword: string): Promise<ApiResponse<any[]>> {
     return this.makeRequest(`/stores/search?q=${encodeURIComponent(keyword)}`, 'GET');
+  }
+
+  // Services API
+  async createService(data: any, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest('/services/create', 'POST', data, userId);
+  }
+
+  async getServices(filters?: {
+    category?: string;
+    location?: string;
+    status?: string;
+    ownerId?: string;
+  }): Promise<ApiResponse<any[]>> {
+    const queryParams = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    
+    const endpoint = `/services/list${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.makeRequest(endpoint, 'GET');
+  }
+
+  async renewService(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/services/${id}/renew`, 'PATCH', undefined, userId);
+  }
+
+  async updateService(id: string, data: { isFeatured?: boolean }, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/services/${id}`, 'PATCH', data, userId);
+  }
+
+  async deleteService(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/services/${id}`, 'DELETE', undefined, userId);
+  }
+
+  // Mechanics API
+  async getMechanics(filters?: {
+    q?: string;
+    specialty?: string;
+    location?: string;
+    ownerId?: string;
+    status?: string;
+  }): Promise<ApiResponse<any[]>> {
+    const queryParams = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    
+    const endpoint = `/mechanics${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.makeRequest(endpoint, 'GET');
+  }
+
+  async renewMechanic(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/mechanics/${id}/renew`, 'PATCH', undefined, userId);
+  }
+
+  async updateMechanic(id: string, data: { isFeatured?: boolean }, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/mechanics/${id}/upgrade-to-vip`, 'PATCH', undefined, userId);
+  }
+
+  async deleteMechanic(id: string, userId?: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/mechanics/${id}`, 'DELETE', undefined, userId);
   }
 }
 
