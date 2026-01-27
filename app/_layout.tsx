@@ -32,6 +32,7 @@ import * as TrackingTransparency from 'expo-tracking-transparency';
 import { analyticsService } from '../services/analytics';
 import ForceUpdateModal from '../components/ui/ForceUpdateModal';
 import { getCurrentAppVersion, checkVersionUpdate, compareVersions } from '../services/versionCheck';
+import SessionTracker from '../components/SessionTracker';
 
 
 export {
@@ -223,6 +224,7 @@ function RootLayoutNav() {
           <MarketplaceProvider>
             <ToastProvider>
               <ModalProvider>
+            <SessionTracker />
             <ThemeProvider value={customTheme}>
               {(() => {
                 

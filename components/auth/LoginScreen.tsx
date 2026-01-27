@@ -1009,9 +1009,15 @@ export default function LoginScreen() {
                         placeholder="შეიყვანე რეფერალური კოდი"
                         placeholderTextColor={colors.placeholder}
                         value={referralCode}
-                        onChangeText={(text) => setReferralCode(text.toUpperCase().trim())}
+                        onChangeText={(text) => {
+                          // Remove spaces and convert to uppercase
+                          const cleaned = text.replace(/\s/g, '').toUpperCase();
+                          setReferralCode(cleaned);
+                        }}
                         autoCapitalize="characters"
                         maxLength={10}
+                        keyboardType="default"
+                        returnKeyType="done"
                       />
                       {referralCode && (
                         <TouchableOpacity

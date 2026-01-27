@@ -15,9 +15,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useUser } from '../../contexts/UserContext';
 import { engagementApi } from '../../services/engagementApi';
+import { analyticsService } from '../../services/analytics';
 import API_BASE_URL from '@/config/api';
 
 const { width } = Dimensions.get('window');
@@ -218,7 +219,18 @@ export default function MarketplaceScreen() {
     ]).start();
   }, []);
 
+  // Track screen view when focused
+  useFocusEffect(
+    React.useCallback(() => {
+      analyticsService.logScreenViewWithBackend('გაყიდვები', 'MarketplaceScreen', user?.id);
+      analyticsService.logSalesPageView('გაყიდვები', user?.id);
+    }, [user?.id])
+  );
+
   const handleCategoryPress = (category: any) => {
+    // Track category click
+    analyticsService.logCategoryClick(category.id, category.title, 'გაყიდვები', user?.id);
+    
     if (category.route) {
       router.push(category.route as any);
     }
@@ -250,6 +262,9 @@ export default function MarketplaceScreen() {
     
     const handlePress = () => {
       const itemData = item.itemData || {};
+      
+      // Track item click
+      analyticsService.logSalesItemClick(item.id, item.title, item.type, 'გაყიდვები', user?.id);
       
       if (item.type === 'part') {
         router.push({

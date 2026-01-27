@@ -225,6 +225,213 @@ class AnalyticsService {
       });
     }
   }
+
+  // Session duration tracking
+  logSessionStart(userId?: string) {
+    const sessionStartTime = Date.now();
+    this.logEvent('session_start', {
+      timestamp: sessionStartTime,
+    });
+    
+    // Also track in backend
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('session_start', 'სესიის დაწყება', userId, undefined, {
+          timestamp: sessionStartTime,
+        }).catch(() => {
+          // Silently fail
+        });
+      }).catch(() => {
+        // Silently fail
+      });
+    }
+    
+    return sessionStartTime;
+  }
+
+  logSessionEnd(userId?: string, sessionStartTime?: number) {
+    const sessionEndTime = Date.now();
+    const duration = sessionStartTime ? sessionEndTime - sessionStartTime : 0;
+    
+    this.logEvent('session_end', {
+      duration_seconds: Math.round(duration / 1000),
+      duration_minutes: Math.round(duration / 60000 * 10) / 10,
+      timestamp: sessionEndTime,
+    });
+    
+    // Also track in backend
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('session_end', 'სესიის დასრულება', userId, undefined, {
+          duration_seconds: Math.round(duration / 1000),
+          duration_minutes: Math.round(duration / 60000 * 10) / 10,
+          timestamp: sessionEndTime,
+        }).catch(() => {
+          // Silently fail
+        });
+      }).catch(() => {
+        // Silently fail
+      });
+    }
+  }
+
+  // Category tracking
+  logCategoryView(categoryId: string, categoryName: string, userId?: string) {
+    this.logEvent('category_view', {
+      category_id: categoryId,
+      category_name: categoryName,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('category_view', categoryName, userId, 'კატეგორია', {
+          category_id: categoryId,
+          category_name: categoryName,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  logCategoryClick(categoryId: string, categoryName: string, sourceScreen: string, userId?: string) {
+    this.logEvent('category_click', {
+      category_id: categoryId,
+      category_name: categoryName,
+      source_screen: sourceScreen,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('category_click', categoryName, userId, sourceScreen, {
+          category_id: categoryId,
+          category_name: categoryName,
+          source_screen: sourceScreen,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  // Map tracking
+  logMapView(userId?: string) {
+    this.logEvent('map_view', {});
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('map_view', 'რუკის ნახვა', userId, 'რუკა').catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  logMapCategoryFilter(categoryId: string, categoryName: string, action: 'selected' | 'deselected', userId?: string) {
+    this.logEvent('map_category_filter', {
+      category_id: categoryId,
+      category_name: categoryName,
+      action: action,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('map_category_filter', `${categoryName} - ${action === 'selected' ? 'არჩეული' : 'გაუქმებული'}`, userId, 'რუკა', {
+          category_id: categoryId,
+          category_name: categoryName,
+          action: action,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  logMapMarkerClick(markerId: string, markerName: string, markerType: string, userId?: string) {
+    this.logEvent('map_marker_click', {
+      marker_id: markerId,
+      marker_name: markerName,
+      marker_type: markerType,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('map_marker_click', markerName, userId, 'რუკა', {
+          marker_id: markerId,
+          marker_name: markerName,
+          marker_type: markerType,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  // CredoBank banner tracking
+  logCredoBankBannerView(userId?: string) {
+    this.logEvent('credo_bank_banner_view', {});
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('banner_view', 'კრედობანკის ბანერი', userId, 'მთავარი', {
+          banner_type: 'credo_bank',
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  logCredoBankBannerClick(userId?: string, action?: string) {
+    this.logEvent('credo_bank_banner_click', {
+      action: action || 'click',
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('banner_click', 'კრედობანკის ბანერი', userId, 'მთავარი', {
+          banner_type: 'credo_bank',
+          action: action || 'click',
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  logCredoBankBannerTimeSpent(durationSeconds: number, userId?: string) {
+    this.logEvent('credo_bank_banner_time_spent', {
+      duration_seconds: durationSeconds,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('banner_time_spent', 'კრედობანკის ბანერი', userId, 'მთავარი', {
+          banner_type: 'credo_bank',
+          duration_seconds: durationSeconds,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  // Sales/Marketplace tracking
+  logSalesPageView(pageName: string, userId?: string) {
+    this.logEvent('sales_page_view', {
+      page_name: pageName,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('sales_page_view', pageName, userId, pageName).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  logSalesItemClick(itemId: string, itemName: string, itemType: string, pageName: string, userId?: string) {
+    this.logEvent('sales_item_click', {
+      item_id: itemId,
+      item_name: itemName,
+      item_type: itemType,
+      page_name: pageName,
+    });
+    
+    if (typeof fetch !== 'undefined') {
+      import('./analyticsApi').then(({ analyticsApi }) => {
+        analyticsApi.trackEvent('sales_item_click', itemName, userId, pageName, {
+          item_id: itemId,
+          item_name: itemName,
+          item_type: itemType,
+          page_name: pageName,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
 }
 
 export const analyticsService = new AnalyticsService();

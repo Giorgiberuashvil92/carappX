@@ -26,6 +26,8 @@ import {
   import { categoriesApi, Category } from '../services/categoriesApi';
   import { useUser } from '../contexts/UserContext';
   import { engagementApi } from '../services/engagementApi';
+  import { analyticsService } from '../services/analytics';
+  import { useFocusEffect } from 'expo-router';
 
 
 
@@ -103,6 +105,15 @@ import {
     // Categories from API
     const [partsCategories, setPartsCategories] = useState<string[]>([]);
     const [loadingCategories, setLoadingCategories] = useState(false);
+
+    // Track screen view when focused
+    useFocusEffect(
+      React.useCallback(() => {
+        const pageName = activeTab === 'ნაწილები' ? 'ნაწილები' : 'დაშლილები';
+        analyticsService.logScreenViewWithBackend(pageName, 'PartsScreen', user?.id);
+        analyticsService.logSalesPageView(pageName, user?.id);
+      }, [activeTab, user?.id])
+    );
 
     // Load real data functions
     const loadDismantlers = async () => {

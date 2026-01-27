@@ -66,10 +66,45 @@ export type LoyaltyMission = {
 };
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  return (json?.data ?? json) as T;
+  try {
+    console.log('🌐 Loyalty API Request:', url);
+    const res = await fetch(url);
+    
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'Unable to read error response');
+      let errorData: any = {};
+      
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText || `HTTP ${res.status} ${res.statusText}` };
+      }
+      
+      console.error('❌ Loyalty API Error:', {
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        error: errorData,
+      });
+      
+      throw new Error(errorData.message || errorData.error || `HTTP ${res.status}: ${res.statusText}`);
+    }
+    
+    const json = await res.json();
+    console.log('✅ Loyalty API Response:', {
+      url,
+      hasData: !!json?.data,
+      responseType: Array.isArray(json?.data) ? 'array' : typeof json?.data,
+    });
+    
+    return (json?.data ?? json) as T;
+  } catch (error) {
+    console.error('❌ Loyalty API Request Failed:', {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 export const loyaltyApi = {
@@ -84,14 +119,31 @@ export const loyaltyApi = {
   },
   async getLeaderboard(userId: string): Promise<LoyaltyLeaderboardUser[]> {
     const url = `${API_BASE_URL}/loyalty/leaderboard?userId=${encodeURIComponent(userId)}`;
-    console.log('🔍 Loyalty Leaderboard Request:', url);
-    const result = await getJson<LoyaltyLeaderboardUser[]>(url);
-    console.log('✅ Loyalty Leaderboard Response:', {
-      total: result?.length || 0,
-      data: result,
-      top3: result?.slice(0, 3).map(u => ({ id: u.id, name: u.name, points: u.points, rank: u.rank })),
+    console.log('🔍 Loyalty Leaderboard Request:', {
+      url,
+      userId,
+      apiBaseUrl: API_BASE_URL,
     });
-    return result;
+    
+    try {
+      const result = await getJson<LoyaltyLeaderboardUser[]>(url);
+      console.log('✅ Loyalty Leaderboard Response:', {
+        total: result?.length || 0,
+        isArray: Array.isArray(result),
+        top3: result?.slice(0, 3).map(u => ({ id: u.id, name: u.name, points: u.points, rank: u.rank })),
+        currentUser: result?.find(u => u.isCurrentUser),
+      });
+      return result || [];
+    } catch (error) {
+      console.error('❌ Loyalty Leaderboard Error:', {
+        url,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Return empty array instead of throwing to prevent UI crash
+      return [];
+    }
   },
   async getFriends(userId: string): Promise<LoyaltyFriend[]> {
     return getJson<LoyaltyFriend[]>(`${API_BASE_URL}/loyalty/friends?userId=${encodeURIComponent(userId)}`);

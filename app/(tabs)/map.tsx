@@ -31,6 +31,9 @@ import { addItemApi } from '../../services/addItemApi';
 import { carwashLocationApi } from '../../services/carwashLocationApi';
 import { categoriesApi, Category } from '../../services/categoriesApi';
 import { mechanicsApi } from '../../services/mechanicsApi';
+import { analyticsService } from '../../services/analytics';
+import { useUser } from '../../contexts/UserContext';
+import { useFocusEffect } from 'expo-router';
 // Replacing external Chip with local glassy pills
 
 const { width, height } = Dimensions.get('window');
@@ -205,6 +208,7 @@ export default function MapScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { user } = useUser();
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [showInfoCard, setShowInfoCard] = useState(false);
   const [userLocation, setUserLocation] = useState<LocationObject | null>(null);
@@ -1022,7 +1026,15 @@ export default function MapScreen() {
   const handleMarkerPress = useCallback((location: any) => {
     setSelectedLocation(location);
     setShowInfoCard(true);
-  }, []);
+    
+    // Track marker click
+    analyticsService.logMapMarkerClick(
+      location.id || 'unknown',
+      location.name || 'უცნობი',
+      location.type || location.category || 'unknown',
+      user?.id
+    );
+  }, [user?.id]);
 
   const onZoomIn = async () => {
     try {
@@ -1260,6 +1272,9 @@ export default function MapScreen() {
   };
 
   const toggleCategory = (categoryId: string) => {
+    const wasSelected = selectedCategories.includes(categoryId);
+    const categoryName = availableCategories.find(cat => cat.name === categoryId || cat.type === categoryId)?.name || categoryId;
+    
     setSelectedCategories((prev) => {
       if (prev.includes(categoryId)) {
         return prev.filter((id) => id !== categoryId);
@@ -1267,6 +1282,14 @@ export default function MapScreen() {
         return [...prev, categoryId];
       }
     });
+    
+    // Track category filter
+    analyticsService.logMapCategoryFilter(
+      categoryId,
+      categoryName,
+      wasSelected ? 'deselected' : 'selected',
+      user?.id
+    );
   };
 
   const filtered = useMemo(() => {

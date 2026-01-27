@@ -43,6 +43,7 @@ import { useEffect } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { getResponsiveDimensions, getResponsiveCardWidth } from '../../utils/responsive';
 import { analyticsService } from '../../services/analytics';
+import CredoBankBannerTracker from '../../components/CredoBankBannerTracker';
 
 const { screenWidth, contentWidth, horizontalMargin, isTablet } = getResponsiveDimensions();
 const H_MARGIN = 20;
@@ -1765,10 +1766,14 @@ export default function TabOneScreen() {
         </View>
 
         {/* Credo Bank Financing Banner */}
+        <CredoBankBannerTracker 
+          onView={() => analyticsService.logCredoBankBannerView(user?.id)}
+        />
         <View style={{ paddingHorizontal: 2, marginBottom: 16, marginTop: 16 }}>
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => {
+              analyticsService.logCredoBankBannerClick(user?.id, 'click');
               analyticsService.logButtonClick('განვადება Credo Bank', 'მთავარი', undefined, user?.id);
               if (!isPremiumUser) {
                 setShowSubscriptionModal(true);

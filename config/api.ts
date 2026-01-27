@@ -7,6 +7,7 @@ const getLanIpFromHost = (): string | undefined => {
     (Constants as any)?.manifest2?.extra?.expoClient?.hostUri ||
     (Constants as any)?.manifest?.hostUri ||
     '';
+  // ფორმატი: "192.168.1.23:8081" → გვინდა მხოლოდ IP
   if (hostUri && typeof hostUri === 'string') {
     const ip = hostUri.split(':')[0];
     return ip && ip !== 'localhost' ? ip : undefined;

@@ -367,30 +367,75 @@ export default function LoyaltyScreen() {
   }, []);
 
   const loadData = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('⚠️ Loyalty Screen: No user ID available');
+      return;
+    }
+    
     try {
+      console.log('📊 Loyalty Screen - Loading data for user:', user.id);
       const [s, tx, rw, lb, fr, ac, ms] = await Promise.all([
-        loyaltyApi.getSummary(user.id),
-        loyaltyApi.getTransactions(user.id, 20),
-        loyaltyApi.getRewards(user.id),
-        loyaltyApi.getLeaderboard(user.id),
-        loyaltyApi.getFriends(user.id),
-        loyaltyApi.getAchievements(user.id),
-        loyaltyApi.getMissions(user.id),
+        loyaltyApi.getSummary(user.id).catch(err => {
+          console.error('❌ Failed to load summary:', err);
+          return null;
+        }),
+        loyaltyApi.getTransactions(user.id, 20).catch(err => {
+          console.error('❌ Failed to load transactions:', err);
+          return [];
+        }),
+        loyaltyApi.getRewards(user.id).catch(err => {
+          console.error('❌ Failed to load rewards:', err);
+          return [];
+        }),
+        loyaltyApi.getLeaderboard(user.id).catch(err => {
+          console.error('❌ Failed to load leaderboard:', err);
+          return [];
+        }),
+        loyaltyApi.getFriends(user.id).catch(err => {
+          console.error('❌ Failed to load friends:', err);
+          return [];
+        }),
+        loyaltyApi.getAchievements(user.id).catch(err => {
+          console.error('❌ Failed to load achievements:', err);
+          return [];
+        }),
+        loyaltyApi.getMissions(user.id).catch(err => {
+          console.error('❌ Failed to load missions:', err);
+          return [];
+        }),
       ]);
+      
+      console.log('📊 Loyalty Screen - Data loaded:', {
+        summary: !!s,
+        transactions: tx?.length || 0,
+        rewards: rw?.length || 0,
+        leaderboard: lb?.length || 0,
+        friends: fr?.length || 0,
+        achievements: ac?.length || 0,
+        missions: ms?.length || 0,
+      });
+      
       console.log('📊 Loyalty Screen - Leaderboard State:', {
         leaderboard: lb,
         leaderboardLength: lb?.length || 0,
         currentUserRank: lb?.find((u: any) => u.isCurrentUser)?.rank,
+        isArray: Array.isArray(lb),
       });
-      setSummary(s);
-      setTransactions(tx);
-      setRewards(rw);
-      setLeaderboard(lb as unknown as LeaderboardUser[]);
-      setFriends(fr as unknown as Friend[]);
-      setAchievements(ac as unknown as Achievement[]);
-      setMissions(ms as unknown as LoyaltyMission[]);
-    } catch {}
+      
+      if (s) setSummary(s);
+      if (tx) setTransactions(tx);
+      if (rw) setRewards(rw);
+      if (lb) setLeaderboard(lb as unknown as LeaderboardUser[]);
+      if (fr) setFriends(fr as unknown as Friend[]);
+      if (ac) setAchievements(ac as unknown as Achievement[]);
+      if (ms) setMissions(ms as unknown as LoyaltyMission[]);
+    } catch (error) {
+      console.error('❌ Loyalty Screen - Failed to load data:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: user?.id,
+      });
+    }
   };
 
   const handleClaimMission = async (missionId: string) => {

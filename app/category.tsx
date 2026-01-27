@@ -9,6 +9,8 @@ import API_BASE_URL from '../config/api';
 import { categoriesApi, Category } from '../services/categoriesApi';
 import { useUser } from '../contexts/UserContext';
 import { engagementApi } from '../services/engagementApi';
+import { analyticsService } from '../services/analytics';
+import { useFocusEffect } from 'expo-router';
 
 const { width, height } = Dimensions.get('window');
 
@@ -112,6 +114,15 @@ export default function CategoryScreen() {
     : CATEGORY_CONFIG[categoryType] || CATEGORY_CONFIG.carwash;
   
   const categoryName = params.name as string || category?.name || config.title || 'კატეგორია';
+
+  // Track screen view when focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const screenName = `კატეგორია: ${categoryName}`;
+      analyticsService.logScreenViewWithBackend(screenName, screenName, user?.id);
+      analyticsService.logCategoryView(categoryType, categoryName, user?.id);
+    }, [categoryType, categoryName, user?.id])
+  );
 
   useEffect(() => {
     loadCategory();
@@ -230,6 +241,13 @@ export default function CategoryScreen() {
   const handleServicePress = (service: any) => {
     const serviceId = service.id;
     const serviceType = service.type || categoryType;
+    
+    // Track service click
+    analyticsService.logButtonClick(`სერვისი: ${service.name}`, 'კატეგორია', {
+      service_id: serviceId,
+      service_type: serviceType,
+      category: categoryName,
+    }, user?.id);
     
     // Track engagement based on service type
     if (user?.id && serviceId) {
