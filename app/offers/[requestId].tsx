@@ -294,12 +294,17 @@ export default function OffersScreen() {
             ]}
           >
             {/* Header / Summary */}
-            <View style={styles.headerCard}>
+            <LinearGradient
+              colors={['#6366F1', '#4F46E5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.headerCard}
+            >
               <Pressable
                 style={styles.backButton}
                 onPress={() => router.back()}
               >
-                <Ionicons name="arrow-back" size={22} color="#111827" />
+                <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
               </Pressable>
               <View style={styles.headerTexts}>
                 <Text style={styles.heroTitle}>შეთავაზებები</Text>
@@ -311,34 +316,45 @@ export default function OffersScreen() {
                 <Text style={styles.countBadgeText}>{offers.length}</Text>
                 <Text style={styles.countBadgeSub}>შეთავაზება</Text>
               </View>
-            </View>
+            </LinearGradient>
 
             {/* Request Info */}
             <View style={styles.requestInfoSection}>
-              <View style={styles.requestCard}>
+              <LinearGradient
+                colors={['#FFFFFF', '#F8FAFF']}
+                style={styles.requestCard}
+              >
                 <View style={styles.requestRow}>
-                  <View style={[styles.requestIconContainer, { backgroundColor: '#EEF2FF' }]}>
-                    <Ionicons name={getServiceIcon(request.service || 'parts') as any} size={24} color="#4F46E5" />
-                  </View>
+                  <LinearGradient
+                    colors={['#6366F1', '#4F46E5']}
+                    style={styles.requestIconContainer}
+                  >
+                    <Ionicons name={getServiceIcon(request.service || 'parts') as any} size={24} color="#FFFFFF" />
+                  </LinearGradient>
                   <View style={styles.requestDetails}>
                     <Text style={styles.requestTitle}>{request.partName}</Text>
-                    <Text style={styles.vehicleInfo}>
-                      {request.vehicle.make} {request.vehicle.model} ({request.vehicle.year})
-                    </Text>
+                    <View style={styles.vehicleInfoRow}>
+                      <Ionicons name="car-outline" size={14} color="#6366F1" />
+                      <Text style={styles.vehicleInfo}>
+                        {request.vehicle.make} {request.vehicle.model} ({request.vehicle.year})
+                      </Text>
+                    </View>
                     {request.location && (
                       <View style={styles.locationPill}>
-                        <Ionicons name="location-outline" size={14} color="#4F46E5" />
+                        <Ionicons name="location-outline" size={14} color="#6366F1" />
                         <Text style={styles.locationPillText}>{request.location}</Text>
                       </View>
                     )}
                   </View>
                 </View>
                 {request.description && (
-                  <Text style={styles.requestDescriptionLight} numberOfLines={3}>
-                    {request.description}
-                  </Text>
+                  <View style={styles.descriptionContainer}>
+                    <Text style={styles.requestDescriptionLight} numberOfLines={3}>
+                      {request.description}
+                    </Text>
+                  </View>
                 )}
-              </View>
+              </LinearGradient>
             </View>
 
             {/* Offers List */}
@@ -497,22 +513,25 @@ export default function OffersScreen() {
 
                           {/* Action */}
                           <View style={styles.offerFooter}>
-                            <View style={[styles.priceBadge, { borderColor: `${getServiceColor(service)}50` }]}>
-                              <Text style={styles.priceBadgeAmount}>{price ?? '—'} {currency}</Text>
+                            <LinearGradient
+                              colors={[`${getServiceColor(service)}15`, `${getServiceColor(service)}08`]}
+                              style={styles.priceBadge}
+                            >
+                              <Text style={[styles.priceBadgeAmount, { color: getServiceColor(service) }]}>
+                                {price ?? '—'} {currency}
+                              </Text>
                               <Text style={styles.priceBadgeLabel}>ფასი</Text>
-                            </View>
-                            <Text style={styles.actionHint}>გახსენი ჩატი დეტალებისთვის</Text>
+                            </LinearGradient>
                             <View style={styles.chatButtonContainer}>
-                             
                               <Pressable
                                 style={styles.chatButton}
                                 onPress={() => handleOfferPress(offer)}
                               >
                                 <LinearGradient
-                                  colors={['#6366F1', '#4F46E5']}
+                                  colors={[getServiceColor(service), `${getServiceColor(service)}DD`]}
                                   style={styles.chatButtonGradient}
                                 >
-                                  <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
+                                  <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" />
                                   <Text style={styles.chatButtonText}>ჩატი</Text>
                                 </LinearGradient>
                               </Pressable>
@@ -656,44 +675,41 @@ const styles = StyleSheet.create({
 
   // Hero Section
   headerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    gap: 14,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: 4,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTexts: {
     flex: 1,
-    gap: 4,
+    gap: 6,
   },
   heroTitle: {
-    fontSize: 22,
-    color: '#0F172A',
+    fontSize: 24,
+    color: '#FFFFFF',
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
   heroSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-    fontWeight: '600',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 20,
+    fontWeight: '500',
   },
   heroIconContainer: {
     width: 44,
@@ -706,65 +722,74 @@ const styles = StyleSheet.create({
   countBadge: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    minWidth: 70,
   },
   countBadgeText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#4338CA',
-    lineHeight: 18,
+    color: '#FFFFFF',
+    lineHeight: 22,
   },
   countBadgeSub: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4338CA',
-    opacity: 0.9,
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginTop: 2,
   },
 
   // Request Info
   requestInfoSection: {
-    gap: 12,
+    gap: 16,
   },
   requestCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
-    padding: 14,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    padding: 18,
   },
   requestRow: {
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
+    gap: 14,
+    alignItems: 'flex-start',
   },
   requestIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   requestDetails: {
-    gap: 4,
+    gap: 8,
     flex: 1,
     alignItems: 'flex-start',
   },
   requestTitle: {
-    fontSize: 16,
-    color: '#0F172A',
+    fontSize: 18,
+    color: '#111827',
     textAlign: 'left',
     fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  vehicleInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   vehicleInfo: {
     fontSize: 14,
@@ -779,12 +804,21 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 18,
   },
+  descriptionContainer: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1.5,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    padding: 14,
+    borderRadius: 12,
+  },
   requestDescriptionLight: {
-    marginTop: 10,
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '500',
-    lineHeight: 18,
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '600',
+    lineHeight: 22,
+    letterSpacing: -0.2,
   },
   locationContainer: {
     flexDirection: 'row',
@@ -799,17 +833,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: '#EEF2FF',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E0E7FF',
-    marginTop: 6,
+    marginTop: 4,
   },
   locationPillText: {
     fontSize: 12,
-    color: '#4338CA',
+    color: '#6366F1',
     fontWeight: '700',
   },
   locationText: {
@@ -823,9 +857,11 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   sectionTitle: {
-    fontSize: 24,
-    color: '#0F172A',
-    fontWeight: '700',
+    fontSize: 22,
+    color: '#111827',
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
   offersContainer: {
     // allow full height; outer ScrollView handles scrolling
@@ -835,24 +871,23 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   offerWrapper: {
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    marginBottom: 4,
   },
   offerCard: {
     flex: 1,
   },
   offerGradient: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#F3F4F6',
     position: 'relative',
   },
   chatButtonContainer: {
@@ -898,7 +933,7 @@ const styles = StyleSheet.create({
     color: '#10B981',
   },
   offerContent: {
-    gap: 8,
+    gap: 12,
   },
   offerHeaderRow: {
     flexDirection: 'row',
@@ -917,13 +952,18 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   providerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   onlineIndicator: {
     position: 'absolute',
@@ -946,10 +986,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   providerName: {
-    fontSize: 14.5,
+    fontSize: 16,
     color: '#111827',
-    fontWeight: '700',
+    fontWeight: '800',
     flex: 1,
+    letterSpacing: -0.3,
   },
   availabilityBadge: {
     borderRadius: 12,
@@ -987,13 +1028,19 @@ const styles = StyleSheet.create({
 
   // Offer Details
   offerDetails: {
-    gap: 8,
+    gap: 10,
+    backgroundColor: '#F9FAFB',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   offerDescription: {
-    fontSize: 12.5,
+    fontSize: 15,
     color: '#1F2937',
-    fontWeight: '400',
-    lineHeight: 17,
+    fontWeight: '600',
+    lineHeight: 22,
+    letterSpacing: -0.2,
   },
   offerMetaRow: {
     flexDirection: 'row',
@@ -1003,72 +1050,73 @@ const styles = StyleSheet.create({
   metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    gap: 6,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E7EB',
   },
   metaText: {
-    fontSize: 10.5,
-    color: '#334155',
+    fontSize: 11,
+    color: '#475569',
     fontWeight: '600',
   },
 
   // Offer Footer
   offerFooter: {
-    marginTop: 4,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
-  },
-  actionHint: {
-    color: '#334155',
-    fontSize: 11,
-    fontWeight: '600',
+    gap: 12,
   },
   chatButton: {
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   chatButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
   },
   chatButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   priceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 9,
-    borderWidth: 1,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'flex-end',
-    minWidth: 78,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 90,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   priceBadgeAmount: {
-    fontSize: 15,
-    color: '#1E293B',
+    fontSize: 18,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
   priceBadgeLabel: {
-    fontSize: 10.5,
-    color: '#475569',
+    fontSize: 11,
+    color: '#6B7280',
     fontWeight: '600',
+    marginTop: 2,
   },
 
   // Empty State

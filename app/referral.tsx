@@ -48,12 +48,56 @@ export default function ReferralScreen() {
   const [hasMoreLeaderboard, setHasMoreLeaderboard] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showInfoCard, setShowInfoCard] = useState(true);
+  const [referralHistory, setReferralHistory] = useState<{
+    inviterId: string;
+    inviterName: string;
+    referralCode: string;
+    totalReferrals: number;
+    history: Array<{
+      referralId: string;
+      inviteeId: string;
+      inviteeName: string;
+      appliedAt: number;
+      appliedAtFormatted: string;
+      subscriptionEnabled: boolean;
+      rewardsGranted: boolean;
+      firstBookingAt?: number;
+      firstBookingAtFormatted?: string;
+      createdAt: Date;
+      updatedAt: Date;
+      daysSinceApplied: number;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     if (user?.id) {
+      console.log('🔄 [FRONTEND] useEffect triggered, loading referral data for user:', user.id);
       loadReferralData(true);
+    } else {
+      console.log('⚠️ [FRONTEND] useEffect: No user ID available');
     }
   }, [user?.id]);
+
+  // დალოგვა როცა leaderboard state იცვლება
+  useEffect(() => {
+    console.log('📋 [FRONTEND] Leaderboard State Changed:', {
+      leaderboardLength: leaderboard.length,
+      leaderboardEntries: leaderboard.map((entry) => ({
+        rank: entry.rank,
+        name: entry.name,
+        points: entry.points,
+        referrals: entry.referrals,
+        isCurrentUser: entry.isCurrentUser,
+      })),
+      hasMore: hasMoreLeaderboard,
+      offset: leaderboardOffset,
+      stats: stats ? {
+        totalReferrals: stats.totalReferrals,
+        totalPointsEarned: stats.totalPointsEarned,
+        referralCode: stats.referralCode,
+      } : null,
+    });
+  }, [leaderboard, hasMoreLeaderboard, leaderboardOffset, stats]);
 
   const loadReferralData = async (reset: boolean = false) => {
     if (!user?.id) return;
@@ -66,32 +110,121 @@ export default function ReferralScreen() {
       }
       
       const offset = reset ? 0 : leaderboardOffset;
-      const [code, referralStats, leaderboardResponse] = await Promise.all([
+      
+      console.log('🏆 [FRONTEND] ლიდერბორდის მოთხოვნა:', {
+        userId: user.id,
+        reset,
+        offset,
+        limit: 20,
+      });
+      
+      const [code, referralStats, leaderboardResponse, history] = await Promise.all([
         referralsApi.getReferralCode(user.id),
         referralsApi.getReferralStats(user.id),
         referralsApi.getReferralLeaderboard(user.id, 20, offset),
+        referralsApi.getUserReferralHistory(user.id).catch(() => null), // თუ არ მუშაობს, null-ს დავაბრუნებთ
       ]);
+      
+      console.log('📥 [FRONTEND] Backend Response:', {
+        referralCode: code,
+        stats: referralStats,
+        leaderboardResponse: {
+          total: leaderboardResponse.total,
+          hasMore: leaderboardResponse.hasMore,
+          leaderboardCount: leaderboardResponse.leaderboard.length,
+          leaderboard: leaderboardResponse.leaderboard.map((entry) => ({
+            rank: entry.rank,
+            userId: entry.userId,
+            name: entry.name,
+            points: entry.points,
+            referrals: entry.referrals,
+            isCurrentUser: entry.isCurrentUser,
+            createdAt: entry.createdAt,
+          })),
+        },
+      });
+      
+      // დეტალური ანალიზი
+      const usersWithPoints = leaderboardResponse.leaderboard.filter(e => e.points > 0).length;
+      const usersWithReferrals = leaderboardResponse.leaderboard.filter(e => e.referrals > 0).length;
+      const currentUserEntry = leaderboardResponse.leaderboard.find(e => e.isCurrentUser);
+      
+      console.log('📊 [FRONTEND] Leaderboard Analysis:', {
+        totalUsers: leaderboardResponse.total,
+        returnedUsers: leaderboardResponse.leaderboard.length,
+        usersWithPoints,
+        usersWithReferrals,
+        usersWithZeroPoints: leaderboardResponse.leaderboard.length - usersWithPoints,
+        top5Users: leaderboardResponse.leaderboard.slice(0, 5).map((u, idx) => ({
+          rank: u.rank,
+          name: u.name,
+          points: u.points,
+          referrals: u.referrals,
+        })),
+        currentUserEntry: currentUserEntry ? {
+          rank: currentUserEntry.rank,
+          name: currentUserEntry.name,
+          points: currentUserEntry.points,
+          referrals: currentUserEntry.referrals,
+        } : 'Current user not found in leaderboard',
+        allUsersWithPoints: leaderboardResponse.leaderboard
+          .filter(e => e.points > 0)
+          .map(e => ({
+            rank: e.rank,
+            name: e.name,
+            points: e.points,
+            referrals: e.referrals,
+          })),
+      });
       
       setReferralCode(code);
       setStats(referralStats);
+      if (history) {
+        setReferralHistory(history);
+        console.log('📜 [FRONTEND] Referral History loaded:', {
+          totalReferrals: history.totalReferrals,
+          historyCount: history.history.length,
+          history: history.history.map((h) => ({
+            inviteeName: h.inviteeName,
+            appliedAt: h.appliedAtFormatted,
+            rewardsGranted: h.rewardsGranted,
+          })),
+        });
+      }
       
       if (reset) {
         setLeaderboard(leaderboardResponse.leaderboard);
+        console.log('✅ [FRONTEND] Leaderboard reset with', leaderboardResponse.leaderboard.length, 'entries');
       } else {
-        setLeaderboard((prev) => [...prev, ...leaderboardResponse.leaderboard]);
+        setLeaderboard((prev) => {
+          const updated = [...prev, ...leaderboardResponse.leaderboard];
+          console.log('✅ [FRONTEND] Leaderboard appended, total entries:', updated.length);
+          return updated;
+        });
       }
       
       // Debug: log leaderboard to see what we're getting
       if (reset) {
-        console.log('Leaderboard loaded:', {
+        console.log('🏆 [FRONTEND] Leaderboard loaded:', {
           total: leaderboardResponse.leaderboard.length,
           topUser: leaderboardResponse.leaderboard[0],
-          first3: leaderboardResponse.leaderboard.slice(0, 3).map(u => ({ name: u.name, points: u.points, rank: u.rank })),
+          first3: leaderboardResponse.leaderboard.slice(0, 3).map(u => ({ 
+            rank: u.rank,
+            name: u.name, 
+            points: u.points,
+            referrals: u.referrals,
+            isCurrentUser: u.isCurrentUser,
+          })),
         });
       }
       
       setHasMoreLeaderboard(leaderboardResponse.hasMore);
       setLeaderboardOffset(offset + leaderboardResponse.leaderboard.length);
+      
+      console.log('📊 [FRONTEND] Leaderboard State Updated:', {
+        hasMore: leaderboardResponse.hasMore,
+        newOffset: offset + leaderboardResponse.leaderboard.length,
+      });
     } catch (err: any) {
       console.error('Error loading referral data:', err);
       error('შეცდომა', err.message || 'რეფერალური კოდის ჩატვირთვა ვერ მოხერხდა');
@@ -287,8 +420,31 @@ export default function ReferralScreen() {
 
               {/* Leaderboard List */}
               <View style={styles.leaderboardListContainer}>
+                {(() => {
+                  console.log('🎨 [FRONTEND] Rendering Leaderboard:', {
+                    leaderboardLength: leaderboard.length,
+                    entriesToRender: leaderboard.map((e) => ({
+                      rank: e.rank,
+                      name: e.name,
+                      points: e.points,
+                      referrals: e.referrals,
+                      isCurrentUser: e.isCurrentUser,
+                    })),
+                  });
+                  return null;
+                })()}
                 <View style={styles.leaderboardList}>
-                  {leaderboard.map((entry) => (
+                  {leaderboard.map((entry, index) => {
+                    if (index < 3) {
+                      console.log(`🎯 [FRONTEND] Rendering entry ${index + 1}:`, {
+                        rank: entry.rank,
+                        name: entry.name,
+                        points: entry.points,
+                        referrals: entry.referrals,
+                        isCurrentUser: entry.isCurrentUser,
+                      });
+                    }
+                    return (
                     <View
                       key={entry.userId}
                       style={[
@@ -324,7 +480,8 @@ export default function ReferralScreen() {
                         {entry.points} <Text style={styles.pointsLabel}>ქულა</Text>
                       </Text>
                     </View>
-                  ))}
+                    );
+                  })}
                 </View>
                 
                 {/* Load More Button */}
@@ -858,7 +1015,7 @@ const styles = StyleSheet.create({
   leaderboardList: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: 'visible', // Changed from 'hidden' to 'visible' to allow scrolling
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },

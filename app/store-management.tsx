@@ -33,6 +33,7 @@ interface StoreAnnouncement {
   photos?: string[];
   status: string;
   isFeatured?: boolean;
+  isVip?: boolean;
   createdAt?: string;
   expiryDate?: string;
   views?: number;
@@ -237,7 +238,7 @@ export default function StoreManagementScreen() {
       <View key={storeId} style={styles.announcementCard}>
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            {store.isFeatured && (
+            {(store.isVip === true || store.isFeatured) && (
               <View style={styles.vipBadge}>
                 <Ionicons name="star" size={12} color="#F59E0B" />
                 <Text style={styles.vipBadgeText}>VIP</Text>

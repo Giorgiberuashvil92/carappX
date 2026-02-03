@@ -126,12 +126,13 @@ import {
         
         if (response.success && response.data) {
           const allDismantlers = response.data;
-          // Separate VIP dismantlers
-          const vip = allDismantlers.filter((d: any) => d.isVip || d.featured || d.vip);
-          const regular = allDismantlers.filter((d: any) => !d.isVip && !d.featured && !d.vip);
+          // Separate VIP dismantlers - მხოლოდ isVip === true
+          const vip = allDismantlers.filter((d: any) => d.isVip === true);
+          // Regular dismantlers - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+          const regular = allDismantlers.filter((d: any) => d.isVip !== true);
           
-          setVipDismantlers(vip.length > 0 ? vip : allDismantlers.slice(0, 3));
-          setDismantlers(regular.length > 0 ? regular : allDismantlers);
+          setVipDismantlers(vip);
+          setDismantlers(regular);
           
           // Load likes for all dismantlers
           if (allDismantlers.length > 0 && user?.id) {
@@ -174,14 +175,12 @@ import {
         const response = await addItemApi.getParts(apiFilters);
         if (response.success && response.data) {
           const allParts = response.data;
-          // Separate VIP parts
-          const vip = allParts.filter((p: any) => p.isVip || p.featured || p.vip);
-          const regular = allParts.filter((p: any) => !p.isVip && !p.featured && !p.vip);
+          const vip = allParts.filter((p: any) => p.isVip === true);
+          const regular = allParts.filter((p: any) => p.isVip !== true);
           
-          setVipParts(vip.length > 0 ? vip : allParts.slice(0, 3));
-          setParts(regular.length > 0 ? regular : allParts);
+          setVipParts(vip);
+          setParts(regular);
           
-          // Load likes for all parts
           if (allParts.length > 0 && user?.id) {
             const partIds = allParts.map((p: any) => p.id || p._id).filter(Boolean);
             if (partIds.length > 0) {

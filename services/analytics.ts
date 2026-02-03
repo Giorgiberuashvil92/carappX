@@ -229,7 +229,8 @@ class AnalyticsService {
   // Session duration tracking
   logSessionStart(userId?: string) {
     const sessionStartTime = Date.now();
-    this.logEvent('session_start', {
+    // Use 'app_session_start' instead of 'session_start' because 'session_start' is reserved by Firebase
+    this.logEvent('app_session_start', {
       timestamp: sessionStartTime,
     });
     

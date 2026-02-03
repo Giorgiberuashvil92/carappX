@@ -63,12 +63,13 @@ export default function OilsScreen() {
           store.type === 'ზეთები'
         );
         
-        // Separate VIP stores (you can add isVip field in backend)
-        const vip = oilStores.filter((s: any) => s.isVip || s.featured);
-        const regular = oilStores.filter((s: any) => !s.isVip && !s.featured);
+        // Separate VIP stores - მხოლოდ isVip === true
+        const vip = oilStores.filter((s: any) => s.isVip === true);
+        // Regular stores - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+        const regular = oilStores.filter((s: any) => s.isVip !== true);
         
-        setVipStores(vip.length > 0 ? vip : oilStores.slice(0, 3));
-        setStores(regular.length > 0 ? regular : oilStores);
+        setVipStores(vip);
+        setStores(regular);
         
         // Load special offers and merge with store data (only for oil stores)
         if (offersResponse && offersResponse.length > 0) {

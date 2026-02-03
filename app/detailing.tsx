@@ -104,11 +104,12 @@ export default function DetailingScreen() {
         // All stores from detailing endpoint are already filtered
         const detailingStores = storesResponse.data;
         
-        // Separate VIP stores
-        const vip = detailingStores.filter((s: any) => s.isVip || s.featured);
-        const regular = detailingStores.filter((s: any) => !s.isVip && !s.featured);
+        // Separate VIP stores - მხოლოდ isVip === true
+        const vip = detailingStores.filter((s: any) => s.isVip === true);
+        // Regular stores - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+        const regular = detailingStores.filter((s: any) => s.isVip !== true);
         
-        setVipStores(vip.length > 0 ? vip : detailingStores.slice(0, 3));
+        setVipStores(vip);
         
         const stores = detailingStores.map((store: any) => ({
           id: store.id || store._id,

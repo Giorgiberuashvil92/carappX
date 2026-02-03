@@ -60,11 +60,12 @@ export default function InteriorScreen() {
         // All stores from interior endpoint are already filtered
         const interiorStores = storesResponse.data;
         
-        // Separate VIP stores
-        const vip = interiorStores.filter((s: any) => s.isVip || s.featured);
-        const regular = interiorStores.filter((s: any) => !s.isVip && !s.featured);
+        // Separate VIP stores - მხოლოდ isVip === true
+        const vip = interiorStores.filter((s: any) => s.isVip === true);
+        // Regular stores - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+        const regular = interiorStores.filter((s: any) => s.isVip !== true);
         
-        setVipStores(vip.length > 0 ? vip : interiorStores.slice(0, 3));
+        setVipStores(vip);
         
         const stores = interiorStores.map((store: any) => ({
           id: store.id || store._id,
@@ -87,7 +88,7 @@ export default function InteriorScreen() {
           waitTime: undefined,
         }));
         allServices.push(...stores);
-        setStores(regular.length > 0 ? regular : interiorStores);
+        setStores(regular);
       }
       
       // Load special offers

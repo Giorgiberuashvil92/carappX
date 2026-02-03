@@ -354,11 +354,12 @@ export default function ServicesScreen() {
       
         console.log('🔧 [SERVICES] Auto services found:', autoServices.length);
       
-        // Separate VIP stores
-        const vip = autoServices.filter((s: any) => s.isVip || s.featured);
-        const regular = autoServices.filter((s: any) => !s.isVip && !s.featured);
+        // Separate VIP stores - მხოლოდ isVip === true
+        const vip = autoServices.filter((s: any) => s.isVip === true);
+        // Regular stores - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+        const regular = autoServices.filter((s: any) => s.isVip !== true);
         
-        setVipStores(vip.length > 0 ? vip : autoServices.slice(0, 3));
+        setVipStores(vip);
         
         const mappedServices = autoServices.map((service: any) => ({
         id: service.id || service._id,
@@ -383,7 +384,7 @@ export default function ServicesScreen() {
         longitude: service.longitude,
       }));
       
-        setAllServices(regular.length > 0 ? regular.map((s: any) => ({
+        setAllServices(regular.map((s: any) => ({
           id: s.id || s._id,
           name: s.name || s.title,
           description: s.description,
@@ -404,7 +405,7 @@ export default function ServicesScreen() {
           status: s.status || 'active',
           latitude: s.latitude,
           longitude: s.longitude,
-        })) : mappedServices);
+        })));
         
         // Load special offers and merge with store data (only for auto services stores)
         if (offersResponse && offersResponse.length > 0) {

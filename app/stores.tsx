@@ -93,12 +93,13 @@ export default function StoresScreen() {
       if (storesResponse.success && storesResponse.data) {
         const allStores = storesResponse.data;
         
-        // Separate VIP stores (you can add isVip field in backend)
-        const vip = allStores.filter((s: any) => s.isVip || s.featured);
-        const regular = allStores.filter((s: any) => !s.isVip && !s.featured);
+        // Separate VIP stores - მხოლოდ isVip === true
+        const vip = allStores.filter((s: any) => s.isVip === true);
+        // Regular stores - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+        const regular = allStores.filter((s: any) => s.isVip !== true);
         
-        setVipStores(vip.length > 0 ? vip : allStores.slice(0, 3));
-        setStores(regular.length > 0 ? regular : allStores);
+        setVipStores(vip);
+        setStores(regular);
         
         // Load special offers and merge with store data
         if (offersResponse && offersResponse.length > 0) {

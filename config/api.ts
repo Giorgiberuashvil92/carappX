@@ -22,16 +22,13 @@ const getApiUrl = () => {
   }
 
   if (__DEV__) {
-    const ip = getLanIpFromHost();
-    console.log('🌐 LAN IP:', ip);
-    if (ip) {
-      console.log('🌐 Using LAN IP:', ip);
-      return `https://marte-backend-production.up.railway.app`;
-    }
-    console.log('🌐 Using localhost fallback');
-    return 'https://marte-backend-production.up.railway.app';
+    // Development რეჟიმში localhost-ს ვიყენებთ
+    const localhostUrl = 'http://localhost:3000';
+    console.log('🌐 [DEV] Using localhost:', localhostUrl);
+    return localhostUrl;
   }
 
+  // Production რეჟიმში Railway-ს ვიყენებთ
   return 'https://marte-backend-production.up.railway.app';
 };
 

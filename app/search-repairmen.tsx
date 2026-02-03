@@ -15,6 +15,8 @@ import {
   ActivityIndicator,
   Image,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -249,6 +251,11 @@ export default function SearchRepairmenScreen() {
             // Get request details
             const request = await requestsApi.getRequestById(chat.requestId);
             
+            // Filter only mechanic requests
+            if (request?.service !== 'mechanic') {
+              return null;
+            }
+            
             // Get offers to find partner name
             const offers = await requestsApi.getOffers(chat.requestId);
             const partnerOffer = offers.find(o => o.partnerId === chat.partnerId) || offers[0];
@@ -283,18 +290,17 @@ export default function SearchRepairmenScreen() {
             } as ConversationItem;
           } catch (error) {
             console.error('Error enriching conversation:', error);
-            return {
-              ...chat,
-              partnerName: 'მაღაზია',
-              requestTitle: 'ნაწილის მოთხოვნა',
-              lastSenderName: '',
-              vehicleInfo: '',
-            } as ConversationItem;
+            return null;
           }
         })
       );
       
-      setConversations(enrichedConversations);
+      // Filter out null values (non-mechanic requests)
+      const filteredConversations = enrichedConversations.filter(
+        (conv): conv is ConversationItem => conv !== null
+      );
+      
+      setConversations(filteredConversations);
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
       setConversations([]);
@@ -524,7 +530,8 @@ export default function SearchRepairmenScreen() {
       <Pressable
         key={request.id}
         style={styles.requestCardSimple}
-        onPress={() => handleRequestPress(request)}
+        onPress={isMyRequest ? () => handleRequestPress(request) : undefined}
+        disabled={!isMyRequest}
       >
         <View style={styles.cardContentSimple}>
           {/* Top Row - User & Urgency */}
@@ -691,15 +698,17 @@ export default function SearchRepairmenScreen() {
             style={[styles.tab, activeTab === 'my' && styles.tabActive]}
             onPress={() => setActiveTab('my')}
           >
-            <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive]}>
-              ჩემი განცხადებები
-            </Text>
+            <View style={styles.tabContent}>
+              <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive, myRequestsCount > 0 && styles.tabTextWithBadge]}>
+                ჩემი განცხადებები
+              </Text>
+              {myRequestsCount > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>{myRequestsCount}</Text>
+                </View>
+              )}
+            </View>
             {activeTab === 'my' && <View style={styles.tabIndicator} />}
-            {myRequestsCount > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{myRequestsCount}</Text>
-              </View>
-            )}
           </Pressable>
           <Pressable
             style={[styles.tab, activeTab === 'chats' && styles.tabActive]}
@@ -888,7 +897,11 @@ export default function SearchRepairmenScreen() {
           transparent={true}
           onRequestClose={() => setShowCreateModal(false)}
         >
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
             <View style={styles.modalContentSimple}>
               {/* Simple Header */}
               <View style={styles.modalHeaderSimple}>
@@ -901,7 +914,12 @@ export default function SearchRepairmenScreen() {
                 </Pressable>
               </View>
 
-              <ScrollView style={styles.modalBodySimple} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                style={styles.modalBodySimple}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.modalScrollContent}
+              >
                 {/* Make Selection */}
                 <View style={styles.formSection}>
                   <Text style={styles.formLabel}>მარკა *</Text>
@@ -1037,7 +1055,7 @@ export default function SearchRepairmenScreen() {
                 </Pressable>
               </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Filter Modal */}
@@ -1395,6 +1413,13 @@ const styles = StyleSheet.create({
   tabActive: {
     // Active state handled by indicator
   },
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    position: 'relative',
+  },
   tabText: {
     fontSize: 14,
     fontWeight: '500',
@@ -1403,6 +1428,9 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#6366F1',
     fontWeight: '600',
+  },
+  tabTextWithBadge: {
+    paddingRight: 0,
   },
   tabIndicator: {
     position: 'absolute',
@@ -1414,21 +1442,19 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   tabBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
     backgroundColor: '#6366F1',
     borderRadius: 9,
-    minWidth: 16,
-    height: 16,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
+    marginLeft: 2,
   },
   tabBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   content: {
     flex: 1,
@@ -1874,6 +1900,9 @@ const styles = StyleSheet.create({
   modalBodySimple: {
     padding: 16,
   },
+  modalScrollContent: {
+    paddingBottom: 40,
+  },
   carSelectorSimple: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2062,10 +2091,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   descriptionSimple: {
-    fontSize: 12,
-    color: '#6B7280',
-    lineHeight: 16,
-    marginTop: 4,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '600',
+    lineHeight: 20,
+    marginTop: 6,
+    backgroundColor: '#F9FAFB',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   cardBottomRow: {
     flexDirection: 'row',

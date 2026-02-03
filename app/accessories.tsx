@@ -53,12 +53,13 @@ export default function AccessoriesScreen() {
           store.type === 'აქსესუარები'
         );
         
-        // Separate VIP stores (you can add isVip field in backend)
-        const vip = accessoryStores.filter((s: any) => s.isVip || s.featured);
-        const regular = accessoryStores.filter((s: any) => !s.isVip && !s.featured);
+        // Separate VIP stores - მხოლოდ isVip === true
+        const vip = accessoryStores.filter((s: any) => s.isVip === true);
+        // Regular stores - მხოლოდ არა-VIP (isVip !== true ან undefined/false)
+        const regular = accessoryStores.filter((s: any) => s.isVip !== true);
         
-        setVipStores(vip.length > 0 ? vip : accessoryStores.slice(0, 3));
-        setStores(regular.length > 0 ? regular : accessoryStores);
+        setVipStores(vip);
+        setStores(regular);
         
         // Mock special offers (would come from backend)
         const offers = accessoryStores.slice(0, 2).map((s: any) => ({
